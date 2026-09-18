@@ -1,0 +1,82 @@
+.wizard-steps {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 30px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.wizard-step-indicator {
+    flex: 1;
+    text-align: center;
+    padding-bottom: 15px;
+    color: #adb5bd;
+    font-weight: 600;
+    position: relative;
+    border-bottom: 3px solid transparent;
+}
+
+.wizard-step-indicator span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #6c757d;
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.wizard-step-indicator.active {
+    color: #17a2b8;
+    border-bottom-color: #17a2b8;
+}
+
+.wizard-step-indicator.active span {
+    background: #17a2b8;
+    color: #fff;
+}
+
+.wizard-step-indicator.completed span {
+    background: #28a745;
+    color: #fff;
+}
+
+.service-type-card {
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s ease-in-out;
+    height: 100%;
+}
+
+.service-type-card:hover {
+    border-color: #17a2b8;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+}
+
+.service-type-card.selected {
+    border-color: #17a2b8;
+    background: #e8f7fa;
+    box-shadow: 0 4px 12px rgba(23, 162, 184, .25);
+}
+
+.service-type-card-icon {
+    font-size: 40px;
+    color: #17a2b8;
+    margin-bottom: 12px;
+}
+
+.service-type-card h5 {
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+#rates-list .rate-auth-input {
+    max-width: 320px;
+}

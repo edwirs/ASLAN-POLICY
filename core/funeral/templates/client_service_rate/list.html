@@ -1,0 +1,18 @@
+{% extends 'list.html' %}
+{% load static %}
+{% block assets_list %}
+    <script src="{% static 'client_service_rate/js/list.js' %}"></script>
+{% endblock %}
+
+{% block columns %}
+    <th>Id</th>
+    <th>Cliente / Entidad</th>
+    <th>Tipo de servicio</th>
+    <th>Servicio</th>
+    <th>Valor</th>
+    <th>Opciones</th>
+{% endblock %}
+
+{% block javascript_list %}
+
+{% endblock %}

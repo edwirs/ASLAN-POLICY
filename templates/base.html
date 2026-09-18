@@ -475,6 +475,97 @@
           </li>
         {% endif %}
 
+        {% if perms.funeral.add_servicereception or perms.funeral.view_servicereception %}
+          <li class="nav-item">
+            <a
+              href="#"
+              class="nav-link"
+            >
+              <i class="fa-solid fa-house-medical-circle-check nav-icon"></i>
+              <p>
+                Recepción de servicios
+                <i class="fas fa-angle-left right"></i>
+              </p>
+            </a>
+
+            <ul class="nav nav-treeview">
+              {% if perms.funeral.add_servicereception %}
+                <li class="nav-item">
+                  <a
+                    href="{% url 'service_reception_wizard' %}"
+                    class="nav-link"
+                  >
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Nueva recepción</p>
+                  </a>
+                </li>
+              {% endif %}
+              {% if perms.funeral.view_servicereception %}
+                <li class="nav-item">
+                  <a
+                    href="{% url 'service_reception_list' %}"
+                    class="nav-link"
+                  >
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Recepciones registradas</p>
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </li>
+        {% endif %}
+
+        {% if perms.funeral.view_servicetype or perms.funeral.view_clientservicerate or perms.funeral.view_funeralclientprofile %}
+          <li class="nav-item">
+            <a
+              href="#"
+              class="nav-link"
+            >
+              <i class="fas fa-concierge-bell nav-icon"></i>
+              <p>
+                Servicios
+                <i class="fas fa-angle-left right"></i>
+              </p>
+            </a>
+
+            <ul class="nav nav-treeview">
+              {% if perms.funeral.view_servicetype %}
+                <li class="nav-item">
+                  <a
+                    href="{% url 'service_type_list' %}"
+                    class="nav-link"
+                  >
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Tipos de servicio</p>
+                  </a>
+                </li>
+              {% endif %}
+              {% if perms.funeral.view_clientservicerate %}
+                <li class="nav-item">
+                  <a
+                    href="{% url 'client_service_rate_list' %}"
+                    class="nav-link"
+                  >
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Servicios por entidad</p>
+                  </a>
+                </li>
+              {% endif %}
+              {% if perms.funeral.view_funeralclientprofile %}
+                <li class="nav-item">
+                  <a
+                    href="{% url 'funeral_client_profile_list' %}"
+                    class="nav-link"
+                  >
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Clasificación de clientes</p>
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </li>
+        {% endif %}
+
         <!--{{% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
           <li class="nav-item">
             <a

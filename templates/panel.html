@@ -13,7 +13,8 @@
 {% endblock %}
 
 {% block content %}
-    
+
+        {% comment %}
         <div class="row">
           <div class="col-lg-3 col-6">
             <!-- small card -->
@@ -72,8 +73,10 @@
           </div>
           <!-- ./col -->
         </div>
+        {% endcomment %}
 
     <div class="container-fluid p-0">
+        <!-- Gráficas deshabilitadas temporalmente
         <div class="row gx-2">
             <div class="col-lg-6">
                 <div id="container" class="card p-3 mt-2" style="border-radius: 20px;"></div>
@@ -82,7 +85,7 @@
             <div class="col-lg-6">
                 <div id="container-week" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
             </div>
-            
+
             <div class="col-lg-6">
                 <div id="container-day" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
             </div>
@@ -91,6 +94,8 @@
                 <div id="container-pie" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
             </div>
         </div>
+        -->
+        {% comment %}
         <div class="row">
             <div class="col-lg-12 col-md-12">
                 <div class="card p-4" style="border-radius: 20px;">
@@ -126,6 +131,7 @@
                 </div>
             </div>
         </div>
+        {% endcomment %}
     </div>
     <script type="application/javascript">
         var chart = {
@@ -579,14 +585,15 @@
             });
         }
         $(function () {
-            chart.getSalesYearMonth();
-            chart.getSalesWeek();
-            chart.getSalesWeekday();
-            chart.getSalesProductsYearMonth();
-            fetchVentasHoy();
-            ProductoMasVendido();
-            VentasSemanales();
-            CantVentasHoy();
+            // Gráficas y tarjetas de totales deshabilitadas temporalmente
+            // chart.getSalesYearMonth();
+            // chart.getSalesWeek();
+            // chart.getSalesWeekday();
+            // chart.getSalesProductsYearMonth();
+            // fetchVentasHoy();
+            // ProductoMasVendido();
+            // VentasSemanales();
+            // CantVentasHoy();
         });
     </script>
 {% endblock %}
