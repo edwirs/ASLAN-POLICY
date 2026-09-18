@@ -409,69 +409,6 @@
           </li>
         {% endif %} -->
 
-        <!--{% if perms.production.view_plant_inventory or perms.production.view_plant_inventory_import %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-seedling"></i>
-              <p>
-                Producción
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-                {% if perms.production.view_plant_inventory_import %}
-                  <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="far fa-circle nav-icon"></i>
-                        <p>
-                            Inventario Plantas
-                            <i class="right fas fa-angle-left"></i>
-                        </p>
-                    </a>
-                    
-                    {% if perms.production.view_plant_inventory_import %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'production:plant_inventory_import_list' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Importar</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-
-                    {% if perms.production.view_plant_inventory %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'production:plant_inventory_filter' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Consultar Inventario</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                {% endif %}
-
-              {% if perms.pos.view_product %}
-                <li class="nav-item">
-                  <a
-                    class="nav-link"
-                    href="{% url 'production:mipe_dashboard' %}"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    MIPE
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %} -->
-
         {% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
           <li class="nav-item">
             <a

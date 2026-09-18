@@ -60,8 +60,6 @@ TENANT_APPS = [
     'core.security',
     'core.reports',
     'core.pos',
-    'core.catalogs',
-    'core.production',
 ]
 
 DJANGO_APPS = [
@@ -149,7 +147,7 @@ def get_db_config(environ_var='DATABASE_URL'):
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': 'Aslan_core',
+        'NAME': 'sigef',
         'USER': 'postgres',
         'PASSWORD': 'Postgres2025',
         'HOST': 'localhost',

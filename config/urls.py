@@ -28,8 +28,6 @@ urlpatterns = [
     path('reports/', include('core.reports.urls')),
     path('security/', include('core.security.urls')),
     path('user/', include('core.user.urls')),
-    path('catalogs/', include('core.catalogs.urls')),
-    path('production/', include('core.production.urls')),
 ]
 
 if settings.DEBUG:
