@@ -1,0 +1,93 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-user-tie"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{% if action == 'add' %}Nuevo{% else %}{{ object.nombres }}{% endif %}</li>
+{% endblock %}
+
+{% block assets_form %}
+    <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+    <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap4.min.css' %}">
+{% endblock %}
+
+{% block form_fields %}
+    <h5 class="fw-bold mb-1"><i class="fa-solid fa-id-card"></i> Datos personales</h5>
+    <p class="text-muted small mb-3"><b>Interno</b>: asesor de la casa. <b>Externo</b>: aliado que cotiza con la plataforma.</p>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.tipo col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.tipo_documento col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.documento col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.nombres col='col-12' %}
+        {% include 'asesor/_campo.html' with campo=form.correo %}
+        {% include 'asesor/_campo.html' with campo=form.telefono %}
+        {% include 'asesor/_campo.html' with campo=form.ciudad %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_vinculacion %}
+    </div>
+
+    <div id="bloqueEmpresa">
+        <hr>
+        <h5 class="fw-bold mb-3"><i class="fa-solid fa-handshake"></i> Empresa del asesor externo</h5>
+        <div class="row">
+            {% include 'asesor/_campo.html' with campo=form.empresa %}
+            {% include 'asesor/_campo.html' with campo=form.nit_empresa %}
+        </div>
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-percent"></i> Comisión</h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.porcentaje_comision col='col-md-4' ayuda='Porcentaje pactado, de 0 a 100.' %}
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-building-columns"></i> Datos de pago <small class="text-muted fw-normal">(opcionales)</small></h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.banco col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.tipo_cuenta col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.numero_cuenta col='col-md-4' %}
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-user-lock"></i> Acceso al sistema</h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.usuario ayuda='Si el asesor entra a la plataforma, enlaza su usuario para que sus cotizaciones queden a su nombre.' %}
+        {% include 'asesor/_campo.html' with campo=form.observaciones %}
+    </div>
+
+    <hr>
+    <div class="form-check form-switch">
+        {{ form.is_active }}
+        <label class="form-check-label fw-bold" for="{{ form.is_active.id_for_label }}">Asesor activo</label>
+    </div>
+{% endblock %}
+
+{% block content_form_before %}
+    <script type="application/javascript">
+        $(function () {
+            $('.select2').select2({theme: 'bootstrap4', language: 'es', placeholder: 'Seleccione…', width: '100%'});
+
+            // Los datos de empresa solo aplican a los asesores externos.
+            function actualizarTipo() {
+                var externo = $('#id_tipo').val() === 'externo';
+                $('#bloqueEmpresa').toggle(externo);
+                $('#id_empresa').prop('required', externo);
+            }
+            $('#id_tipo').on('change', actualizarTipo);
+            actualizarTipo();
+
+            $('#frmForm').on('submit', function (e) {
+                e.preventDefault();
+                submit_with_formdata({
+                    'params': new FormData(this),
+                    'form': this,
+                    'content': {% if action == 'add' %}'¿Registrar este asesor?'{% else %}'¿Guardar los cambios de este asesor?'{% endif %}
+                });
+            });
+        });
+    </script>
+{% endblock %}

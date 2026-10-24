@@ -11,7 +11,7 @@ from django.contrib.auth.models import Permission
 from core.pos.models import *
 
 dashboard = Dashboard()
-dashboard.name = 'ASLAN POS'
+dashboard.name = 'NEXO by ASLAN Tecnología'
 dashboard.icon = 'fas fa-user-tie'
 dashboard.author = 'Edwin Alexis Barragan Puentes'
 dashboard.save()

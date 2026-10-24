@@ -1,0 +1,272 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-car-burst"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets %}
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap4.min.css' %}">
+    <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+    <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'solicitud/css/create.css' %}">
+    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}">
+    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}"};</script>
+    <script src="{% static 'solicitud/js/proceso.js' %}?v=2"></script>
+    <script src="{% static 'solicitud/js/form.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="quote-request-wrapper">
+    <div class="quote-request-card">
+
+        <div class="quote-request-hero">
+            <div class="hero-icon"><i class="fa-solid fa-car-side"></i></div>
+            <h2>Cotizar seguro todo riesgo</h2>
+            <p>Ingresa los datos básicos del tomador y del vehículo. Con esta información buscaremos la mejor opción entre todas nuestras aseguradoras aliadas.</p>
+        </div>
+
+        <div class="quote-request-body">
+
+            <!-- FORMULARIO -->
+            <form method="post" id="frmSolicitud" autocomplete="off"
+                  data-lookup-url="{% url 'solicitud_consultar_registro' %}"
+                  data-cotizar-url="{% url 'solicitud_iniciar_cotizacion' %}"
+                  data-estado-url="{% url 'solicitud_estado_cotizaciones' %}"
+                  data-reintentar-url="{% url 'solicitud_reintentar_cotizacion' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add">
+                {{ form.es_cero_km }}
+                {{ form.codigo_fasecolda }}
+                {{ form.valor_comercial }}
+
+                <div class="quote-section-title"><i class="fa-solid fa-user"></i> Datos del tomador <span class="line"></span></div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.document_type.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-id-badge"></i></span>
+                                {{ form.document_type }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.dni.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
+                                {{ form.dni }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="quote-field-group">
+                            <label>{{ form.names.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-signature"></i></span>
+                                {{ form.names }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.birthdate.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-cake-candles"></i></span>
+                                {{ form.birthdate }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.email.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                                {{ form.email }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quote-section-title mt-4"><i class="fa-solid fa-car"></i> Datos del vehículo <span class="line"></span></div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.placa.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-hashtag"></i></span>
+                                {{ form.placa }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="quote-field-group">
+                            <label>{{ form.zona_circulacion.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-location-dot"></i></span>
+                                {{ form.zona_circulacion }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="frmSolicitudErrors" class="alert alert-danger d-none mt-2"></div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn quote-submit-btn" id="btnSubmitSolicitud">
+                        <i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar ahora
+                    </button>
+                </div>
+            </form>
+
+            <!-- ESTADO DE ÉXITO -->
+            <div class="quote-success-state" id="quoteSuccessState">
+                <div class="success-badge"><i class="fa-solid fa-check"></i></div>
+                <h4>¡Solicitud registrada!</h4>
+                <p class="text-muted">Ya tenemos los datos básicos. Estamos cotizando automáticamente con nuestras aseguradoras aliadas.</p>
+                <div class="quote-success-summary" id="quoteSuccessSummary"></div>
+
+                <div class="quote-bot-loading" id="quoteBotLoading">
+                    <div class="quote-bot-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                    <p>Cotizando, esto puede tardar unos minutos... Puedes registrar otra solicitud: el avance de esta queda en <b>Solicitudes registradas</b> &gt; Ver proceso.</p>
+                </div>
+
+                <div class="quote-bot-results d-none" id="quoteBotResults"></div>
+
+                <button type="button" class="btn btn-outline-primary" id="btnNuevaSolicitud">
+                    <i class="fa-solid fa-plus"></i> Registrar otra solicitud
+                </button>
+                {% if perms.policies.view_vehiculo %}
+                    <a href="{% url 'vehiculo_list' %}" class="btn btn-link">
+                        <i class="fa-solid fa-list"></i> Ver solicitudes registradas
+                    </a>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: ASEGURADORAS A COTIZAR -->
+<div class="modal fade" id="modalAseguradoras" tabindex="-1" aria-labelledby="modalAseguradorasLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content cero-km-modal-content">
+            <div class="modal-body aseg-modal-body">
+                <div class="cero-km-icon"><i class="fa-solid fa-building-shield"></i></div>
+                <h4 id="modalAseguradorasLabel">¿Con qué aseguradoras quieres cotizar?</h4>
+                <p class="text-muted mb-3">Todas las activas vienen seleccionadas (salvo las que piden cambiar la contraseña). Desmarca las que no quieras incluir en esta solicitud.</p>
+                {% if aseguradoras_activas %}
+                    <div class="aseg-list" id="listaAseguradoras">
+                        {% for aseguradora in aseguradoras_activas %}
+                            <label class="aseg-choice" for="aseg_{{ aseguradora.id }}">
+                                <span class="aseg-choice-name"><i class="fa-solid fa-shield-halved"></i> {{ aseguradora.name }}
+                                    {% if aseguradora.clave_pendiente %}
+                                        <a class="badge bg-warning text-dark text-decoration-none ms-1" href="{% url 'aseguradora_update' aseguradora.id %}"
+                                           title="El portal pidió cambiar la contraseña: actualízala en el sistema para volver a cotizar con ella.">
+                                            <i class="fa-solid fa-key"></i> Cambiar contraseña</a>
+                                    {% endif %}
+                                </span>
+                                <span class="form-check form-switch m-0">
+                                    <input class="form-check-input aseg-switch" type="checkbox" role="switch"
+                                           id="aseg_{{ aseguradora.id }}" value="{{ aseguradora.id }}" {% if not aseguradora.clave_pendiente %}checked{% endif %}>
+                                </span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <div class="aseg-summary"><span id="asegContador"></span>
+                        <a href="#" id="asegToggleTodas">Quitar todas</a></div>
+                {% else %}
+                    <div class="alert alert-warning mb-0">No hay aseguradoras activas para cotizar. Actívalas en Configuraciones › Aseguradoras.</div>
+                {% endif %}
+            </div>
+            <div class="modal-footer cero-km-footer">
+                <button type="button" class="btn btn-cero-km-no" id="btnAsegCancelar" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-xmark"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-cero-km-si" id="btnAsegContinuar" {% if not aseguradoras_activas %}disabled{% endif %}>
+                    <i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: ¿ES 0 KILÓMETROS? -->
+<div class="modal fade" id="modalCeroKm" tabindex="-1" aria-labelledby="modalCeroKmLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content cero-km-modal-content">
+            <div class="modal-body">
+                <div class="cero-km-icon"><i class="fa-solid fa-car-side"></i></div>
+                <h4 id="modalCeroKmLabel">¿El vehículo es 0 kilómetros?</h4>
+            </div>
+            <div class="modal-footer cero-km-footer">
+                <button type="button" class="btn btn-cero-km-no" id="btnCeroKmNo">
+                    <i class="fa-solid fa-xmark"></i> No
+                </button>
+                <button type="button" class="btn btn-cero-km-si" id="btnCeroKmSi">
+                    <i class="fa-solid fa-check"></i> Sí
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: DATOS DEL VEHÍCULO 0 KM (Fasecolda + valor comercial) -->
+<div class="modal fade" id="modalDatosCeroKm" tabindex="-1" aria-labelledby="modalDatosCeroKmLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content cero-km-modal-content">
+            <div class="modal-body">
+                <div class="cero-km-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <h4 id="modalDatosCeroKmLabel">Datos del vehículo 0 km</h4>
+                <p class="text-muted mb-3">Un 0 km no tiene historial por placa, así que necesitamos estos dos datos para cotizar</p>
+                <div class="cero-km-fields">
+                    <label for="inputFasecolda">Código Fasecolda</label>
+                    <input type="text" id="inputFasecolda" class="form-control" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="Ej. 01601127">
+                    <label for="inputValorComercial" class="mt-3">Valor comercial</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="text" id="inputValorComercial" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Ej. 85.000.000">
+                    </div>
+                    <div id="datosCeroKmError" class="cero-km-error d-none"></div>
+                </div>
+            </div>
+            <div class="modal-footer cero-km-footer">
+                <button type="button" class="btn btn-cero-km-no" id="btnDatosCeroKmVolver">
+                    <i class="fa-solid fa-arrow-left"></i> Volver
+                </button>
+                <button type="button" class="btn btn-cero-km-si" id="btnDatosCeroKmContinuar">
+                    <i class="fa-solid fa-check"></i> Continuar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: SELECCIÓN DE PLACA (cliente con varios vehículos registrados) -->
+<div class="modal fade" id="modalSeleccionPlaca" tabindex="-1" aria-labelledby="modalSeleccionPlacaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content cero-km-modal-content">
+            <div class="modal-body">
+                <div class="cero-km-icon"><i class="fa-solid fa-car-side"></i></div>
+                <h4 id="modalSeleccionPlacaLabel">Este tomador tiene varios vehículos</h4>
+                <p class="text-muted mb-3">Elige cuál placa quieres cargar en la solicitud</p>
+                <div id="listaPlacasEncontradas" class="placa-choice-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

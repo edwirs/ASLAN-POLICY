@@ -1,15 +1,14 @@
-<footer class="footer mt-auto py-3 bg-light">
-    <div class="container text-center">
-        <span class="text-muted author">
-            Desarrollado por 
-            <img
-                src="{{ dashboard.get_image }}"
-                alt="AdminLTE Logo"
-                class="brand-image"
-                style="filter: grayscale(100%) brightness(50%);"
-                width="5%"
-            >
-            <a class="author" target="_blank" href="https://www.youtube.com/@AlgoriSoft">{{ dashboard.author }}</a>
-        </span>
-    </div>
-</footer>
+{% comment %}
+  Pie de página compacto de una sola línea: marca y año a la izquierda, créditos a la derecha.
+  Los estilos están en static/css/style.css (.app-footer).
+{% endcomment %}
+<div class="app-footer">
+    <span class="app-footer-brand">
+        &copy; {% now "Y" %} <b>{{ dashboard.name|default:"NEXO by ASLAN Tecnología" }}</b>
+    </span>
+    <span class="app-footer-credit">
+        Desarrollado por
+        <img src="{{ dashboard.get_image }}" alt="" class="app-footer-logo">
+        <a class="author" target="_blank" rel="noopener" href="https://www.youtube.com/@AlgoriSoft">{{ dashboard.author }}</a>
+    </span>
+</div>

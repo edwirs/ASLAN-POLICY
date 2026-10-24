@@ -1,0 +1,202 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block body_class %}sidebar-collapse{% endblock %}
+
+{% block assets %}
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=5">
+    <script src="{% static 'comparativo/js/modales.js' %}"></script>
+{% endblock %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-car-burst"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active"><i class="fa-solid fa-scale-balanced"></i> Comparativo</li>
+{% endblock %}
+
+{% block content %}
+<div class="cmp-page">
+
+    {# ===== Encabezado: identidad del vehículo y acciones ===== #}
+    <header class="cmp-head">
+        <div class="cmp-head-id">
+            <div class="cmp-eyebrow"><i class="fa-solid fa-scale-balanced"></i> Comparativo de seguros</div>
+            <h1 class="cmp-placa-grande">{{ vehiculo.placa }}{% if vehiculo.es_cero_km %}<span class="cmp-chip cmp-chip-info">0 km</span>{% endif %}</h1>
+            <div class="cmp-subtitulo">
+                {% if vehiculo.marca %}{{ vehiculo.marca }}{% endif %}{% if vehiculo.referencia %} {{ vehiculo.referencia }}{% endif %}
+                {% if vehiculo.modelo %}<span class="cmp-punto">·</span> {{ vehiculo.modelo }}{% endif %}
+                {% if vehiculo.servicio %}<span class="cmp-punto">·</span> {{ vehiculo.get_servicio_display }}{% endif %}
+            </div>
+        </div>
+        <div class="cmp-acciones cmp-no-imprimir">
+            {% if puede_registrar_valores %}
+                <button type="button" class="btn btn-primary rounded-pill" id="cmpAgregarValores"><i class="fa-solid fa-plus"></i> Agregar valores</button>
+            {% endif %}
+            <a href="{{ list_url }}" class="btn btn-secondary rounded-pill"><i class="fa-solid fa-arrow-left"></i> Volver</a>
+            <a href="." class="btn btn-success rounded-pill"><i class="fas fa-sync-alt"></i> Actualizar</a>
+        </div>
+    </header>
+
+    {# Solo al imprimir: a quién va dirigido #}
+    <div class="cmp-solo-imprimir cmp-membrete">
+        <div><b>Propuesta de seguro de automóvil</b></div>
+        <div>Para: <b>{{ tomador.names }}</b> · {{ tomador.document_type.abbreviation }} {{ tomador.dni }}</div>
+        <div>Fecha: {% now "d/m/Y" %}</div>
+    </div>
+
+    {# ===== Vehículo y propietario ===== #}
+    <section class="cmp-seccion cmp-no-imprimir">
+        <div class="cmp-fichas">
+            <article class="cmp-ficha">
+                <h2 class="cmp-ficha-titulo"><span class="cmp-icono"><i class="fa-solid fa-car"></i></span> Vehículo</h2>
+                <dl class="cmp-datos">
+                    <div><dt>Clase</dt><dd>{{ vehiculo.clase|default:"—" }}</dd></div>
+                    <div><dt>Código Fasecolda</dt><dd>{{ vehiculo.codigo_fasecolda|default:"—" }}</dd></div>
+                    <div><dt>Valor comercial</dt><dd>{{ valor_comercial_fmt|default:"—" }}</dd></div>
+                    <div><dt>Zona de circulación</dt><dd>{{ vehiculo.zona_circulacion }}</dd></div>
+                </dl>
+            </article>
+            <article class="cmp-ficha">
+                <h2 class="cmp-ficha-titulo"><span class="cmp-icono"><i class="fa-solid fa-user"></i></span> Propietario / tomador</h2>
+                <dl class="cmp-datos">
+                    <div class="cmp-ancho"><dt>Nombre</dt><dd><b>{{ tomador.names }}</b></dd></div>
+                    <div><dt>Documento</dt><dd>{{ tomador.document_type.abbreviation }} {{ tomador.dni }}</dd></div>
+                    <div><dt>Teléfono</dt><dd>{{ tomador.mobile|default:"—" }}</dd></div>
+                    <div><dt>Correo</dt><dd>{{ tomador.email|default:"—" }}</dd></div>
+                    <div><dt>Ciudad</dt><dd>{% if tomador.municipality %}{{ tomador.municipality }}{% else %}—{% endif %}</dd></div>
+                </dl>
+            </article>
+        </div>
+    </section>
+
+    {% if indicadores %}
+    {# ===== Indicadores ===== #}
+    <section class="cmp-kpis cmp-no-imprimir">
+        <div class="cmp-kpi cmp-kpi-mejor">
+            <div class="cmp-kpi-label"><i class="fa-solid fa-trophy"></i> Más económica</div>
+            <div class="cmp-kpi-valor">{{ indicadores.mejor.valor_fmt }}</div>
+            <div class="cmp-kpi-sub">{{ indicadores.mejor.aseguradora }} · {{ indicadores.mejor.etiqueta }}</div>
+        </div>
+        <div class="cmp-kpi">
+            <div class="cmp-kpi-label"><i class="fa-solid fa-arrow-trend-up"></i> Más alta</div>
+            <div class="cmp-kpi-valor">{{ indicadores.alta.valor_fmt }}</div>
+            <div class="cmp-kpi-sub">{{ indicadores.alta.aseguradora }} · {{ indicadores.alta.etiqueta }}</div>
+        </div>
+        <div class="cmp-kpi">
+            <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia entre extremos</div>
+            <div class="cmp-kpi-valor">{{ indicadores.brecha_fmt }}</div>
+            <div class="cmp-kpi-sub">{{ indicadores.brecha_pct|floatformat:1 }}% sobre la más económica</div>
+        </div>
+        <div class="cmp-kpi">
+            <div class="cmp-kpi-label"><i class="fa-solid fa-building-shield"></i> Aseguradoras comparadas</div>
+            <div class="cmp-kpi-valor">{{ indicadores.cantidad }}</div>
+            <div class="cmp-kpi-sub">{% if sin_valor %}{{ sin_valor|length }} sin valor por ahora{% else %}Todas con valor{% endif %}</div>
+        </div>
+    </section>
+    {% endif %}
+
+    {# ===== Ranking ===== #}
+    <section class="cmp-seccion cmp-no-imprimir">
+        <h2 class="cmp-seccion-titulo">Ranking de valores <small>de menor a mayor</small></h2>
+        {% if filas %}
+            <div class="cmp-tabla-marco">
+                <table class="cmp-rank-tabla">
+                    <thead>
+                    <tr>
+                        <th class="text-center" style="width:48px;">#</th>
+                        <th>Aseguradora</th>
+                        <th>Plan</th>
+                        <th class="text-end">Valor</th>
+                        <th class="text-end">Diferencia vs. el más bajo</th>
+                        <th class="text-center">Origen</th>
+                        <th>Actualizado</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for f in filas %}
+                        <tr class="{% if f.posicion == 1 %}cmp-rank-mejor{% endif %}">
+                            <td class="text-center"><span class="cmp-pos">{% if f.posicion == 1 %}<i class="fa-solid fa-trophy"></i>{% else %}{{ f.posicion }}{% endif %}</span></td>
+                            <td><b>{{ f.aseguradora }}</b>{% if f.posicion == 1 %} <span class="cmp-chip cmp-chip-ok">Más económica</span>{% endif %}</td>
+                            <td class="cmp-plan">{{ f.etiqueta }}</td>
+                            <td class="text-end">
+                                <span class="cmp-rank-valor">{{ f.valor_fmt }}</span>
+                                <span class="cmp-barra"><span style="width: {{ f.barra }}%"></span></span>
+                            </td>
+                            <td class="text-end">{% if f.posicion == 1 %}<span class="cmp-ok">—</span>{% else %}+{{ f.diferencia_fmt }} <small>({{ f.diferencia_pct|floatformat:1 }}%)</small>{% endif %}</td>
+                            <td class="text-center">
+                                {% if f.origen == 'bot' %}<span class="cmp-chip cmp-chip-bot"><i class="fa-solid fa-robot"></i> Bot</span>
+                                {% else %}<span class="cmp-chip cmp-chip-manual"><i class="fa-solid fa-hand"></i> Manual</span>{% endif %}
+                            </td>
+                            <td class="cmp-fecha">{{ f.fecha|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="cmp-vacio">
+                <i class="fa-regular fa-folder-open"></i>
+                <div><b>Todavía no hay valores para comparar</b></div>
+                <div>Cotiza con las aseguradoras o agrega los valores de las que no tienen bot.</div>
+            </div>
+        {% endif %}
+
+        {% if sin_valor %}
+            <div class="cmp-sin-valor">
+                <span class="cmp-sin-valor-titulo"><i class="fa-solid fa-circle-info"></i> Sin valor para comparar</span>
+                {% for s in sin_valor %}
+                    <span class="cmp-chip cmp-chip-gris"><b>{{ s.aseguradora }}</b> · {{ s.motivo }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </section>
+
+    {% if resumen.columnas %}
+    {# ===== Resumen para el cliente ===== #}
+    <section class="cmp-seccion cmp-resumen" id="cmpResumen">
+        <div class="cmp-resumen-cabecera">
+            <div>
+                <h2 class="cmp-seccion-titulo mb-1">Resumen para el cliente</h2>
+                <p class="cmp-ayuda cmp-no-imprimir">Solo las aseguradoras que aplican a esta solicitud, de la más económica a la más costosa. Las coberturas salen de la ficha de cada aseguradora (Configuraciones › Aseguradoras › Coberturas).</p>
+            </div>
+            <div class="cmp-herramientas cmp-no-imprimir">
+                <label class="cmp-switch" for="cmpSoloDiferencias">
+                    <input type="checkbox" id="cmpSoloDiferencias">
+                    <span class="cmp-switch-pista"></span>
+                    <span>Solo diferencias</span>
+                </label>
+                <a href="{{ imprimir_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-pill" id="cmpImprimir"><i class="fa-solid fa-print"></i> Imprimir / guardar PDF</a>
+            </div>
+        </div>
+
+        {% include 'comparativo/_resumen_tabla.html' %}
+
+        {% for c in resumen.columnas %}{% if not c.tiene_ficha %}
+            <div class="cmp-aviso cmp-no-imprimir"><i class="fa-solid fa-triangle-exclamation"></i> {{ c.aseguradora }} no tiene ficha de coberturas cargada: su columna solo muestra el valor.</div>
+        {% endif %}{% endfor %}
+        <p class="cmp-nota-pie">Valores en pesos colombianos (COP). Las coberturas, deducibles y condiciones están sujetas a las condiciones generales de cada aseguradora.</p>
+    </section>
+    {% endif %}
+
+    {% include 'comparativo/_modales.html' %}
+</div>
+
+<script>
+    $(function () {
+        $('#cmpSoloDiferencias').on('change', function () {
+            $('#cmpResumen').toggleClass('cmp-solo-diferencias', this.checked);
+        });
+        // La impresión se hace en una página aparte, limpia (sin menú ni contenedor de la aplicación).
+        $('#cmpImprimir').on('click', function () {
+            var base = $(this).data('base') || $(this).attr('href');
+            $(this).data('base', base);
+            $(this).attr('href', base + ($('#cmpSoloDiferencias').is(':checked') ? '?solo_diferencias=1' : ''));
+        });
+        $('#cmpAgregarValores').on('click', function () {
+            $('.cmp-placa').text('{{ vehiculo.placa|escapejs }}');
+            comparativoModales.abrirValores();
+        });
+    });
+</script>
+{% endblock %}

@@ -8,6 +8,7 @@ from django.forms import model_to_dict
 from config import settings
 from core.security.choices import LOGIN_ATTEMPT
 from core.user.models import User
+from core.security.registry import perms_for
 
 
 class Dashboard(models.Model):
@@ -70,3 +71,18 @@ class UserAccess(models.Model):
             ('view_user_access', 'Can view Acceso de Usuario'),
             ('delete_user_access', 'Can delete Acceso de Usuario'),
         )
+
+
+class Role(Group):
+    """Rol de usuario: un ``Group`` de Django administrado desde la interfaz.
+
+    Es un modelo proxy: no crea tabla; solo da un contexto propio para los permisos
+    de la pantalla "Roles y Permisos" (ver, crear, editar y eliminar roles).
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Rol'
+        verbose_name_plural = 'Roles'
+        default_permissions = ()
+        permissions = perms_for('security.Role')

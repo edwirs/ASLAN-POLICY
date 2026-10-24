@@ -1,0 +1,30 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-building-shield"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <script>var puedeEditar = {% if perms.policies.change_aseguradora %}true{% else %}false{% endif %};</script>
+    <script src="{% static 'aseguradora/js/list.js' %}?v=3"></script>
+{% endblock %}
+
+{% block ayuda %}
+    Aquí se administran los datos de acceso que usan los bots para cotizar en cada aseguradora. Una aseguradora <b>inactiva</b> no se incluye en las cotizaciones nuevas (por ejemplo, si su cuenta se bloqueó). Las contraseñas se guardan cifradas y nunca se muestran.
+{% endblock %}
+
+{% block columns %}
+    <th>Aseguradora</th>
+    <th>Portal</th>
+    <th>Usuario</th>
+    <th>Datos de acceso</th>
+    <th>Estado</th>
+    <th>Opciones</th>
+{% endblock %}
+
+{% block javascript_list %}{% endblock %}

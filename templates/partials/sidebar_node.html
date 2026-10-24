@@ -1,0 +1,21 @@
+{% if node.children %}
+<li class="nav-item">
+  <a href="#" class="nav-link">
+    <i class="{{ node.icon }} nav-icon"></i>
+    <p>
+      {{ node.label }}
+      <i class="fas fa-angle-left right"></i>
+    </p>
+  </a>
+  <ul class="nav nav-treeview">
+    {% for child in node.children %}{% include "partials/sidebar_node.html" with node=child %}{% endfor %}
+  </ul>
+</li>
+{% else %}
+<li class="nav-item">
+  <a href="{{ node.url }}" class="nav-link">
+    <i class="{{ node.icon }} nav-icon"></i>
+    <p>{{ node.label }}</p>
+  </a>
+</li>
+{% endif %}

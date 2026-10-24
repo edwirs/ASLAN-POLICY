@@ -1,0 +1,31 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-user-tie"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <script>var puedeEditar = {% if perms.policies.change_asesor %}true{% else %}false{% endif %};</script>
+    <script src="{% static 'asesor/js/list.js' %}?v=2"></script>
+{% endblock %}
+
+{% block ayuda %}
+    Asesores de la casa (<b>internos</b>) y aliados que cotizan con la plataforma (<b>externos</b>), con el porcentaje de comisión pactado. Un asesor <b>inactivo</b> conserva su historial pero deja de poder usarse.
+{% endblock %}
+
+{% block columns %}
+    <th>Asesor</th>
+    <th>Tipo</th>
+    <th>Empresa</th>
+    <th>Contacto</th>
+    <th>Comisión</th>
+    <th>Estado</th>
+    <th>Opciones</th>
+{% endblock %}
+
+{% block javascript_list %}{% endblock %}

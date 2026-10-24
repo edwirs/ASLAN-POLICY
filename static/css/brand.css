@@ -1,0 +1,31 @@
+/* Color de marca: el azul del logo de ASLAN Tecnología (--aslan-blue del login). Se carga después de AdminLTE y del
+   tema oscuro para que los botones azules y la línea superior de las tarjetas sean idénticos en toda la app. */
+:root {
+    --aslan-blue: #2ab1ee;
+    --aslan-blue-hover: #1995ce;
+    --aslan-blue-focus: rgba(42, 177, 238, .5);
+}
+
+.btn-primary, .dark-mode .btn-primary { background-color: var(--aslan-blue); border-color: var(--aslan-blue); color: #fff; }
+.btn-primary:hover, .btn-primary:focus,
+.btn-primary:not(:disabled):not(.disabled):active, .btn-primary:not(:disabled):not(.disabled).active,
+.show > .btn-primary.dropdown-toggle,
+.dark-mode .btn-primary:hover, .dark-mode .btn-primary:focus,
+.dark-mode .btn-primary:not(:disabled):not(.disabled):active, .dark-mode .btn-primary:not(:disabled):not(.disabled).active { background-color: var(--aslan-blue-hover); border-color: var(--aslan-blue-hover); color: #fff; }
+.btn-primary:focus, .btn-primary:not(:disabled):not(.disabled):active:focus, .dark-mode .btn-primary:focus { box-shadow: 0 0 0 .2rem var(--aslan-blue-focus); }
+.btn-primary.disabled, .btn-primary:disabled, .dark-mode .btn-primary.disabled, .dark-mode .btn-primary:disabled { background-color: var(--aslan-blue); border-color: var(--aslan-blue); }
+
+.btn-outline-primary { color: var(--aslan-blue-hover); border-color: var(--aslan-blue); }
+.btn-outline-primary:hover, .btn-outline-primary:focus,
+.btn-outline-primary:not(:disabled):not(.disabled):active, .btn-outline-primary:not(:disabled):not(.disabled).active,
+.dark-mode .btn-outline-primary:hover {
+    background-color: var(--aslan-blue); border-color: var(--aslan-blue); color: #fff;
+}
+.btn-outline-primary:focus { box-shadow: 0 0 0 .2rem var(--aslan-blue-focus); }
+.dark-mode .btn-outline-primary { color: var(--aslan-blue); border-color: var(--aslan-blue); }
+.dark-mode .btn-outline-primary:hover { color: #fff; }
+
+.card-primary.card-outline, .dark-mode .card.card-outline.card-primary { border-top-color: var(--aslan-blue); }
+.bg-primary, .badge-primary, .badge.bg-primary { background-color: var(--aslan-blue) !important; }
+.text-primary, .dark-mode .text-primary { color: var(--aslan-blue-hover) !important; }
+.dark-mode .text-primary { color: var(--aslan-blue) !important; }

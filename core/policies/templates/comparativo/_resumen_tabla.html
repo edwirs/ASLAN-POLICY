@@ -1,0 +1,37 @@
+{# Tabla del resumen para el cliente: la usan la página del comparativo y la página de impresión. #}
+<div class="cmp-tabla-marco{% if resumen.columnas|length > 6 %} cmp-denso{% endif %}">
+    <table class="cmp-resumen-tabla">
+        <thead>
+        <tr>
+            <th class="cmp-col-etiqueta"><span>Cobertura</span></th>
+            {% for c in resumen.columnas %}
+                <th class="cmp-col {% if c.es_mejor %}cmp-col-mejor{% endif %}">
+                    {% if c.es_mejor %}<span class="cmp-cinta"><i class="fa-solid fa-trophy"></i> Más económica</span>{% endif %}
+                    <div class="cmp-aseg">{{ c.aseguradora }}</div>
+                    <div class="cmp-producto">{% if c.producto %}Plan {{ c.producto }}{% else %}{{ c.etiqueta }}{% endif %}</div>
+                    <div class="cmp-precio">{{ c.valor_fmt }}</div>
+                </th>
+            {% endfor %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for sec in resumen.secciones %}
+            <tr class="cmp-fila-seccion"><th colspan="{{ resumen.columnas|length|add:1 }}">{{ sec.titulo }}</th></tr>
+            {% for f in sec.filas %}
+                <tr class="cmp-fila-dato{% if f.igual %} cmp-igual{% endif %}">
+                    <th class="cmp-col-etiqueta" scope="row">{{ f.etiqueta }}</th>
+                    {% for celda in f.celdas %}
+                        <td class="cmp-celda cmp-tono-{{ celda.tono }}{% if forloop.first %} cmp-col-mejor{% endif %}">
+                            {% if celda.tono == 'vacio' %}<span class="cmp-sin-dato">—</span>
+                            {% else %}
+                                {% if celda.tono == 'si' %}<i class="fa-solid fa-circle-check"></i>{% elif celda.tono == 'no' %}<i class="fa-solid fa-circle-xmark"></i>{% endif %}
+                                <span>{{ celda.texto }}</span>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

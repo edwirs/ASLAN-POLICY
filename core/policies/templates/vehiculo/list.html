@@ -1,0 +1,50 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-car-burst"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}">
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}">
+    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}"};</script>
+    <script src="{% static 'solicitud/js/proceso.js' %}?v=2"></script>
+    <script src="{% static 'comparativo/js/modales.js' %}"></script>
+    <script src="{% static 'vehiculo/js/list.js' %}"></script>
+{% endblock %}
+
+{% block content_list %}
+    <div id="vehiculoPermisos" data-comparar="{{ puede_comparar|yesno:'1,0' }}" data-registrar="{{ puede_registrar_valores|yesno:'1,0' }}" hidden></div>
+    {% if puede_comparar %}{% include 'comparativo/_modales.html' %}{% endif %}
+    <!-- MODAL: ESTADO DE LA SOLICITUD CON CADA ASEGURADORA -->
+    <div class="modal fade" id="modalProceso" tabindex="-1" aria-labelledby="modalProcesoLabel" aria-hidden="true"
+         data-proceso-url="{% url 'vehiculo_proceso' 0 %}"
+         data-reintentar-url="{% url 'solicitud_reintentar_cotizacion' %}">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalProcesoLabel"><i class="fa-solid fa-list-check"></i> Proceso de la solicitud <b id="procesoPlaca"></b></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="proceso-sub">Tomador: <b id="procesoTomador"></b>. Se actualiza solo mientras alguna aseguradora siga cotizando.</div>
+                    <div id="procesoContenido" class="pc-lista"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block columns %}
+    <th>Placa</th>
+    <th>Tomador</th>
+    <th>Cédula</th>
+    <th>Ciudad</th>
+    <th>Correo</th>
+    <th>Registrado</th>
+    <th>Estado por aseguradora</th>
+    <th>Acciones</th>
+{% endblock %}

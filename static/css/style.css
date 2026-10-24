@@ -26,9 +26,7 @@
     top: -1px;
 }
 
-.btn {
-    border-radius: 0 !important;
-}
+/* Los botones llevan esquinas redondeadas: ver la regla "body .btn" al final de este archivo. */
 
 .dropdown-menu-lg {
     max-width: 300px;
@@ -275,3 +273,59 @@
 .main-sidebar .nav-icon {
   color: #3b1c0d !important;
 } */
+
+/* ---- Botones con esquinas suavemente redondeadas en todo el sistema ----
+   Todos los botones usan el mismo radio (también los que traen clases .rounded-* sueltas, para que no
+   queden formas mezcladas). Se respetan los botones píldora/círculo, las esquinas pegadas al campo en
+   los .input-group y los +/- de los campos numéricos (TouchSpin), que van cuadrados. */
+body .btn:not(.rounded-pill):not(.rounded-circle):not([class*="bootstrap-touchspin"]) { border-radius: .55rem !important; }
+body .btn-sm:not(.rounded-pill):not(.rounded-circle):not([class*="bootstrap-touchspin"]) { border-radius: .45rem !important; }
+body .btn-lg:not(.rounded-pill):not(.rounded-circle):not([class*="bootstrap-touchspin"]) { border-radius: .7rem !important; }
+/* Campos con - y + (TouchSpin: cantidad, precio, descuento, valores con $ o %): se redondean solo las esquinas
+   de los extremos, igual que los demás botones; el campo y los prefijos/sufijos del medio quedan rectos. */
+body .input-group.bootstrap-touchspin .btn.bootstrap-touchspin-down { border-radius: .55rem 0 0 .55rem !important; }
+body .input-group.bootstrap-touchspin .btn.bootstrap-touchspin-up { border-radius: 0 .55rem .55rem 0 !important; }
+
+/* ---- Pie de página compacto ---- */
+footer.main-footer {
+    padding: .8rem 1.5rem;
+    font-size: .92rem;
+    line-height: 1.3;
+}
+.app-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .25rem 1rem;
+    color: #6c757d;
+}
+.app-footer b { color: #495057; font-weight: 600; }
+.app-footer-credit { display: inline-flex; align-items: center; gap: .5rem; }
+.app-footer-logo { width: 24px; height: 24px; object-fit: contain; opacity: .8; }
+.app-footer a.author { font-weight: 600; text-decoration: none; }
+.app-footer a.author:hover { text-decoration: underline; }
+@media (max-width: 575.98px) {
+    .app-footer { justify-content: center; text-align: center; }
+}
+
+/* === Marca NEXO by ASLAN Tecnología ===
+   La franja de la marca mide EXACTAMENTE lo que la barra superior (57 px: «Inicio», «Cerrar sesión»), tanto con el
+   menú abierto como colapsado, para que ambas líneas inferiores queden alineadas. */
+.main-sidebar .brand-link {
+    display: flex; align-items: center; box-sizing: border-box;
+    height: 57px; padding: 0 .8rem; overflow: hidden; white-space: nowrap;
+}
+.main-sidebar .brand-link .brand-image {
+    float: none; flex: 0 0 auto; margin: 0 .6rem 0 0; max-height: 33px; width: auto;
+}
+.main-sidebar .brand-link .brand-nexo {
+    display: flex; flex-direction: column; justify-content: center; min-width: 0; margin: 0; line-height: 1.05;
+}
+.brand-link .brand-nexo b { font-size: 1.2rem; font-weight: 800; letter-spacing: .08em; }
+.brand-link .brand-nexo small { font-size: .66rem; font-weight: 500; letter-spacing: .04em; opacity: .85; }
+
+/* Menú colapsado: solo el logo, centrado en la franja; al pasar el mouse el menú se abre y vuelve a verse el nombre. */
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link { justify-content: center; padding: 0; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link .brand-image { margin: 0; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link .brand-nexo { display: none; }

@@ -126,7 +126,8 @@ function submit_with_formdata(args) {
 function enable_tooltip() {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl, {
+        // Idempotente: crear otra instancia sobre el mismo elemento deja huérfano el tooltip abierto (queda pegado).
+        return bootstrap.Tooltip.getOrCreateInstance(tooltipTriggerEl, {
             boundary: '.table'
         });
     });

@@ -1,0 +1,194 @@
+/* Comparativo de aseguradoras de un vehículo.
+   Los colores son variables: el modo oscuro solo las redefine (ver .dark-mode .cmp-page). */
+.cmp-page {
+    --cmp-surface: #ffffff;
+    --cmp-surface-2: #f8fafc;
+    --cmp-border: #e2e8f0;
+    --cmp-border-strong: #cbd5e1;
+    --cmp-text: #0f172a;
+    --cmp-muted: #64748b;
+    --cmp-accent: #0891b2;
+    --cmp-accent-soft: rgba(8, 145, 178, 0.10);
+    --cmp-good: #15803d;
+    --cmp-good-soft: rgba(22, 163, 74, 0.10);
+    --cmp-good-strong: rgba(22, 163, 74, 0.55);
+    --cmp-bad: #b91c1c;
+    --cmp-bad-soft: rgba(220, 38, 38, 0.06);
+    --cmp-gold: #d97706;
+    color: var(--cmp-text);
+}
+
+.dark-mode .cmp-page {
+    --cmp-surface: #343a40;
+    --cmp-surface-2: #3a4047;
+    --cmp-border: #4b545c;
+    --cmp-border-strong: #5b656e;
+    --cmp-text: #f1f3f5;
+    --cmp-muted: #adb5bd;
+    --cmp-accent: #3cc6df;
+    --cmp-accent-soft: rgba(60, 198, 223, 0.14);
+    --cmp-good: #5fdc82;
+    --cmp-good-soft: rgba(40, 167, 69, 0.20);
+    --cmp-good-strong: rgba(95, 220, 130, 0.6);
+    --cmp-bad: #f1948a;
+    --cmp-bad-soft: rgba(220, 38, 38, 0.14);
+    --cmp-gold: #fbbf24;
+}
+
+.cmp-solo-imprimir { display: none; }
+
+/* ---------- Encabezado ---------- */
+.cmp-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 4px 2px 18px;
+}
+.cmp-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--cmp-accent); }
+.cmp-placa-grande { display: flex; align-items: center; gap: 12px; margin: 2px 0 0; font-size: 34px; font-weight: 800; letter-spacing: .04em; line-height: 1.1; color: var(--cmp-text); }
+.cmp-subtitulo { color: var(--cmp-muted); font-size: 15px; margin-top: 4px; }
+.cmp-punto { margin: 0 4px; }
+.cmp-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Secciones y fichas ---------- */
+.cmp-seccion { margin-top: 26px; }
+.cmp-seccion-titulo { font-size: 18px; font-weight: 700; margin: 0 0 12px; color: var(--cmp-text); }
+.cmp-seccion-titulo small { font-size: 12px; font-weight: 600; color: var(--cmp-muted); margin-left: 8px; text-transform: uppercase; letter-spacing: .05em; }
+
+.cmp-fichas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cmp-ficha { background: var(--cmp-surface); border: 1px solid var(--cmp-border); border-radius: 16px; padding: 18px 20px; }
+.cmp-ficha-titulo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--cmp-text); }
+.cmp-icono { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--cmp-accent-soft); color: var(--cmp-accent); font-size: 14px; }
+.cmp-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.cmp-datos dt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--cmp-muted); }
+.cmp-datos dd { margin: 2px 0 0; word-break: break-word; }
+.cmp-datos .cmp-ancho { grid-column: 1 / -1; }
+
+/* ---------- Indicadores ---------- */
+.cmp-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+.cmp-kpi { background: var(--cmp-surface); border: 1px solid var(--cmp-border); border-radius: 16px; padding: 16px 18px; }
+.cmp-kpi-label { font-size: 12px; font-weight: 600; color: var(--cmp-muted); }
+.cmp-kpi-label i { margin-right: 4px; }
+.cmp-kpi-valor { font-size: 26px; font-weight: 800; margin: 6px 0 2px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.cmp-kpi-sub { font-size: 12px; color: var(--cmp-muted); }
+.cmp-kpi-mejor { background: var(--cmp-good-soft); border-color: var(--cmp-good-strong); }
+.cmp-kpi-mejor .cmp-kpi-valor, .cmp-kpi-mejor .cmp-kpi-label { color: var(--cmp-good); }
+
+/* ---------- Chips ---------- */
+.cmp-chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--cmp-surface-2); border: 1px solid var(--cmp-border); color: var(--cmp-muted); white-space: nowrap; }
+.cmp-chip-info { background: var(--cmp-accent-soft); border-color: transparent; color: var(--cmp-accent); font-size: 13px; letter-spacing: 0; }
+.cmp-chip-bot { background: var(--cmp-accent-soft); border-color: transparent; color: var(--cmp-accent); }
+.cmp-chip-manual { background: rgba(217, 119, 6, 0.12); border-color: transparent; color: var(--cmp-gold); }
+.cmp-chip-gris b { color: var(--cmp-text); font-weight: 600; }
+
+/* ---------- Ranking (tabla compacta) ---------- */
+.cmp-rank-tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+.cmp-rank-tabla th, .cmp-rank-tabla td { padding: 7px 14px; border-bottom: 1px solid var(--cmp-border); vertical-align: middle; }
+.cmp-rank-tabla tbody tr:last-child td { border-bottom: 0; }
+.cmp-rank-tabla thead th { background: var(--cmp-surface-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--cmp-muted); border-bottom: 2px solid var(--cmp-border-strong); white-space: nowrap; }
+.cmp-rank-tabla tbody tr:hover td { background-color: var(--cmp-accent-soft); }
+.cmp-rank-tabla tbody tr.cmp-rank-mejor td { background-color: var(--cmp-good-soft); }
+.cmp-pos { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 800; background: var(--cmp-surface-2); border: 1px solid var(--cmp-border); color: var(--cmp-muted); }
+.cmp-rank-mejor .cmp-pos { background: var(--cmp-gold); border-color: transparent; color: #fff; }
+.cmp-plan, .cmp-fecha { color: var(--cmp-muted); white-space: nowrap; }
+.cmp-rank-valor { display: block; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.cmp-rank-mejor .cmp-rank-valor { color: var(--cmp-good); }
+.cmp-rank-tabla small { color: var(--cmp-muted); }
+.cmp-ok { color: var(--cmp-good); font-weight: 700; }
+.cmp-chip-ok { background: var(--cmp-good); border-color: transparent; color: #fff; }
+.dark-mode .cmp-chip-ok { color: #0b2a14; }
+.cmp-barra { display: block; margin: 3px 0 0 auto; width: 120px; max-width: 100%; height: 4px; border-radius: 999px; background: var(--cmp-border); overflow: hidden; }
+.cmp-barra span { display: block; height: 100%; border-radius: 999px; background: var(--cmp-accent); }
+.cmp-rank-mejor .cmp-barra span { background: var(--cmp-good); }
+
+.cmp-vacio { text-align: center; padding: 34px 16px; border: 1px dashed var(--cmp-border-strong); border-radius: 16px; color: var(--cmp-muted); }
+.cmp-vacio i { font-size: 32px; margin-bottom: 8px; display: block; }
+.cmp-vacio b { color: var(--cmp-text); }
+
+.cmp-sin-valor { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.cmp-sin-valor-titulo { font-size: 13px; font-weight: 600; color: var(--cmp-muted); }
+
+/* ---------- Resumen para el cliente ---------- */
+.cmp-resumen-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+.cmp-ayuda { margin: 0; font-size: 13px; color: var(--cmp-muted); max-width: 720px; }
+.cmp-herramientas { display: flex; align-items: center; gap: 16px; }
+
+.cmp-switch { display: inline-flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--cmp-text); user-select: none; }
+.cmp-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.cmp-switch-pista { position: relative; width: 38px; height: 22px; border-radius: 999px; background: var(--cmp-border-strong); transition: background .15s; }
+.cmp-switch-pista::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.cmp-switch input:checked + .cmp-switch-pista { background: var(--cmp-accent); }
+.cmp-switch input:checked + .cmp-switch-pista::after { transform: translateX(16px); }
+.cmp-switch input:focus-visible + .cmp-switch-pista { outline: 2px solid var(--cmp-accent); outline-offset: 2px; }
+
+.cmp-tabla-marco { overflow-x: auto; background: var(--cmp-surface); border: 1px solid var(--cmp-border); border-radius: 16px; }
+.cmp-resumen-tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; line-height: 1.3; }
+.cmp-resumen-tabla th, .cmp-resumen-tabla td { padding: 6px 9px; border-bottom: 1px solid var(--cmp-border); vertical-align: middle; }
+.cmp-resumen-tabla tbody tr:last-child td, .cmp-resumen-tabla tbody tr:last-child th { border-bottom: 0; }
+
+.cmp-col-etiqueta { position: sticky; left: 0; z-index: 2; min-width: 165px; max-width: 200px; text-align: left; font-weight: 500; background: var(--cmp-surface); border-right: 1px solid var(--cmp-border); }
+.cmp-resumen-tabla thead .cmp-col-etiqueta { vertical-align: bottom; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--cmp-muted); font-weight: 700; }
+
+.cmp-resumen-tabla thead th.cmp-col { min-width: 108px; text-align: center; padding: 10px 8px 9px; background: var(--cmp-surface-2); border-bottom: 2px solid var(--cmp-border-strong); }
+.cmp-aseg { font-size: 13px; font-weight: 800; line-height: 1.2; }
+.cmp-producto { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--cmp-muted); margin-top: 1px; }
+.cmp-precio { font-size: 17px; font-weight: 800; margin-top: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmp-cinta { display: block; margin: -10px -8px 7px; padding: 3px 6px; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; background: var(--cmp-good); color: #fff; }
+.dark-mode .cmp-cinta { color: #0b2a14; }
+.cmp-resumen-tabla thead th.cmp-col-mejor { background: var(--cmp-good-soft); overflow: hidden; }
+.cmp-resumen-tabla thead .cmp-col-mejor .cmp-precio { color: var(--cmp-good); }
+
+.cmp-fila-seccion th { position: static; padding: 6px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--cmp-accent); background: var(--cmp-accent-soft); border-left: 3px solid var(--cmp-accent); }
+.cmp-fila-dato:nth-child(even) td, .cmp-fila-dato:nth-child(even) .cmp-col-etiqueta { background-image: linear-gradient(var(--cmp-surface-2), var(--cmp-surface-2)); }
+.cmp-fila-dato:hover td, .cmp-fila-dato:hover .cmp-col-etiqueta { background-image: linear-gradient(var(--cmp-accent-soft), var(--cmp-accent-soft)); }
+.cmp-celda { text-align: center; }
+.cmp-celda i { margin-right: 3px; font-size: 11px; vertical-align: -1px; }
+/* Con muchas aseguradoras se quitan los íconos (el verde/rojo ya indica si ampara) y se afina el texto */
+.cmp-denso .cmp-celda i { display: none; }
+.cmp-denso .cmp-resumen-tabla { font-size: 12px; }
+.cmp-denso .cmp-resumen-tabla th, .cmp-denso .cmp-resumen-tabla td { padding-left: 7px; padding-right: 7px; }
+.cmp-denso .cmp-resumen-tabla thead th.cmp-col { min-width: 98px; }
+.cmp-denso .cmp-precio { font-size: 15px; }
+.cmp-tono-si { color: var(--cmp-good); font-weight: 600; }
+.cmp-tono-no { color: var(--cmp-bad); background-color: var(--cmp-bad-soft); }
+.cmp-sin-dato { color: var(--cmp-muted); }
+td.cmp-col-mejor { box-shadow: inset 1px 0 0 var(--cmp-good-strong), inset -1px 0 0 var(--cmp-good-strong); }
+
+/* «Solo diferencias»: oculta las filas idénticas en todas las aseguradoras. */
+.cmp-solo-diferencias .cmp-igual { display: none; }
+
+.cmp-aviso { margin-top: 10px; font-size: 13px; color: var(--cmp-gold); }
+.cmp-nota-pie { margin: 12px 2px 0; font-size: 12px; color: var(--cmp-muted); }
+
+/* ---------- Pantallas pequeñas ---------- */
+@media (max-width: 991px) {
+    .cmp-fichas { grid-template-columns: 1fr; }
+    .cmp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575px) {
+    .cmp-placa-grande { font-size: 28px; }
+    .cmp-kpi-valor { font-size: 21px; }
+    .cmp-col-etiqueta { min-width: 170px; }
+}
+
+/* ---------- Impresión: solo el resumen, como propuesta para el cliente ---------- */
+@media print {
+    @page { size: landscape; margin: 12mm; }
+    .main-sidebar, .main-header, .main-footer, .breadcrumb, .cmp-no-imprimir, .modal { display: none !important; }
+    .content-wrapper, .content { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    .cmp-page { --cmp-surface: #fff; --cmp-surface-2: #f8fafc; --cmp-text: #0f172a; --cmp-muted: #475569; }
+    .cmp-solo-imprimir { display: flex !important; justify-content: space-between; gap: 16px; padding: 8px 0 12px; border-bottom: 2px solid #0891b2; margin-bottom: 12px; font-size: 12px; }
+    .cmp-head { padding: 0 0 8px; }
+    .cmp-seccion { margin-top: 8px; }
+    .cmp-tabla-marco { overflow: visible; border-radius: 0; }
+    .cmp-resumen-tabla { font-size: 10.5px; }
+    .cmp-resumen-tabla th, .cmp-resumen-tabla td { padding: 5px 8px; }
+    .cmp-col-etiqueta { position: static; min-width: 0; }
+    .cmp-resumen-tabla thead th.cmp-col { min-width: 0; padding: 8px 6px; }
+    .cmp-cinta { margin: -8px -6px 6px; }
+    .cmp-precio { font-size: 15px; }
+    .cmp-fila-dato { break-inside: avoid; }
+    .cmp-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

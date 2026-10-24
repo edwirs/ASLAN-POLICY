@@ -28,7 +28,7 @@ urlpatterns = [
     path('reports/', include('core.reports.urls')),
     path('security/', include('core.security.urls')),
     path('user/', include('core.user.urls')),
-    path('funeral/', include('core.funeral.urls')),
+    path('policies/', include('core.policies.urls')),
 ]
 
 if settings.DEBUG:

@@ -1,0 +1,124 @@
+/* Página de impresión del resumen para el cliente (autónoma: sin AdminLTE).
+   La tabla usa diseño fijo: siempre cabe en el ancho de la hoja, sin importar cuántas aseguradoras haya. */
+/* Margen 0: así el navegador no imprime su propio encabezado y pie (título, fecha y dirección de la página).
+   El espacio de los bordes se da con relleno dentro del documento. */
+@page { size: landscape; margin: 0; }
+
+.cmp-imprimir-body {
+    margin: 0;
+    background: #e9edf2;
+    font-family: "Source Sans Pro", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* Barra superior (solo en pantalla) */
+.cmp-barra-herramientas {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 24px; background: #0f172a; color: #e2e8f0; font-size: 14px;
+}
+.cmp-barra-texto span { margin-left: 10px; color: #94a3b8; }
+.cmp-barra-botones { display: flex; gap: 8px; }
+.cmp-btn { border: 1px solid #475569; background: transparent; color: #e2e8f0; border-radius: 999px; padding: 7px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.cmp-btn:hover { background: #1e293b; }
+.cmp-btn-primario { background: #0891b2; border-color: #0891b2; color: #fff; }
+.cmp-btn-primario:hover { background: #0e7490; }
+
+/* Hoja */
+.cmp-hoja { max-width: 1400px; margin: 24px auto; padding: 28px 32px; background: #fff; border-radius: 6px; box-shadow: 0 6px 24px rgba(15, 23, 42, .12); }
+.cmp-hoja-cabecera { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 14px; margin-bottom: 18px; border-bottom: 3px solid #0891b2; }
+.cmp-hoja-placa { margin: 2px 0 0; font-size: 34px; font-weight: 800; letter-spacing: .04em; line-height: 1.1; }
+.cmp-hoja-cliente { text-align: right; font-size: 14px; line-height: 1.6; }
+.cmp-hoja-cliente span { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-right: 6px; }
+
+/* Tabla: diseño fijo y ajuste de texto para que nada se salga de la hoja */
+.cmp-hoja .cmp-tabla-marco { overflow: visible; border-radius: 10px; }
+.cmp-hoja .cmp-resumen-tabla { table-layout: fixed; width: 100%; }
+.cmp-hoja .cmp-resumen-tabla th, .cmp-hoja .cmp-resumen-tabla td { overflow-wrap: anywhere; word-break: normal; }
+.cmp-hoja .cmp-col-etiqueta { position: static; width: 20%; min-width: 0; max-width: none; }
+.cmp-hoja .cmp-resumen-tabla thead th.cmp-col { min-width: 0; padding: 12px 8px 10px; }
+.cmp-hoja .cmp-cinta { margin: -12px -8px 8px; }
+.cmp-hoja .cmp-precio { white-space: nowrap; }
+.cmp-hoja .cmp-fila-seccion th { text-align: left; }
+.cmp-hoja .cmp-resumen-tabla { overflow-wrap: break-word; }
+.cmp-hoja .cmp-resumen-tabla th, .cmp-hoja .cmp-resumen-tabla td { overflow-wrap: break-word; }
+
+/* Tamaño según el número de aseguradoras */
+.cmp-escala-lg .cmp-resumen-tabla { font-size: 13px; }
+.cmp-escala-md .cmp-resumen-tabla { font-size: 12px; }
+.cmp-escala-md .cmp-precio { font-size: 18px; }
+.cmp-escala-sm .cmp-resumen-tabla { font-size: 11px; }
+.cmp-escala-sm .cmp-precio { font-size: 15px; }
+.cmp-escala-sm .cmp-aseg { font-size: 13px; }
+.cmp-escala-xs .cmp-resumen-tabla { font-size: 10px; }
+.cmp-escala-xs .cmp-resumen-tabla th, .cmp-escala-xs .cmp-resumen-tabla td { padding-left: 5px; padding-right: 5px; }
+.cmp-escala-xs .cmp-precio { font-size: 13px; }
+.cmp-escala-xs .cmp-aseg { font-size: 12px; }
+.cmp-escala-xs .cmp-celda i { display: none; }
+.cmp-escala-sm .cmp-col-etiqueta, .cmp-escala-xs .cmp-col-etiqueta { width: 16%; }
+
+/* ---------- Membrete (logo de la empresa), pie con datos de contacto y marca de agua ---------- */
+.cmp-marco-impresion { width: 100%; border-collapse: collapse; }
+.cmp-marco-impresion > thead > tr > td, .cmp-marco-impresion > tfoot > tr > td, .cmp-marco-impresion > tbody > tr > td { padding: 0; }
+
+.cmp-membrete-empresa { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #0891b2; }
+.cmp-membrete-logo img { display: block; max-height: 58px; max-width: 220px; width: auto; height: auto; }
+.cmp-membrete-nombre { font-size: 22px; font-weight: 800; letter-spacing: .02em; color: #0f172a; }
+.cmp-membrete-titulo { text-align: right; line-height: 1.35; }
+.cmp-membrete-titulo b { display: block; font-size: 15px; color: #0f172a; }
+.cmp-membrete-titulo span { font-size: 12px; color: #64748b; }
+
+.cmp-pie-empresa { margin-top: 16px; padding-top: 10px; border-top: 1px solid #cbd5e1; text-align: center; }
+.cmp-pie-contacto { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; font-size: 12px; font-weight: 600; color: #334155; }
+.cmp-pie-contacto i { color: #0891b2; margin-right: 5px; }
+.cmp-pie-aviso { margin: 7px auto 0; max-width: 880px; font-size: 9.5px; line-height: 1.35; font-style: italic; color: #64748b; }
+
+/* Leyenda lateral: letra hacia arriba pegada al borde derecho, como constancia de dónde se generó el PDF. */
+.cmp-leyenda-lateral {
+    position: fixed; right: 4mm; top: 50%; z-index: 4; pointer-events: none; user-select: none;
+    writing-mode: vertical-rl; transform: translateY(-50%) rotate(180deg);
+    font-size: 8px; letter-spacing: .08em; white-space: nowrap; color: #94a3b8;
+}
+
+/* Marca de agua: diagonal ascendente, discreta, en el centro de cada hoja. */
+.cmp-marca-agua {
+    position: fixed; top: 50%; left: 50%; z-index: 5; pointer-events: none; user-select: none;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font-size: 118px; font-weight: 700; letter-spacing: .14em; white-space: nowrap;
+    color: rgba(15, 23, 42, .045);
+}
+.cmp-hoja { position: relative; z-index: 1; }
+
+/* Hoja vertical (p. ej. Safari ignora @page): se reduce el texto para que nada se recorte */
+@media print and (orientation: portrait) {
+    .cmp-escala-md .cmp-resumen-tabla { font-size: 10.5px; }
+    .cmp-escala-md .cmp-precio { font-size: 14px; }
+    .cmp-escala-sm .cmp-resumen-tabla { font-size: 9.5px; }
+    .cmp-escala-sm .cmp-precio { font-size: 11.5px; }
+    .cmp-escala-xs .cmp-resumen-tabla { font-size: 8.5px; }
+    .cmp-escala-xs .cmp-resumen-tabla th, .cmp-escala-xs .cmp-resumen-tabla td { padding-left: 3px; padding-right: 3px; }
+    .cmp-escala-xs .cmp-precio { font-size: 10px; letter-spacing: -.02em; }
+    .cmp-escala-xs .cmp-aseg, .cmp-escala-sm .cmp-aseg { font-size: 9.5px; }
+    .cmp-escala-xs .cmp-producto, .cmp-escala-sm .cmp-producto { font-size: 7.5px; letter-spacing: .01em; }
+    .cmp-escala-xs .cmp-cinta, .cmp-escala-sm .cmp-cinta { font-size: 7.5px; letter-spacing: 0; padding: 3px 2px; }
+    .cmp-hoja-cabecera { flex-wrap: wrap; }
+}
+
+@media print {
+    .cmp-no-imprimir { display: none !important; }
+    .cmp-imprimir-body { background: #fff; }
+    .cmp-hoja { max-width: none; margin: 0; padding: 0 14mm 0 12mm; border-radius: 0; box-shadow: none; }
+    .cmp-marco-impresion > thead > tr > td { padding-top: 10mm; }
+    .cmp-marco-impresion > tfoot > tr > td { padding-bottom: 8mm; }
+    .cmp-hoja-cabecera { margin-bottom: 10px; padding-bottom: 8px; }
+    .cmp-hoja-placa { font-size: 26px; }
+    .cmp-resumen-tabla thead { display: table-header-group; }   /* repite el encabezado en cada hoja */
+    .cmp-marco-impresion > thead { display: table-header-group; }
+    .cmp-marco-impresion > tfoot { display: table-footer-group; }
+    .cmp-marca-agua { font-size: 112px; }
+    .cmp-fila-dato, .cmp-fila-seccion { break-inside: avoid; page-break-inside: avoid; }
+    .cmp-fila-seccion { break-after: avoid; }
+    .cmp-resumen-tabla th, .cmp-resumen-tabla td { padding-top: 5px; padding-bottom: 5px; }
+}

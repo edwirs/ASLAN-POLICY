@@ -1,0 +1,31 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-car"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'vehiculo_registrado/css/detalle.css' %}?v=4">
+    <script src="{% static 'vehiculo_registrado/js/list.js' %}"></script>
+{% endblock %}
+
+{% block columns %}
+    <th class="no-sort" style="width:42px;"></th>
+    <th>Placa</th>
+    <th>Propietario actual</th>
+    <th>Marca</th>
+    <th>Línea / clase</th>
+    <th>Versión</th>
+    <th>Modelo</th>
+    <th>Servicio</th>
+    <th>Fasecolda</th>
+    <th>Valor comercial</th>
+    <th>Ciudad</th>
+    <th>Última cotización</th>
+    <th>Registrado</th>
+{% endblock %}
+
+{% block javascript_list %}{% endblock %}

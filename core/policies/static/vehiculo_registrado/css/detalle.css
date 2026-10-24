@@ -1,0 +1,100 @@
+/* Detalle desplegable (+) de «Vehículos registrados». Colores como variables: el modo oscuro solo las redefine. */
+.vr-detalle {
+    --vr-surface: #ffffff;
+    --vr-surface-2: #f8fafc;
+    --vr-border: #e2e8f0;
+    --vr-text: #0f172a;
+    --vr-muted: #64748b;
+    --vr-accent: #d9701f;
+    --vr-accent-soft: rgba(242, 139, 65, .16);
+    color: var(--vr-text);
+    padding: 6px 4px 10px;
+}
+.dark-mode .vr-detalle {
+    --vr-surface: #343a40;
+    --vr-surface-2: #3a4047;
+    --vr-border: #4b545c;
+    --vr-text: #f1f3f5;
+    --vr-muted: #adb5bd;
+    --vr-accent: #f5a266;
+    --vr-accent-soft: rgba(242, 139, 65, .2);
+}
+
+/* Botón + / − */
+.vr-mas {
+    width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%;
+    background: var(--dt-accent, #f28b41); color: #fff; font-size: 11px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform .15s, background .15s;
+}
+.vr-mas:hover { transform: scale(1.12); }
+tr.vr-abierta .vr-mas { background: #64748b; }
+.vr-celda-control { width: 42px; }
+
+/* Fila abierta */
+#data tbody tr.vr-abierta > td { background: rgba(242, 139, 65, .07) !important; border-bottom-color: transparent !important; }
+#data tbody td.vr-celda-detalle { padding: 0 14px 16px !important; background: rgba(242, 139, 65, .07) !important; }
+
+/* Cabecera: placa + título + chips */
+.vr-cabecera {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 4px 14px;
+}
+.vr-placa {
+    display: inline-block; margin-right: 10px; padding: 3px 12px; border-radius: 8px;
+    font-size: 18px; font-weight: 800; letter-spacing: .08em;
+    background: var(--vr-surface); border: 2px solid var(--vr-text); color: var(--vr-text);
+}
+.vr-titulo { font-size: 17px; font-weight: 700; }
+.vr-titulo small { font-size: 14px; font-weight: 600; color: var(--vr-muted); }
+.vr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vr-chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; background: var(--vr-surface); border: 1px solid var(--vr-border); color: var(--vr-muted);
+}
+.vr-chip-info { background: var(--vr-accent-soft); border-color: transparent; color: var(--vr-accent); }
+
+/* Bloques de datos */
+.vr-bloques { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }  /* los tres de arriba quedan de la misma altura */
+.vr-bloque {
+    background: var(--vr-surface); border: 1px solid var(--vr-border); border-radius: 14px; padding: 14px 16px 12px;
+}
+.vr-bloque-titulo {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; font-weight: 700;
+    letter-spacing: .02em; color: var(--vr-text);
+}
+.vr-icono {
+    display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--vr-accent-soft); color: var(--vr-accent); font-size: 12px;
+}
+.vr-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+.vr-dato { min-width: 0; }
+.vr-dato-ancho { grid-column: 1 / -1; }
+.vr-dato dt {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--vr-muted); margin: 0;
+}
+.vr-dato dd { margin: 2px 0 0; font-size: 13.5px; font-weight: 500; word-break: break-word; }
+.vr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px !important; letter-spacing: .02em; }
+.vr-sin-dato { color: var(--vr-muted); font-weight: 400; font-style: italic; opacity: .75; }
+
+.vr-copiar {
+    border: 0; background: transparent; color: var(--vr-muted); padding: 0 4px; font-size: 12px; cursor: pointer; border-radius: 4px;
+}
+.vr-copiar:hover { color: var(--vr-accent); background: var(--vr-accent-soft); }
+
+/* Segunda fila: «Valores» y «Registro y cotizaciones» más pequeños, con los datos en línea. */
+.vr-bloque-compacto { padding: 10px 14px 10px; align-self: start; }  /* los de abajo conservan su altura */
+.vr-bloque-compacto .vr-bloque-titulo { margin-bottom: 8px; }
+.vr-bloque-compacto .vr-datos { gap: 8px 14px; }
+.vr-bloque-ancho2 { grid-column: span 2; }
+.vr-bloque-ancho2 .vr-datos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+    .vr-bloques { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vr-bloque-ancho2 { grid-column: 1 / -1; }
+}
+@media (max-width: 575px) {
+    .vr-bloque-ancho2 .vr-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vr-datos { grid-template-columns: 1fr; }
+    .vr-bloques { grid-template-columns: 1fr; }
+}

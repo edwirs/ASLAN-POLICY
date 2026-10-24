@@ -13,9 +13,9 @@
 {% endblock %}
 
 {% block content %}
-    <div class="card card-outline card-info">
+    <div class="card card-outline card-primary">
         <div class="card-header">
-            <h3 class="card-title mb-0" style="font-size: 30px;"><i class="fa-solid fa-magnifying-glass" style="font-size: 30px;"></i> {{ title }}</h3>
+            <h3 class="card-title mb-0" style="font-size: 30px;"><i class="fa-solid fa-magnifying-glass" style="font-size: 30px;"></i> {{ title }}<span class="ayuda-modulo" hidden><button type="button" class="btn-ayuda" aria-label="Ayuda de este módulo"><i class="fa-solid fa-question"></i></button><template id="ayudaContenido">{% block ayuda %}{% endblock %}</template></span></h3>
             <div style="float: right;">
                 {% if create_url %}
                 <a href="{{ create_url }}" class="btn btn-primary" type="button">
@@ -48,6 +48,22 @@
         </div>
         
     </div>
+    <script type="application/javascript">
+        // Ayuda del módulo: botón discreto junto al título; el texto sale del bloque «ayuda» de cada listado.
+        $(function () {
+            var $caja = $('.ayuda-modulo'), plantilla = document.getElementById('ayudaContenido');
+            if (!$caja.length || !plantilla || !plantilla.innerHTML.trim()) { $caja.remove(); return; }
+            $caja.prop('hidden', false);
+            var $boton = $caja.find('.btn-ayuda');
+            var pop = bootstrap.Popover.getOrCreateInstance($boton[0], {
+                html: true, trigger: 'manual', placement: 'bottom', customClass: 'ayuda-pop', sanitize: false,
+                title: '<i class="fa-solid fa-circle-info"></i> Ayuda', content: plantilla.innerHTML
+            });
+            $boton.on('click', function (e) { e.stopPropagation(); pop.toggle(); });
+            $(document).on('click', function (e) { if (!$(e.target).closest('.popover').length) { pop.hide(); } });
+            $(document).on('keydown', function (e) { if (e.key === 'Escape') { pop.hide(); } });
+        });
+    </script>
     {% block javascript_list %}
         <script type="application/javascript">
             $(function () {

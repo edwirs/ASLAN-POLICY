@@ -1,0 +1,141 @@
+/* Estilo global de las tablas (DataTables) de todos los módulos.
+   - Ocupan siempre todo el ancho disponible; si el contenido no cabe, la tabla
+     se desplaza dentro de su tarjeta (nunca ensancha la página).
+   - Se apoya en .dataTables_wrapper para ganarle en especificidad a los estilos
+     de la librería sin depender del orden de carga. */
+
+:root {
+    --dt-accent: #f28b41;  /* naranja del logo de ASLAN (--aslan-orange del login) */
+    --dt-accent-soft: rgba(242, 139, 65, .14);
+    --dt-border: #e5e7eb;
+    --dt-head-bg: #f8fafc;
+    --dt-head-text: #475569;
+    --dt-text: #1f2937;
+    --dt-muted: #6b7280;
+    --dt-hover: #fff7f0;
+}
+
+/* ---------- Ancho y desbordamiento ---------- */
+.dataTables_wrapper { width: 100%; max-width: 100%; }
+.dataTables_wrapper table.dataTable { width: 100% !important; margin: 0 !important; }
+/* Solo la fila que contiene la tabla hace scroll horizontal: así no se recortan
+   el selector de registros ni la búsqueda. */
+.dataTables_wrapper .row > .col-sm-12:not([class*="col-md"]) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+/* Que la tarjeta nunca crezca más que su contenedor (flex/grid). */
+.card-body, .card-body .container-fluid { min-width: 0; }
+
+/* ---------- Barra superior: registros por página y búsqueda ---------- */
+.dataTables_wrapper > .row:first-child { align-items: center; margin-bottom: .85rem; row-gap: .5rem; }
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label {
+    display: flex; align-items: center; gap: .5rem; margin: 0;
+    font-size: .85rem; font-weight: 600; color: var(--dt-muted); white-space: nowrap;
+}
+.dataTables_wrapper .dataTables_filter label { justify-content: flex-end; }
+.dataTables_wrapper .dataTables_length select {
+    width: auto; min-width: 4.2rem; padding: .3rem 1.8rem .3rem .75rem;
+    border: 1px solid var(--dt-border); border-radius: .6rem; background-color: #fff;
+    font-size: .88rem; color: var(--dt-text); box-shadow: none;
+}
+.dataTables_wrapper .dataTables_filter input {
+    width: min(100%, 280px); margin: 0 !important; padding: .42rem 1rem .42rem 2.2rem;
+    border: 1px solid var(--dt-border); border-radius: 50rem; font-size: .88rem; color: var(--dt-text);
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%2394a3b8' d='M416 208c0 45.9-14.9 88.3-40 122.7l126.6 126.7c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0s208 93.1 208 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z'/%3E%3C/svg%3E") no-repeat .85rem center / .85rem;
+    box-shadow: none; transition: border-color .15s, box-shadow .15s;
+}
+.dataTables_wrapper .dataTables_length select:focus,
+.dataTables_wrapper .dataTables_filter input:focus {
+    border-color: var(--dt-accent); box-shadow: 0 0 0 .2rem var(--dt-accent-soft); outline: 0;
+}
+
+/* ---------- Tabla ---------- */
+.dataTables_wrapper table.dataTable {
+    border-collapse: separate !important; border-spacing: 0;
+    border: 1px solid var(--dt-border); border-radius: .75rem; overflow: hidden;
+    font-size: .9rem; color: var(--dt-text);
+}
+.dataTables_wrapper table.dataTable > :not(caption) > * > * {
+    border-left: 0 !important; border-right: 0 !important; border-top: 0 !important;
+    border-bottom: 1px solid var(--dt-border) !important; background-color: transparent;
+}
+.dataTables_wrapper table.dataTable thead th {
+    background-color: var(--dt-head-bg) !important; color: var(--dt-head-text) !important;
+    font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    padding: .85rem .9rem; white-space: nowrap; vertical-align: middle;
+    border-bottom: 2px solid var(--dt-accent) !important;
+}
+.dataTables_wrapper table.dataTable thead tr { background-color: transparent !important; }
+.dataTables_wrapper table.dataTable tbody td { padding: .8rem .9rem; vertical-align: middle; }
+.dataTables_wrapper table.dataTable tbody tr:last-child > td { border-bottom: 0 !important; }
+.dataTables_wrapper table.dataTable tbody tr { transition: background-color .12s; }
+.dataTables_wrapper table.dataTable tbody tr:hover > * { background-color: var(--dt-hover) !important; }
+.dataTables_wrapper table.dataTable > tbody > tr.odd > *,
+.dataTables_wrapper table.dataTable > tbody > tr.even > * { box-shadow: none; }
+.dataTables_wrapper table.dataTable td.dataTables_empty {
+    padding: 2.4rem 1rem; text-align: center; color: var(--dt-muted); font-style: italic;
+}
+/* Flechas de orden más discretas; la activa se resalta. */
+.dataTables_wrapper table.dataTable thead .sorting:before,
+.dataTables_wrapper table.dataTable thead .sorting:after,
+.dataTables_wrapper table.dataTable thead .sorting_asc:before,
+.dataTables_wrapper table.dataTable thead .sorting_asc:after,
+.dataTables_wrapper table.dataTable thead .sorting_desc:before,
+.dataTables_wrapper table.dataTable thead .sorting_desc:after { opacity: .25; }
+.dataTables_wrapper table.dataTable thead .sorting_asc:before,
+.dataTables_wrapper table.dataTable thead .sorting_desc:after { opacity: .9; color: var(--dt-accent); }
+/* Control "+" de las filas plegadas (plugin responsive). */
+.dataTables_wrapper table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
+.dataTables_wrapper table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
+    background-color: var(--dt-accent); border: 0; box-shadow: none;
+}
+.dataTables_wrapper table.dataTable > tbody > tr.child ul.dtr-details { width: 100%; }
+.dataTables_wrapper table.dataTable > tbody > tr.child td.child { background: var(--dt-head-bg) !important; }
+
+/* ---------- Pie: información y paginación ---------- */
+.dataTables_wrapper > .row:last-child { align-items: center; margin-top: .9rem; row-gap: .5rem; }
+.dataTables_wrapper .dataTables_info { padding: 0; font-size: .82rem; color: var(--dt-muted); }
+.dataTables_wrapper .dataTables_paginate { display: flex; justify-content: flex-end; }
+.dataTables_wrapper .dataTables_paginate .pagination { margin: 0; gap: .25rem; flex-wrap: wrap; }
+.dataTables_wrapper .dataTables_paginate .page-link {
+    min-width: 2.2rem; padding: .38rem .8rem; text-align: center; border: 0; border-radius: 50rem;
+    background: transparent; color: var(--dt-head-text); font-size: .85rem; font-weight: 600; box-shadow: none;
+}
+.dataTables_wrapper .dataTables_paginate .page-link:hover { background: var(--dt-accent-soft); color: var(--dt-accent); }
+.dataTables_wrapper .dataTables_paginate .page-item.active .page-link {
+    background: var(--dt-accent); color: #fff; box-shadow: 0 2px 8px rgba(242, 139, 65, .4);
+}
+.dataTables_wrapper .dataTables_paginate .page-item.disabled .page-link { background: transparent; color: #cbd5e1; }
+
+/* ---------- Pantallas pequeñas ---------- */
+@media (max-width: 767.98px) {
+    .dataTables_wrapper .dataTables_filter label { justify-content: flex-start; }
+    .dataTables_wrapper .dataTables_filter input { width: 100%; }
+    .dataTables_wrapper .dataTables_paginate,
+    .dataTables_wrapper .dataTables_info { justify-content: center; text-align: center; }
+    .dataTables_wrapper table.dataTable thead th,
+    .dataTables_wrapper table.dataTable tbody td { padding: .65rem .7rem; }
+}
+
+/* ---------- Tema oscuro (misma paleta que dark-mode.css) ---------- */
+.dark-mode {
+    --dt-border: #4b545c;
+    --dt-head-bg: #3a4047;
+    --dt-head-text: #ced4da;
+    --dt-text: #dee2e6;
+    --dt-muted: #adb5bd;
+    --dt-hover: #3f474e;
+    --dt-accent-soft: rgba(242, 139, 65, .24);
+}
+.dark-mode .dataTables_wrapper .dataTables_length select,
+.dark-mode .dataTables_wrapper .dataTables_filter input { background-color: #3f474e; border-color: #6c757d; color: #f8f9fa; }
+.dark-mode .dataTables_wrapper .dataTables_filter input {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23adb5bd' d='M416 208c0 45.9-14.9 88.3-40 122.7l126.6 126.7c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0s208 93.1 208 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z'/%3E%3C/svg%3E");
+}
+.dark-mode .dataTables_wrapper table.dataTable { border-color: var(--dt-border); }
+.dark-mode .dataTables_wrapper table.dataTable thead th { border-bottom-color: var(--dt-accent) !important; }
+.dark-mode .dataTables_wrapper .dataTables_paginate .page-item.disabled .page-link { color: #6c757d; background: transparent; }
+.dark-mode .dataTables_wrapper .dataTables_paginate .page-link { background: transparent; border: 0; }
+.dark-mode .dataTables_wrapper .dataTables_paginate .page-item.active .page-link { background: var(--dt-accent); color: #fff; }

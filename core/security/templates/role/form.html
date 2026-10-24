@@ -1,0 +1,171 @@
+{% extends 'body.html' %}
+{% load static %}
+{% block assets %}
+    <script src="{% static 'role/js/form.js' %}"></script>
+    <style>
+        .perm-section { border: 1px solid #dee2e6; border-radius: .4rem; margin-bottom: 1rem; overflow: hidden; }
+        .perm-section > .perm-title { background: #343a40; color: #fff; padding: .45rem .9rem; font-weight: 600; font-size: .95rem; }
+        .perm-matrix { table-layout: fixed; width: 100%; min-width: 680px; margin: 0; border-collapse: collapse; }
+        .perm-matrix th, .perm-matrix td { vertical-align: middle; padding: .5rem .4rem; border-top: 1px solid #e9ecef; }
+        .perm-matrix thead th { background: #f4f6f9; border-top: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .02em; color: #6c757d; text-align: center; white-space: nowrap; }
+        .perm-matrix thead th.c-name, .perm-matrix thead th.c-others { text-align: left; }
+        .perm-matrix .c-name { width: 150px; }
+        .perm-matrix .c-perm { width: 62px; text-align: center; }
+        .perm-matrix .c-others { width: auto; }
+        .perm-matrix .c-all { width: 48px; text-align: center; }
+        .perm-matrix tbody tr:hover { background: #f8fbff; }
+        .perm-matrix .form-check-input { position: static; float: none; margin: 0; width: 1.15rem; height: 1.15rem; cursor: pointer; vertical-align: middle; }
+        .perm-matrix .form-check-input:disabled { cursor: not-allowed; }
+        .perm-matrix .col-toggle { color: inherit; text-decoration: none; }
+        .perm-matrix .col-toggle:hover { color: #17a2b8; text-decoration: underline; }
+        .perm-matrix .mod-name { font-weight: 600; }
+        .perm-matrix .none { color: #ced4da; }
+        .perm-matrix .others-list { display: flex; flex-direction: column; gap: .3rem; }
+        .perm-matrix .others-list label { display: flex; align-items: flex-start; gap: .5rem; margin: 0; font-weight: normal; font-size: .88rem; line-height: 1.25; cursor: pointer; }
+        .perm-matrix .others-list .form-check-input { flex: none; margin-top: .1rem; }
+        .perm-matrix tr.row-on td.mod-cell { box-shadow: inset 3px 0 0 #17a2b8; }
+        .preview-menu { list-style: none; padding-left: 0; margin: 0; font-size: 14px; }
+        .preview-menu ul { list-style: none; padding-left: 18px; margin: 0; }
+        .preview-menu .sec { font-weight: 600; margin-top: 6px; }
+        @media (min-width: 1400px) { .preview-sticky { position: sticky; top: 70px; } }
+        .toolbar-hint { font-size: 13px; color: #6c757d; }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <form method="post" autocomplete="off" data-url="{{ list_url }}" id="frmForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{{ action }}">
+        <div class="row">
+            <div class="col-12 col-xxl-9">
+                <div class="card card-outline card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas {% if action == 'add' %}fa-plus{% else %}fa-edit{% endif %}"></i> {{ title }}
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        {% if readonly %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-lock"></i> <b>Administrador</b> es un rol del sistema: siempre tiene
+                                todos los permisos y no se puede modificar ni eliminar.
+                            </div>
+                        {% endif %}
+                        {% if action == 'edit' and users_count %}
+                            <div class="alert alert-warning py-2">
+                                <i class="fas fa-users"></i> Este rol lo tienen <b>{{ users_count }}</b> usuario(s).
+                                Los cambios aplican la próxima vez que cada usuario cargue una pantalla.
+                            </div>
+                        {% endif %}
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="id_name">Nombre del rol:</label>
+                                <input type="text" class="form-control" name="name" id="id_name" maxlength="150"
+                                       value="{{ role_name }}" placeholder="Ej: Cajero, Contador, Solo lectura"
+                                       {% if readonly %}disabled{% endif %}>
+                            </div>
+                            {% if not readonly %}
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="copy_role">Copiar permisos de otro rol:</label>
+                                    <div class="input-group">
+                                        <select class="form-control" id="copy_role">
+                                            <option value="">-- Seleccione --</option>
+                                            {% for r in roles_options %}
+                                                <option value="{{ r.id }}">{{ r.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" id="btn_copy">Copiar</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if not readonly %}
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="btn_all"><i class="fas fa-check-double"></i> Marcar todo</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_readonly"><i class="fas fa-eye"></i> Solo lectura (solo "Ver")</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn_none"><i class="fas fa-eraser"></i> Quitar todo</button>
+                                <span class="toolbar-hint ms-2">Al marcar una acción, "Ver" se marca solo: sin ver no se puede entrar al módulo.</span>
+                            </div>
+                        {% endif %}
+
+                        {% for section in matrix %}
+                            <div class="perm-section">
+                                <div class="perm-title">{{ section.label }}</div>
+                                <div class="table-responsive">
+                                    <table class="perm-matrix">
+                                        <thead>
+                                        <tr>
+                                            <th class="c-name">Módulo</th>
+                                            <th class="c-all">Todo</th>
+                                            <th class="c-perm"><a href="#" class="col-toggle" data-col="view" title="Marcar/quitar toda la columna">Ver</a></th>
+                                            <th class="c-perm"><a href="#" class="col-toggle" data-col="add" title="Marcar/quitar toda la columna">Crear</a></th>
+                                            <th class="c-perm"><a href="#" class="col-toggle" data-col="change" title="Marcar/quitar toda la columna">Editar</a></th>
+                                            <th class="c-perm"><a href="#" class="col-toggle" data-col="delete" title="Marcar/quitar toda la columna">Eliminar</a></th>
+                                            <th class="c-others">Otras acciones</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for row in section.rows %}
+                                            <tr data-module="{{ row.key }}">
+                                                <td class="c-name mod-cell mod-name">{{ row.label }}</td>
+                                                <td class="c-all">
+                                                    <input type="checkbox" class="form-check-input row-toggle" title="Marcar/quitar toda la fila" {% if readonly %}disabled{% endif %}>
+                                                </td>
+                                                {% for col, perm in row.cols_list %}
+                                                    <td class="c-perm">
+                                                        {% if perm %}
+                                                            <input type="checkbox" class="form-check-input perm" name="permissions"
+                                                                   value="{{ perm }}" data-col="{{ col }}"{% if col == 'view' and row.readonly_ok %} data-ro="1"{% endif %} {% if readonly %}disabled{% endif %}>
+                                                        {% else %}<span class="none">–</span>{% endif %}
+                                                    </td>
+                                                {% endfor %}
+                                                <td class="c-others">
+                                                    {% if row.cols.others %}
+                                                        <div class="others-list">
+                                                            {% for perm, label in row.cols.others %}
+                                                                <label><input type="checkbox" class="form-check-input perm" name="permissions"
+                                                                              value="{{ perm }}" data-col="others" {% if readonly %}disabled{% endif %}><span>{{ label }}</span></label>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}<span class="none">–</span>{% endif %}
+                                                </td>
+
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        {% if not readonly %}
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar registro</button>
+                        {% endif %}
+                        <a href="{{ list_url }}" class="btn btn-danger"><i class="fas fa-times"></i> {% if readonly %}Volver{% else %}Cancelar{% endif %}</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xxl-3">
+                <div class="card card-outline card-secondary preview-sticky">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-bars"></i> Menú que verá este rol</h3>
+                    </div>
+                    <div class="card-body" style="max-height: 70vh; overflow-y: auto;">
+                        <ul class="preview-menu" id="menu_preview"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+    {{ selected|json_script:"role-selected" }}
+    {{ roles_perms|json_script:"role-perms" }}
+    {{ menu_preview|json_script:"role-menu" }}
+    <script type="application/javascript">
+        $(function () {
+            roleForm.init();
+        });
+    </script>
+{% endblock %}

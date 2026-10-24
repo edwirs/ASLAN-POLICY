@@ -9,6 +9,8 @@ from core.security.models import UserAccess
 
 
 class AuthenticationForm(forms.Form):
+    login_error = None
+
     username = forms.CharField(widget=forms.TextInput(attrs={
         'placeholder': 'Ingrese un username',
         'class': 'form-control',
@@ -21,31 +23,58 @@ class AuthenticationForm(forms.Form):
         'autocomplete': 'off'
     }), label='Contraseña')
 
+    MAX_INTENTOS = 3
+
+    def _fallar(self, tipo, titulo, mensaje, intentos_restantes=None):
+        """Deja el error estructurado para que la pantalla lo muestre según su tipo."""
+        self.login_error = {
+            'tipo': tipo,
+            'titulo': titulo,
+            'mensaje': mensaje,
+            'intentos_restantes': intentos_restantes,
+            'intentos_max': self.MAX_INTENTOS,
+        }
+        raise forms.ValidationError(mensaje)
+
     def clean(self):
         cleaned = super().clean()
-        username = cleaned.get('username', '')
-        password = cleaned.get('password', '')
-        if len(username) == 0:
-            raise forms.ValidationError('Ingrese su username')
-        elif len(password) == 0:
-            raise forms.ValidationError('Ingrese su password')
-        queryset = User.objects.filter(username=username)
-        if queryset.exists():
-            user = queryset[0]
-            if not user.is_active:
-                raise forms.ValidationError('El usuario ha sido bloqueado. Comuníquese con su administrador.')
-            if authenticate(username=username, password=password) is None:
-                UserAccess(user=user, login_attempt=LOGIN_ATTEMPT[1][0]).save()
-                intent = user.useraccess_set.filter(login_attempt=LOGIN_ATTEMPT[1][0], date_joined=datetime.now().date()).count()
-                if intent > 2:
-                    user.is_active = False
-                    user.save()
-                    raise forms.ValidationError('El usuario ha sido bloqueado por superar el límite de intentos fallidos en un día.')
-                count = 3 - intent
-                raise forms.ValidationError(f"La contraseña ingresada es incorrecta, por favor intentelo de nuevo. Le quedan {count} {'intento' if count == 1 else 'intentos'}. Si supera los 3 intentos fallidos su cuenta sera bloqueada.")
-            UserAccess(user=user).save()
-            return cleaned
-        raise forms.ValidationError('Por favor introduzca el nombre de usuario y la clave correctos para una cuenta de personal. Observe que ambos campos pueden ser sensibles a mayúsculas.')
+        username = (cleaned.get('username') or '').strip()
+        password = cleaned.get('password') or ''
+        if not username:
+            self._fallar('campos', 'Falta el usuario', 'Escribe tu nombre de usuario para continuar.')
+        if not password:
+            self._fallar('campos', 'Falta la contraseña', 'Escribe tu contraseña para continuar.')
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            self._fallar(
+                'usuario', 'Usuario no encontrado',
+                f'No existe el usuario «{username}». Revisa que esté bien escrito (se distingue entre mayúsculas y minúsculas).')
+        if not user.is_active:
+            self._fallar(
+                'bloqueado', 'Tu usuario está bloqueado',
+                'Por seguridad el sistema bloqueó este usuario. Pide a un administrador que lo reactive; '
+                'después podrás ingresar con tu contraseña normal.')
+        if authenticate(username=username, password=password) is None:
+            UserAccess(user=user, login_attempt=LOGIN_ATTEMPT[1][0]).save()
+            intentos = user.useraccess_set.filter(
+                login_attempt=LOGIN_ATTEMPT[1][0], date_joined=datetime.now().date()).count()
+            if intentos >= self.MAX_INTENTOS:
+                user.is_active = False
+                user.save()
+                self._fallar(
+                    'bloqueado_ahora', 'Usuario bloqueado',
+                    f'Llegaste a {self.MAX_INTENTOS} intentos fallidos en el día, así que bloqueamos tu usuario para proteger tu cuenta. '
+                    'Pide a un administrador que lo reactive.')
+            restantes = self.MAX_INTENTOS - intentos
+            self._fallar(
+                'clave', 'Contraseña incorrecta',
+                f"La contraseña no coincide con el usuario «{username}». "
+                f"Te {'queda' if restantes == 1 else 'quedan'} {restantes} {'intento' if restantes == 1 else 'intentos'} "
+                'antes de que se bloquee tu usuario.',
+                restantes)
+        UserAccess(user=user).save()
+        cleaned['username'] = username
+        return cleaned
 
     def get_user(self):
         username = self.cleaned_data.get('username')

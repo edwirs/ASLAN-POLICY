@@ -60,7 +60,7 @@ TENANT_APPS = [
     'core.security',
     'core.reports',
     'core.pos',
-    'core.funeral',
+    'core.policies',
 ]
 
 DJANGO_APPS = [
@@ -119,7 +119,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'core.security.context_processors.site_settings'
+                'core.security.context_processors.site_settings',
+                'core.security.context_processors.sidebar_menu',
+                'core.security.context_processors.claves_pendientes',
             ],
         },
     },
@@ -148,7 +150,7 @@ def get_db_config(environ_var='DATABASE_URL'):
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': 'sigef',
+        'NAME': 'Aslan_policy',
         'USER': 'postgres',
         'PASSWORD': 'Postgres2025',
         'HOST': 'localhost',

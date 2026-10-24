@@ -62,3 +62,36 @@ class GroupPermissionMixin(GroupSessionMixin, object):
             return HttpResponseRedirect(self.get_last_url())
         request.session['url_last'] = request.path
         return super().get(request, *args, **kwargs)
+
+
+class StrictPermissionMixin(object):
+    """Exige los permisos en TODOS los métodos HTTP (GET y POST) y con la unión de roles.
+
+    A diferencia de ``GroupPermissionMixin`` (que solo revisa el GET y el rol activo en la
+    sesión), aquí se usa ``user.has_perms``: un usuario con varios roles tiene la unión de
+    sus permisos. ``permission_required`` usa nombres calificados ``app.codename``.
+    """
+    permission_required = ()
+
+    def get_permissions(self):
+        if isinstance(self.permission_required, str):
+            return [self.permission_required]
+        return list(self.permission_required)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission(request)
+        if not request.user.has_perms(self.get_permissions()):
+            return self.handle_no_permission(request, forbidden=True)
+        return super().dispatch(request, *args, **kwargs)
+
+    def handle_no_permission(self, request, forbidden=False):
+        from django.http import JsonResponse
+        from django.contrib.auth.views import redirect_to_login
+        message = 'Su perfil no cuenta con el permiso necesario para realizar esta acción.'
+        if request.method != 'GET' or request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'error': message}, status=403 if forbidden else 401)
+        if forbidden:
+            messages.error(request, message)
+            return HttpResponseRedirect(settings.LOGIN_REDIRECT_URL)
+        return redirect_to_login(request.get_full_path())

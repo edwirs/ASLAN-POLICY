@@ -1,0 +1,13 @@
+{# Pestañas de una aseguradora: datos de acceso (los usa el bot) y coberturas (ficha comparativa). #}
+<ul class="nav nav-tabs aseg-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if tab_activa == 'acceso' %}active{% endif %}" href="{% url 'aseguradora_update' aseguradora.pk %}">
+            <i class="fas fa-key"></i> Datos de acceso
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab_activa == 'coberturas' %}active{% endif %}" href="{% url 'aseguradora_coberturas' aseguradora.pk %}">
+            <i class="fas fa-shield-halved"></i> Coberturas
+        </a>
+    </li>
+</ul>

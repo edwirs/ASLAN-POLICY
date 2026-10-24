@@ -1,0 +1,61 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{% url 'aseguradora_list' %}"><i class="fa-solid fa-building-shield"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item"><a class="text-decoration-none text-muted" href="{{ list_url }}">{{ aseguradora.name }}</a></li>
+    <li class="breadcrumb-item active">{% if action == 'add' %}Nuevo producto{% else %}Editar ficha{% endif %}</li>
+{% endblock %}
+
+{% block assets_form %}
+    <link rel="stylesheet" href="{% static 'aseguradora/css/coberturas.css' %}">
+{% endblock %}
+
+{% block form_fields %}
+    {% include 'aseguradora/_pestanas.html' %}
+    <p class="text-muted small mb-3">
+        Todas las aseguradoras manejan los mismos campos, apliquen o no: si no aplica, escriba «No ampara». Cada valor es texto libre
+        (por ejemplo «Hasta 1 SMMLV», «Sí ampara, deducible 5%», «Ilimitado»).
+    </p>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="{{ form.producto.id_for_label }}" class="form-label fw-bold">{{ form.producto.label }}:</label>
+            {{ form.producto }}
+            <small class="text-muted">{{ form.producto.help_text }}</small>
+        </div>
+    </div>
+    {% for titulo, campos in form.grupos %}
+        <div class="cob-seccion mb-3">
+            <div class="cob-seccion-titulo">{{ titulo }}</div>
+            <div class="row p-3 pb-0">
+                {% for campo in campos %}
+                    <div class="col-lg-6 mb-3">
+                        <label for="{{ campo.id_for_label }}" class="form-label fw-bold small">{{ campo.label }}</label>
+                        {{ campo }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+    <div class="mb-2">
+        <label for="{{ form.observaciones.id_for_label }}" class="form-label fw-bold">{{ form.observaciones.label }}:</label>
+        {{ form.observaciones }}
+    </div>
+{% endblock %}
+
+{% block content_form_before %}
+    <script type="application/javascript">
+        $(function () {
+            $('#frmForm').on('submit', function (e) {
+                e.preventDefault();
+                submit_with_formdata({
+                    'params': new FormData(this),
+                    'form': this,
+                    'content': '¿Guardar la ficha de coberturas de {{ aseguradora.name|escapejs }}?'
+                });
+            });
+        });
+    </script>
+{% endblock %}

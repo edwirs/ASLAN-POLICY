@@ -1,0 +1,80 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-building-shield"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{{ aseguradora.name }}</li>
+{% endblock %}
+
+{% block assets %}
+    <link rel="stylesheet" href="{% static 'aseguradora/css/coberturas.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="card card-outline card-primary">
+    <div class="card-header">
+        <h3 class="card-title mb-0"><i class="fas fa-shield-halved"></i> {{ title }}</h3>
+        <div style="float: right;">
+            {% if puede_editar %}
+                <a href="{% url 'cobertura_create' aseguradora.pk %}" class="btn btn-primary"><i class="fas fa-plus"></i> Nuevo producto</a>
+            {% endif %}
+            <a href="{{ list_url }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Volver</a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% include 'aseguradora/_pestanas.html' %}
+
+        {% if not tiene_bot %}
+            <div class="alert alert-info py-2">
+                <i class="fas fa-info-circle"></i> {{ aseguradora.name }} no tiene bot: se cotiza por medio de terceros. Esta ficha es solo información de referencia.
+            </div>
+        {% endif %}
+
+        {% for item in fichas %}
+            <div class="cob-ficha">
+                <div class="cob-ficha-cabecera">
+                    <div>
+                        <span class="cob-producto">{{ item.ficha.producto }}</span>
+                        <small class="text-muted ms-2">Actualizada {{ item.ficha.updated_at|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    {% if puede_editar %}
+                        <a href="{% url 'cobertura_update' aseguradora.pk item.ficha.pk %}" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i> Editar</a>
+                    {% endif %}
+                </div>
+                <div class="row">
+                    {% for titulo, filas in item.secciones %}
+                        <div class="col-xl-6 mb-3">
+                            <div class="cob-seccion">
+                                <div class="cob-seccion-titulo">{{ titulo }}</div>
+                                <table class="cob-tabla">
+                                    <tbody>
+                                    {% for etiqueta, valor in filas %}
+                                        <tr>
+                                            <th>{{ etiqueta }}</th>
+                                            <td>{% if valor %}{{ valor }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% if item.ficha.observaciones %}
+                    <div class="cob-observaciones"><i class="fas fa-note-sticky"></i> {{ item.ficha.observaciones }}</div>
+                {% endif %}
+            </div>
+        {% empty %}
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-shield-halved fa-2x mb-2"></i>
+                <p class="mb-3">{{ aseguradora.name }} todavía no tiene ficha de coberturas.</p>
+                {% if puede_editar %}
+                    <a href="{% url 'cobertura_create' aseguradora.pk %}" class="btn btn-primary"><i class="fas fa-plus"></i> Crear la ficha</a>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

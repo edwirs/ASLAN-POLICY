@@ -18,22 +18,22 @@
         <div class="visual-overlay"></div>
         
         <div class="hero-brand-presentation">
-            <h1>ASLAN FE</h1>
-            <h2>Plataforma de Facturación y Gestión Electrónica</h2>
+            <h1>NEXO <span class="hero-by">by ASLAN Tecnología</span></h1>
+            <h2>Cotización y Gestión de Pólizas de Seguro Todo Riesgo</h2>
             <p>
-                Solución integral optimizada para la emisión de comprobantes fiscales, gestión de documentos soporte, 
-                control de inventarios y trazabilidad analítica en tiempo real.
+                Solución integral para la cotización de seguros de autos todo riesgo, gestión de clientes,
+                emisión de pólizas y trazabilidad analítica en tiempo real.
             </p>
 
             <div class="hero-kpi-row">
-    
+
                 <div class="kpi-premium-card">
                     <div class="kpi-accent-line"></div>
                     <div class="kpi-header-meta">
-                        <span class="kpi-value">DIAN</span>
-                        <i class="fas fa-file-invoice-dollar kpi-icon"></i>
+                        <span class="kpi-value">AUTOS</span>
+                        <i class="fas fa-car-side kpi-icon"></i>
                     </div>
-                    <small class="kpi-label">Facturación FE</small>
+                    <small class="kpi-label">Todo riesgo</small>
                 </div>
 
                 <div class="kpi-premium-card">
@@ -51,7 +51,7 @@
                         <span class="kpi-value">SSL</span>
                         <i class="fas fa-shield-halved kpi-icon"></i>
                     </div>
-                    <small class="kpi-label">Seguridad DIAN</small>
+                    <small class="kpi-label">Conexión segura</small>
                 </div>
 
             </div>
@@ -66,13 +66,45 @@
                 {% csrf_token %}
 
                 <div class="form-brand-space">
-                    <img src="{{ dashboard.get_image }}" class="form-brand-logo" alt="ASLAN FE">
+                    <img src="{{ dashboard.get_image }}" class="form-brand-logo" alt="NEXO by ASLAN Tecnología">
                 </div>
 
                 <header class="gate-header">
                     <h3>¡Hola de nuevo!</h3>
                     <p class="gate-subtitle">Ingresa tus credenciales para acceder al sistema</p>
                 </header>
+
+                {% if form.login_error %}
+                    {% with e=form.login_error %}
+                    <div class="gate-alert gate-alert-{{ e.tipo }}" role="alert" aria-live="assertive" id="gateAlert">
+                        <div class="gate-alert-icon">
+                            {% if e.tipo == 'bloqueado' or e.tipo == 'bloqueado_ahora' %}<i class="fas fa-lock"></i>
+                            {% elif e.tipo == 'usuario' %}<i class="fas fa-user-slash"></i>
+                            {% elif e.tipo == 'clave' %}<i class="fas fa-key"></i>
+                            {% else %}<i class="fas fa-circle-exclamation"></i>{% endif %}
+                        </div>
+                        <div class="gate-alert-body">
+                            <strong>{{ e.titulo }}</strong>
+                            <p>{{ e.mensaje }}</p>
+                            {% if e.tipo == 'clave' %}
+                                <div class="gate-attempts" aria-label="Intentos restantes: {{ e.intentos_restantes }} de {{ e.intentos_max }}">
+                                    {% for n in "123" %}
+                                        <span class="gate-attempt-dot {% if forloop.counter <= e.intentos_restantes %}on{% endif %}"></span>
+                                    {% endfor %}
+                                    <small>{{ e.intentos_restantes }} de {{ e.intentos_max }} intentos</small>
+                                </div>
+                                <a class="gate-alert-link" href="{% url 'login_reset_password' %}">Olvidé mi contraseña</a>
+                            {% elif e.tipo == 'bloqueado' or e.tipo == 'bloqueado_ahora' %}
+                                <ul class="gate-alert-steps">
+                                    <li>Comunícate con un administrador de tu empresa.</li>
+                                    <li>Él reactiva tu usuario desde <b>Usuarios</b> (campo «Estado»).</li>
+                                    <li>Ingresa de nuevo; tu contraseña no cambia.</li>
+                                </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% endif %}
 
                 <div class="gate-field-group">
                     <label for="id_username">Usuario</label>
@@ -107,7 +139,7 @@
                 </footer>
 
                 <div class="gate-copyright">
-                    <span>© 2026 ASLAN FE • v1.0.0</span>
+                    <span>© 2026 NEXO by ASLAN Tecnología • v1.0.0</span>
                 </div>
 
             </form>
@@ -126,6 +158,14 @@
 <script>
     $(document).ready(function() {
         
+        // 0. Foco en el campo que corresponde al error
+        const gateAlert = $('#gateAlert');
+        if (gateAlert.length) {
+            const tipo = (gateAlert.attr('class').match(/gate-alert-(\w+)/g) || []).join(' ');
+            if (/gate-alert-clave/.test(tipo)) { $('#id_password').trigger('focus'); }
+            else if (/gate-alert-usuario|gate-alert-campos/.test(tipo)) { $('#id_username').trigger('focus').trigger('select'); }
+        }
+
         // 1. CONTROL DEL SLIDER DINÁMICO
         const slides = $('.slide-item');
         let currentSlide = 0;

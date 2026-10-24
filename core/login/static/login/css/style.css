@@ -511,3 +511,71 @@ html, body {
         font-size: 13px !important;
     }
 }
+
+/* ==========================================================
+   AVISOS DE ERROR DEL INICIO DE SESIÓN
+========================================================== */
+.gate-alert {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #7f1d1d;
+    animation: gate-alert-in 0.25s var(--bezier-senior);
+}
+
+.gate-alert-icon {
+    flex: 0 0 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #dc2626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+}
+
+.gate-alert-body { flex: 1; min-width: 0; }
+.gate-alert-body strong { display: block; font-size: 14.5px; font-weight: 800; margin-bottom: 2px; }
+.gate-alert-body p { font-size: 13px; line-height: 1.45; margin: 0; color: #991b1b; }
+
+.gate-alert-usuario, .gate-alert-campos { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+.gate-alert-usuario .gate-alert-icon, .gate-alert-campos .gate-alert-icon { background: #fef3c7; color: #d97706; }
+.gate-alert-usuario .gate-alert-body p, .gate-alert-campos .gate-alert-body p { color: #92400e; }
+
+.gate-alert-bloqueado, .gate-alert-bloqueado_ahora { background: #fff1f2; border-color: #fda4af; }
+.gate-alert-bloqueado .gate-alert-icon, .gate-alert-bloqueado_ahora .gate-alert-icon { background: #dc2626; color: #fff; }
+
+.gate-attempts { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.gate-attempts small { font-size: 12px; font-weight: 700; color: #991b1b; margin-left: 4px; }
+.gate-attempt-dot { width: 12px; height: 12px; border-radius: 50%; background: #fecaca; border: 1px solid #fca5a5; }
+.gate-attempt-dot.on { background: #dc2626; border-color: #dc2626; }
+
+.gate-alert-link { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--aslan-blue-deep); }
+.gate-alert-steps { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: #7f1d1d; }
+.gate-alert-steps li { margin-bottom: 2px; }
+
+@keyframes gate-alert-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* Marca: «NEXO» grande y «by ASLAN Tecnología» como firma pequeña y discreta. */
+.hero-brand-presentation h1 .hero-by {
+    display: block;
+    margin-top: 6px;
+    font-size: 17px !important;
+    font-weight: 600 !important;
+    letter-spacing: .1em !important;
+    text-transform: none;
+    color: var(--aslan-blue-deep, #0f3a5c);
+    opacity: .72;
+}
+@media (max-width: 991px) {
+    .hero-brand-presentation h1 .hero-by { font-size: 14px !important; }
+}

@@ -1,0 +1,149 @@
+/* Estado de la cotización con cada aseguradora (formulario y «Ver proceso»). */
+
+.pc-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+
+.pc-card {
+    border-radius: 14px;
+    padding: 14px 18px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.pc-card.pc-ok { background: rgba(22, 163, 74, 0.07); border-color: rgba(22, 163, 74, 0.28); }
+.pc-card.pc-error { background: rgba(220, 38, 38, 0.05); border-color: rgba(220, 38, 38, 0.25); }
+.pc-card.pc-aviso { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.4); }
+.pc-card.pc-curso { background: #f8fafc; }
+
+.pc-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.pc-aseguradora { font-weight: 800; color: #0f172a; font-size: 15px; }
+.pc-intento { font-weight: 600; font-size: 11px; color: #64748b; margin-left: 6px; }
+
+.pc-estado {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 3px 10px;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.pc-ok .pc-estado { background: #16a34a; color: #fff; }
+.pc-error .pc-estado { background: #dc2626; color: #fff; }
+.pc-curso .pc-estado { background: #2ab1ee; color: #fff; }
+.pc-aviso .pc-estado { background: #f59e0b; color: #fff; }
+
+.pc-prima { font-size: 22px; font-weight: 800; color: #16a34a; }
+.pc-prima small { font-size: 12px; font-weight: 600; color: #64748b; }
+
+.pc-planes { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; }
+.pc-planes li { display: flex; justify-content: space-between; font-size: 13px; color: #334155; }
+.pc-planes li b { color: #0f172a; }
+
+.pc-chip {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(42, 177, 238, 0.12);
+    color: #0e6490;
+    border-radius: 8px;
+    padding: 3px 10px;
+    margin: 4px 0;
+}
+
+.pc-paso { font-size: 13.5px; color: #334155; }
+.pc-paso i { color: #2ab1ee; margin-right: 6px; }
+
+.pc-tipo { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; color: #b91c1c; }
+.pc-tipo i { margin-right: 6px; }
+.pc-tipo-timeout, .pc-tipo-interrumpida { color: #b45309; }
+.pc-tipo-datos { color: #0e6490; }
+.pc-tipo-no_cotizable, .pc-tipo-saturado, .pc-tipo-clave_vencida { color: #b45309; }
+.pc-clave-link { margin-top: 8px; font-weight: 600; }
+
+.pc-mensaje { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+.pc-paso-fallo { font-size: 12.5px; color: #475569; margin-bottom: 6px; }
+.pc-paso-fallo i { color: #dc2626; margin-right: 4px; }
+
+.pc-accion {
+    font-size: 13px;
+    color: #1e293b;
+    background: #fff;
+    border-left: 3px solid #f28b41;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 8px 0;
+}
+
+.pc-detalle { margin: 6px 0; font-size: 12.5px; color: #475569; }
+.pc-detalle summary { cursor: pointer; font-weight: 600; color: #0e6490; }
+.pc-detalle pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11.5px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 6px 0 0;
+    max-height: 200px;
+    overflow: auto;
+}
+
+.pc-datos { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.pc-datos div { display: flex; justify-content: space-between; gap: 12px; }
+.pc-datos b { color: #0f172a; text-align: right; }
+
+.pc-reintentar {
+    margin-top: 8px;
+    background: linear-gradient(120deg, #f28b41 0%, #dc742b 100%);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 7px 16px;
+}
+
+.pc-reintentar:hover { color: #fff; filter: brightness(1.05); }
+.pc-reintentar:disabled { opacity: 0.6; }
+
+/* Listado: chips de estado por aseguradora y modal «Ver proceso» */
+
+.proceso-resumen { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; }
+.proceso-chip { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 9px; background: #e2e8f0; color: #334155; white-space: nowrap; }
+.proceso-chip.ok { background: rgba(22, 163, 74, 0.15); color: #15803d; }
+.proceso-chip.error { background: rgba(220, 38, 38, 0.13); color: #b91c1c; }
+.proceso-chip.aviso { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+.proceso-chip.curso { background: rgba(42, 177, 238, 0.18); color: #0e6490; }
+
+#modalProceso .modal-body { max-height: 70vh; overflow-y: auto; }
+#modalProceso .proceso-sub { font-size: 13px; color: #64748b; margin-bottom: 12px; }
+
+.pc-plan-principal { font-weight: 800; }
+.pc-plan-principal span, .pc-plan-principal b { color: #15803d; }
+.pc-nota { font-size: 12.5px; color: #475569; margin: 6px 0; }
+
+/* El bot espera algo que solo el asesor puede hacer (código SMS, reCAPTCHA). */
+.pc-card.pc-espera { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.5); }
+.pc-espera .pc-estado { background: #f59e0b; color: #fff; }
+.pc-tipo-espera { color: #b45309; }
+.pc-digitos { display: flex; justify-content: center; gap: 8px; }
+.pc-digito {
+    width: 46px; height: 54px; text-align: center; font-size: 26px; font-weight: 700; border-radius: 10px;
+    border: 2px solid #ced4da; background: #fff; color: #0f172a; outline: 0; transition: border-color .15s, box-shadow .15s;
+}
+.pc-digito:focus { border-color: var(--aslan-blue, #2ab1ee); box-shadow: 0 0 0 .2rem rgba(42, 177, 238, .25); }
+@media (max-width: 420px) { .pc-digito { width: 38px; height: 46px; font-size: 22px; } .pc-digitos { gap: 5px; } }

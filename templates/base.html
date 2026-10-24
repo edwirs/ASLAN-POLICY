@@ -89,16 +89,42 @@
     href="{% static 'lib/adminlte-3.2.0/css/adminlte.min.css'%}"
   ></link>
 
+  <!-- Tema oscuro (ajustes de los componentes propios) -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/dark-mode.css' %}"
+  ></link>
+
+  <!-- Color de marca (azul del logo de ASLAN): botones primarios y línea de las tarjetas -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/brand.css' %}?v=2"
+  ></link>
+
+  <!-- Botón de ayuda de los módulos -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/ayuda.css' %}?v=2"
+  ></link>
+
+  <!-- Tablas (DataTables): ancho completo y estilo global -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/datatables.css' %}"
+  ></link>
+
   <!-- Theme js -->
   <link
     rel="stylesheet"
     href="{% static 'lib/adminlte-3.2.0/js/adminlte.min.js'%}"
   ></link>
+
 </head>
 
 {% block body %}
 
 <body class="hold-transition sidebar-mini layout-fixed {% block body_class %}{% endblock %}">
+  <script>try { if (localStorage.getItem('aslan-theme') === 'dark') { document.documentElement.setAttribute('data-bs-theme', 'dark'); document.body.classList.add('dark-mode'); } } catch (e) {}</script>
   <!-- Navbar -->
 
   <nav class="main-header navbar navbar-expand navbar-white navbar-light">
@@ -165,7 +191,13 @@
 
     <!-- Right navbar links -->
     <ul class="navbar-nav ml-auto">
-      
+
+      <li class="nav-item">
+        <a class="nav-link" href="#" id="themeToggle" role="button" title="Cambiar a tema oscuro">
+          <i class="fas fa-moon"></i>
+        </a>
+      </li>
+
       <!--{% if request.user.has_at_least_one_group %}
       <li class="nav-item dropdown">
         <a
@@ -251,7 +283,7 @@
         class="brand-image"
         style="opacity: .8"
       >
-      <span class="brand-text font-weight-light">Aslan Core</span>
+      <span class="brand-text brand-nexo"><b>NEXO</b> <small>by ASLAN Tecnología</small></span>
     </a>
 
     <!-- Sidebar -->
@@ -281,648 +313,7 @@
           data-widget="treeview"
           role="menu"
         >
-              {% if perms.pos.view_client %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'client_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="fas fa-user-plus nav-icon"></i>
-                    <p>Clientes</p>
-                  </a>
-                </li>
-              {% endif %}
-              {% if perms.pos.view_category %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'category_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="fas fa-layer-group nav-icon"></i>
-                    <p>Categorías</p>
-                  </a>
-                </li>
-              {% endif %}
-              {% if perms.pos.view_product %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'product_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="fas fa-boxes nav-icon"></i>
-                    <p>Productos</p>
-                  </a>
-                </li>
-              {% endif %}
-              
-        <!--{% if perms.pos.view_client or perms.pos.view_provider %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-users"></i>
-              <p>
-                Personas
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.pos.view_client %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'client_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Clientes</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_provider %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'provider_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Proveedores</p>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %} -->
-
-        <!--{% if perms.pos.view_category or perms.pos.view_product %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-boxes"></i>
-              <p>
-                Bodega
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.pos.view_category %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'category_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Categorías</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_product %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'product_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Productos</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_product %}
-                <li class="nav-item">
-                  <a
-                    class="nav-link"
-                    href="{% url 'productautoadd_list' %}"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    Productos descuento
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %} -->
-
-        {% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-file-text nav-icon"></i>
-              <p>
-                Facturas
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-
-              <!-- {% if perms.pos.view_sale %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'sale_admin_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Facturas</p>
-                  </a>
-                </li>
-              {% endif %} -->
-
-              {% if perms.pos.view_sale %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'sale_Fe_admin_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Facturas Electrónicas</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_creditnote %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'credit_note_Fe_admin_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Notas Crédito</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              <!-- {% if perms.pos.view_price %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'price_admin_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Cotizaciones</p>
-                  </a>
-                </li>
-              {% endif %} -->
-            </ul>
-          </li>
-        {% endif %}
-
-        {% if perms.funeral.add_servicereception or perms.funeral.view_servicereception %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fa-solid fa-house-medical-circle-check nav-icon"></i>
-              <p>
-                Recepción de servicios
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.funeral.add_servicereception %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'service_reception_wizard' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Nueva recepción</p>
-                  </a>
-                </li>
-              {% endif %}
-              {% if perms.funeral.view_servicereception %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'service_reception_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Recepciones registradas</p>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %}
-
-        {% if perms.funeral.view_servicetype or perms.funeral.view_clientservicerate or perms.funeral.view_funeralclientprofile %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-concierge-bell nav-icon"></i>
-              <p>
-                Servicios
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.funeral.view_servicetype %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'service_type_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Tipos de servicio</p>
-                  </a>
-                </li>
-              {% endif %}
-              {% if perms.funeral.view_clientservicerate %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'client_service_rate_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Servicios por entidad</p>
-                  </a>
-                </li>
-              {% endif %}
-              {% if perms.funeral.view_funeralclientprofile %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'funeral_client_profile_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Clasificación de clientes</p>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %}
-
-        <!--{{% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-utensils"></i>
-              <p>
-                Operaciones
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.pos.add_bar %}
-                <li class="nav-item">
-                  <a href="{% url 'bar_admin_create' %}" class="nav-link" >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Ventas Rápidas</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.add_bar %}
-                <li class="nav-item">
-                  <a href="{% url 'order_list' %}" class="nav-link" >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Ventas Mesas</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.add_bar %}
-                <li class="nav-item">
-                  <a href="{% url 'kitchen_board' %}" class="nav-link" >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Cocina</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_cashclosing %}
-                <li class="nav-item">
-                  <a href="{% url 'cashClosing_list' %}" class="nav-link" >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Cierre de caja</p>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %}-->
-
-        <!--{{% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-warehouse"></i>
-              <p>
-                Inventario
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.pos.view_buy %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'buy_admin_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Compras</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_company %}
-                  <li class="nav-item">
-                    <a href="{% url 'inventory_management' %}" class="nav-link" >
-                      <i class="far fa-circle nav-icon"></i>
-                      <p>Administrador Inventario</p>
-                    </a>
-                  </li>
-              {% endif %}
-
-              {% if perms.pos.view_bill %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'expenses_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Gastos</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.pos.view_bill %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'sale_credit_report' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Créditos</p>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %}-->
-
-        <!--{% if perms.pos.add_bar or perms.pos.view_sale or perms.pos.view_buy or perms.pos.view_price %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-hand-holding-usd"></i>
-              <p>
-                Nómina
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            {% if perms.pos.view_employee%}
-              <ul class="nav nav-treeview">
-                <li class="nav-item">
-                  <a
-                    href="{% url 'employee_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Empleados</p>
-                  </a>
-                </li>
-              </ul>
-            {% endif %}
-
-            {% if perms.pos.view_employee_transaction %}
-              <ul class="nav nav-treeview">
-                <li class="nav-item">
-                  <a
-                    href="{% url 'employee_transaction_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Transacciones</p>
-                  </a>
-                </li>
-              </ul>
-            {% endif %}
-
-            {% if perms.pos.view_sale %}
-              <ul class="nav nav-treeview">
-                <li class="nav-item">
-                  <a
-                    href="{% url 'payroll_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Nóminas</p>
-                  </a>
-                </li>
-              </ul>
-            {% endif %}
-          </li>
-        {% endif %} -->
-
-        <!-- {% if perms.pos.report_sales_menu or perms.pos.report_employee_menu or perms.pos.report_employee_debe or perms.pos.report_employee_gain %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-chart-pie"></i>
-              <p>
-                Reportes
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              <li class="nav-item">
-                <a
-                  href="{% url 'sale_report' %}"
-                  class="nav-link"
-                >
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Totales</p>
-                </a>
-              </li>
-            </ul>
-
-            <ul class="nav nav-treeview">
-              <li class="nav-item">
-                <a
-                  href="{% url 'employee_sale_report' %}"
-                  class="nav-link"
-                >
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Ventas Empleados</p>
-                </a>
-              </li>
-            </ul>
-
-            <ul class="nav nav-treeview">
-              <li class="nav-item">
-                <a
-                  href="{% url 'sale_by_product_report' %}"
-                  class="nav-link"
-                >
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Ventas X Producto</p>
-                </a>
-              </li>
-            </ul>
-          </li>
-        {% endif %} -->
-
-        {% if perms.pos.view_company or perms.security.view_dashboard or perms.user.view_user %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-wrench nav-icon"></i>
-              <p>
-                Configuraciones
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-                {% if perms.pos.view_table or perms.dashboard.view_dashboard  or  perms.user.view_user %}
-                  <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="far fa-circle nav-icon"></i>
-                        <p>
-                            Generales
-                            <i class="right fas fa-angle-left"></i>
-                        </p>
-                    </a>
-                    
-                    {% if perms.pos.view_table %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'company_update' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Compañia</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-
-                    {% if perms.pos.view_factuscredential %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'factus_credential_list' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Credenciales Factus</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-
-                    {% if perms.dashboard.view_dashboard %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'dashboard_update' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Conf. Dashboard</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-
-                    {% if perms.user.view_user %}
-                    <ul class="nav nav-treeview">
-                        <li class="nav-item">
-                            <a href="{% url 'user_update_profile' %}" class="nav-link">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Actualizar Perfil</p>
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                {% endif %}
-
-                <!--{% if perms.pos.view_table %}
-                  <li class="nav-item">
-                    <a href="{% url 'table_list' %}" class="nav-link" >
-                      <i class="far fa-circle nav-icon"></i>
-                      <p>Mesas</p>
-                    </a>
-                  </li>
-                {% endif %}-->
-            </ul>
-          </li>
-        {% endif %}
-
-        {% if perms.user.view_user or perms.security.view_user_access or perms.security.change_user %}
-          <li class="nav-item">
-            <a
-              href="#"
-              class="nav-link"
-            >
-              <i class="fas fa-lock nav-icon"></i>
-              <p>
-                Seguridad
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-
-            <ul class="nav nav-treeview">
-              {% if perms.user.view_user %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'user_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Usuarios</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.security.view_user_access %}
-                <li class="nav-item">
-                  <a
-                    href="{% url 'user_access_list' %}"
-                    class="nav-link"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    <p>Accesos</p>
-                  </a>
-                </li>
-              {% endif %}
-
-              {% if perms.security.change_user %}
-                <li class="nav-item">
-                  <a
-                    class="nav-link"
-                    href="{% url 'user_update_password' %}"
-                  >
-                    <i class="far fa-circle nav-icon"></i>
-                    Actualizar Contraseña
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </li>
-        {% endif %}
+          {% include "partials/sidebar_menu.html" %}
         </ul>
       </nav>
       <!-- /.sidebar-menu -->
@@ -935,6 +326,17 @@
     <!-- Begin page content -->
     <main class="flex-shrink-0 mt-4">
       <div class="container-fluid px-3">
+        {% if claves_pendientes %}
+          <div class="alert alert-warning d-flex align-items-start gap-2" role="alert" id="alertaClavesPendientes">
+            <i class="fa-solid fa-key mt-1"></i>
+            <div>
+              <b>{{ claves_pendientes|join:", " }}</b> {% if claves_pendientes|length > 1 %}piden{% else %}pide{% endif %} cambiar la contraseña del portal.
+              Hasta que se actualice no se cotiza con {% if claves_pendientes|length > 1 %}esas aseguradoras{% else %}esa aseguradora{% endif %}.
+              {% if perms.policies.change_aseguradora %}Cámbiala en el portal y actualízala en
+                <a class="alert-link" href="{% url 'aseguradora_list' %}">Aseguradoras</a>.{% else %}Avisa a un administrador para que la actualice.{% endif %}
+            </div>
+          </div>
+        {% endif %}
         {% block content_main %}
 
           {% endblock %}
@@ -957,6 +359,7 @@
   <!-- utils -->
   <script src="{% static 'js/main.js' %}"></script>
   <script src="{% static 'js/functions.js' %}"></script>
+  <script src="{% static 'js/theme.js' %}"></script>
   <!-- REQUIRED SCRIPTS -->
 
   <!-- AdminLTE App -->

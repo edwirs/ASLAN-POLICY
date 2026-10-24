@@ -1,0 +1,5 @@
+<div class="{{ col|default:'col-md-6' }} mb-3">
+    <label for="{{ campo.id_for_label }}" class="form-label fw-bold">{{ campo.label }}{% if campo.field.required %} <span class="text-danger">*</span>{% endif %}:</label>
+    {{ campo }}
+    {% if ayuda %}<small class="text-muted">{{ ayuda }}</small>{% endif %}
+</div>

@@ -1,0 +1,5 @@
+{% comment %}
+  Menú lateral generado desde core/security/registry.py (ver context processor
+  sidebar_menu). Para agregar o mover módulos se edita el registro, no este archivo.
+{% endcomment %}
+{% for node in sidebar_menu %}{% include "partials/sidebar_node.html" with node=node %}{% endfor %}

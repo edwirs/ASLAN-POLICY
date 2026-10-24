@@ -1,0 +1,70 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-building-shield"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{% if es_nueva %}Nueva{% else %}{{ aseguradora.name }}{% endif %}</li>
+{% endblock %}
+
+{% block assets_form %}
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'aseguradora/css/coberturas.css' %}">
+{% endblock %}
+
+{% block form_fields %}
+    {% if not es_nueva %}{% include 'aseguradora/_pestanas.html' %}{% endif %}
+    {% if es_nueva %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Registra la aseguradora y los datos de acceso a su portal. Se cotizará de forma
+            automática solo cuando exista un bot para ella; mientras tanto queda guardada en el listado.
+        </div>
+    {% endif %}
+    {% if clave_pendiente %}
+        <div class="alert alert-warning">
+            <i class="fas fa-key"></i> <b>{{ aseguradora.name }} pidió cambiar la contraseña</b>{% if clave_detectada %} (detectado el {{ clave_detectada|date:"d/m/Y H:i" }}){% endif %}.
+            Entra a su portal, cámbiala allí y escribe la <b>contraseña nueva</b> en el campo Contraseña de abajo. Al guardar se desbloquea y podrás
+            reenviar las solicitudes. Mientras tanto el sistema no intenta entrar a ese portal, para no arriesgar el bloqueo de la cuenta.
+        </div>
+    {% endif %}
+    {% if not tiene_bot %}
+        <div class="alert alert-warning">
+            <i class="fas fa-triangle-exclamation"></i> {{ aseguradora.name }} todavía no tiene un bot de cotización:
+            puedes dejar sus datos guardados, pero no se cotizará automáticamente.
+        </div>
+    {% endif %}
+    <div class="row">
+        {% for field in form.visible_fields %}
+            {% if field.name != 'aseguradora_activa' %}
+                <div class="col-md-6 mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-bold">{{ field.label }}:</label>
+                    {{ field }}
+                    {% if field.name == 'password' %}
+                        <small class="text-muted"><i class="fas fa-lock"></i> Se guarda cifrada. {% if field.field.widget.attrs.placeholder %}Déjala vacía para no cambiarla.{% endif %}</small>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <hr>
+    <div class="form-check form-switch">
+        {{ form.aseguradora_activa }}
+        <label class="form-check-label fw-bold" for="{{ form.aseguradora_activa.id_for_label }}">Aseguradora activa (incluirla en las cotizaciones)</label>
+    </div>
+{% endblock %}
+
+{% block content_form_before %}
+    <script type="application/javascript">
+        $(function () {
+            $('#frmForm').on('submit', function (e) {
+                e.preventDefault();
+                submit_with_formdata({
+                    'params': new FormData(this),
+                    'form': this,
+                    'content': {% if es_nueva %}'¿Registrar esta aseguradora?'{% else %}'¿Guardar los datos de acceso de {{ aseguradora.name|escapejs }}?'{% endif %}
+                });
+            });
+        });
+    </script>
+{% endblock %}

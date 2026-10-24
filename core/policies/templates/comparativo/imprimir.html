@@ -1,0 +1,100 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Comparativo {{ vehiculo.placa }}</title>
+    <link rel="stylesheet" href="{% static 'lib/fontawesome-6.1.1/css/all.min.css' %}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,600,700,800&display=fallback">
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'comparativo/css/imprimir.css' %}?v=6">
+</head>
+<body class="cmp-imprimir-body">
+
+<div class="cmp-barra-herramientas cmp-no-imprimir">
+    <div class="cmp-barra-texto">
+        <b>Vista de impresión</b>
+        <span>Se abre el diálogo de impresión automáticamente. Para guardar el PDF elige «Guardar como PDF» como destino.</span>
+    </div>
+    <div class="cmp-barra-botones">
+        <button type="button" class="cmp-btn cmp-btn-primario" onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimir / guardar PDF</button>
+        <button type="button" class="cmp-btn" onclick="window.close()"><i class="fa-solid fa-xmark"></i> Cerrar</button>
+    </div>
+</div>
+
+<div class="cmp-marca-agua" aria-hidden="true">COTIZACIÓN</div>
+<div class="cmp-leyenda-lateral" aria-hidden="true">PDF de cotización generado por el sistema de información NEXO by ASLAN Tecnología · {{ generado_en|date:"d/m/Y H:i" }} · {{ generado_por }} · Ref. {{ documento_ref }}</div>
+
+<main class="cmp-page cmp-hoja cmp-escala-{{ escala }}{% if solo_diferencias %} cmp-solo-diferencias{% endif %}" id="cmpResumen">
+    {# Marco: el encabezado (thead) y el pie (tfoot) se repiten en cada hoja al imprimir #}
+    <table class="cmp-marco-impresion">
+        <thead>
+        <tr><td>
+            <div class="cmp-membrete-empresa">
+                <div class="cmp-membrete-logo">
+                    {% if empresa and empresa.logo_url %}<img src="{{ empresa.logo_url }}" alt="{{ empresa.nombre }}">
+                    {% elif empresa %}<span class="cmp-membrete-nombre">{{ empresa.nombre }}</span>{% endif %}
+                </div>
+                <div class="cmp-membrete-titulo">
+                    <b>Comparativo de seguros</b>
+                    <span>{{ vehiculo.placa }} · {% now "d/m/Y" %}</span>
+                </div>
+            </div>
+        </td></tr>
+        </thead>
+        <tfoot>
+        <tr><td>
+            {% if empresa %}
+            <footer class="cmp-pie-empresa">
+                <div class="cmp-pie-contacto">
+                    {% if empresa.telefonos %}<span><i class="fa-solid fa-phone"></i> {{ empresa.telefonos|join:" &nbsp;|&nbsp; " }}</span>{% endif %}
+                    {% if empresa.email %}<span><i class="fa-solid fa-envelope"></i> {{ empresa.email }}</span>{% endif %}
+                    {% if empresa.sitio_texto %}<span><i class="fa-solid fa-globe"></i> {{ empresa.sitio_texto }}</span>{% endif %}
+                    {% if empresa.direccion %}<span><i class="fa-solid fa-location-dot"></i> {{ empresa.direccion }}</span>{% endif %}
+                </div>
+                <p class="cmp-pie-aviso">La cotización se expide exclusivamente con un propósito informativo sobre los costos del seguro y sus condiciones. El cálculo de la prima y el valor asegurado se elabora de acuerdo a la tarifa vigente en el momento de la elaboración.</p>
+            </footer>
+            {% endif %}
+        </td></tr>
+        </tfoot>
+        <tbody>
+        <tr><td>
+
+    <header class="cmp-hoja-cabecera">
+        <div>
+            <div class="cmp-eyebrow">Propuesta de seguro de automóvil</div>
+            <h1 class="cmp-hoja-placa">{{ vehiculo.placa }}{% if vehiculo.es_cero_km %} <span class="cmp-chip cmp-chip-info">0 km</span>{% endif %}</h1>
+            <div class="cmp-subtitulo">
+                {{ vehiculo.marca|default:"" }} {{ vehiculo.referencia|default:"" }}
+                {% if vehiculo.modelo %}<span class="cmp-punto">·</span> {{ vehiculo.modelo }}{% endif %}
+                {% if vehiculo.servicio %}<span class="cmp-punto">·</span> {{ vehiculo.get_servicio_display }}{% endif %}
+                {% if valor_comercial_fmt %}<span class="cmp-punto">·</span> Valor comercial {{ valor_comercial_fmt }}{% endif %}
+            </div>
+        </div>
+        <div class="cmp-hoja-cliente">
+            <div><span>Para</span> <b>{{ tomador.names }}</b></div>
+            <div><span>Documento</span> {{ tomador.document_type.abbreviation }} {{ tomador.dni }}</div>
+            <div><span>Fecha</span> {% now "d/m/Y" %}</div>
+        </div>
+    </header>
+
+    {% if resumen.columnas %}
+        {% include 'comparativo/_resumen_tabla.html' %}
+        <p class="cmp-nota-pie">Valores en pesos colombianos (COP). Las coberturas, deducibles y condiciones están sujetas a las condiciones generales de cada aseguradora.</p>
+    {% else %}
+        <p class="cmp-vacio">Todavía no hay valores para comparar.</p>
+    {% endif %}
+
+        </td></tr>
+        </tbody>
+    </table>
+</main>
+
+<script>
+    // Abre el diálogo de impresión al cargar (las fuentes y los íconos ya están listos).
+    window.addEventListener('load', function () {
+        setTimeout(function () { window.print(); }, 400);
+    });
+</script>
+</body>
+</html>

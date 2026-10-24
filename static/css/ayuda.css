@@ -1,0 +1,25 @@
+/* Ayuda de cada módulo: un botón redondo pequeño y discreto junto al título; el aviso solo aparece al hacer clic. */
+.ayuda-modulo { display: inline-block; vertical-align: super; margin-left: 4px; line-height: 1; }
+.btn-ayuda {
+    width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid #adb5bd;
+    background: transparent; color: #8a949e; font-size: 9px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    opacity: .75; transition: opacity .15s, color .15s, border-color .15s, background .15s;
+}
+.btn-ayuda:hover, .btn-ayuda:focus-visible, .btn-ayuda[aria-describedby] {
+    opacity: 1; color: var(--aslan-blue-hover, #1995ce); border-color: var(--aslan-blue, #2ab1ee); background: rgba(42, 177, 238, .1); outline: 0;
+}
+.ayuda-pop { --bs-popover-max-width: 360px; font-size: 13.5px; }
+.ayuda-pop .popover-header { font-size: 13px; font-weight: 700; }
+.ayuda-pop .popover-header i { color: var(--aslan-blue, #2ab1ee); margin-right: 4px; }
+.ayuda-pop .popover-body { line-height: 1.5; }
+
+.dark-mode .btn-ayuda { border-color: #6c757d; color: #adb5bd; }
+.dark-mode .ayuda-pop { background-color: #343a40; border-color: #4b545c; }
+.dark-mode .ayuda-pop .popover-header { background-color: #3a4047; border-bottom-color: #4b545c; color: #f1f3f5; }
+.dark-mode .ayuda-pop .popover-body { color: #dee2e6; }
+.dark-mode .ayuda-pop.bs-popover-bottom > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=bottom] > .popover-arrow::after { border-bottom-color: #3a4047; }
+.dark-mode .ayuda-pop.bs-popover-top > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=top] > .popover-arrow::after { border-top-color: #343a40; }
+
+/* Botón de estado de las tablas: ancho fijo para que Activa/Inactiva no cambien el tamaño de la columna. */
+.btn-estado { min-width: 92px; font-weight: 600; }
