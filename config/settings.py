@@ -23,6 +23,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env.local'))
+# Secretos que NO deben subirse al repositorio (p. ej. ANTHROPIC_API_KEY): .env.local y .env.prod sí están en git.
+_ENV_SECRETOS = os.path.join(BASE_DIR, '.env.secrets')
+if os.path.exists(_ENV_SECRETOS):
+    environ.Env.read_env(_ENV_SECRETOS)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
@@ -95,6 +99,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
+    'core.tenants.middleware.EstadoEmpresaMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -122,6 +127,7 @@ TEMPLATES = [
                 'core.security.context_processors.site_settings',
                 'core.security.context_processors.sidebar_menu',
                 'core.security.context_processors.claves_pendientes',
+                'core.security.context_processors.estado_empresa',
             ],
         },
     },
@@ -188,6 +194,42 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.0/topics/i18n/
+
+# Asistente de consultas (chat): la llave va en .env.secrets (ANTHROPIC_API_KEY=...), nunca en el código ni en el navegador.
+# Sin llave el chat se muestra pero responde que falta configurarlo.
+ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', default='')
+ASISTENTE_MODELO = env('ASISTENTE_MODELO', default='claude-sonnet-5-5')   # claude-haiku-5-5: más barato · claude-opus-5-5: más capaz y caro
+# Precios de la API en USD por millón de tokens: (entrada, salida, lectura de caché, escritura de caché). Confírmalos en la consola de
+# Anthropic: si cambian, se ajustan aquí. El costo de cada pregunta se calcula con estos valores y se guarda.
+ASISTENTE_PRECIOS_USD = {
+    'claude-sonnet-5-5': (2.00, 10.00, 0.20, 2.50),
+    'claude-haiku-5-5': (0.10, 0.50, 0.01, 0.125),
+    'claude-opus-5-5': (4.00, 20.00, 0.40, 5.00),
+}
+ASISTENTE_TRM_COP = env.int('ASISTENTE_TRM_COP', default=4000)             # pesos por dólar, para mostrar costos en COP
+PASARELA_COMISION = env.float('PASARELA_COMISION', default=0.035)         # comisión de la pasarela de pago (para el margen en el panel)
+IVA = 0.19
+ASISTENTE_LIMITE_DIARIO = env.int('ASISTENTE_LIMITE_DIARIO', default=60)  # preguntas por usuario y día
+
+# Panel de la plataforma (solo ASLAN): vive en el dominio de la empresa interna «public» (ej. admin.aslantecnologia.online).
+# El acceso es de un único dueño: usuario + clave cifrada en .env.secrets (se genera con `manage.py plataforma_clave`).
+PUBLIC_SCHEMA_URLCONF = 'config.urls_public'
+PLATAFORMA_USUARIO = env('PLATAFORMA_USUARIO', default='')
+PLATAFORMA_CLAVE_HASH = env('PLATAFORMA_CLAVE_HASH', default='')
+PLATAFORMA_CONFIAR_PROXY = env.bool('PLATAFORMA_CONFIAR_PROXY', default=False)  # True SOLO detrás de nginx: toma la IP del X-Forwarded-For
+ASISTENTE_COSTO_PREGUNTA_COP = env.int('ASISTENTE_COSTO_PREGUNTA_COP', default=105)  # costo estimado por pregunta, solo para el panel
+
+# Respaldos de la base de datos (pg_dump). Carpeta FUERA de git y de media; ver core/tenants/respaldos.py.
+RESPALDOS_DIR = env('RESPALDOS_DIR', default=os.path.join(BASE_DIR, 'respaldos'))
+RESPALDOS_RETENCION_DIAS = env.int('RESPALDOS_RETENCION_DIAS', default=14)
+PG_DUMP = env('PG_DUMP', default='')   # ruta de pg_dump si no es la que se detecta sola (debe ser de la MISMA versión que el servidor)
+
+# Vencimiento: pasada la fecha «pagado hasta» hay estos días de gracia (con aviso) y luego se suspende el acceso.
+GRACIA_DIAS = env.int('GRACIA_DIAS', default=5)
+SUSPENDER_POR_VENCIMIENTO = env.bool('SUSPENDER_POR_VENCIMIENTO', default=True)
+
+# Versión del sistema: única fuente; se muestra en el pie de página y en el ingreso (formato «V. 1.0.0»).
+APP_VERSION = '1.0.0'
 
 LANGUAGE_CODE = 'es-ec'
 

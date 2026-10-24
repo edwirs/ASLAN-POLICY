@@ -27,8 +27,8 @@
 
   <link
     rel="icon"
-    type="image/x-icon"
-    href="{% static 'img/ASLAN LOGO PNG.png' %}"
+    type="image/png"
+    href="{% static 'img/favicon_aslan.png' %}?v=3"
   ></link>
 
   <!-- bootstrap -->
@@ -53,7 +53,7 @@
   ></link>
 
   <link
-    href="{% static 'css/style.css' %}"
+    href="{% static 'css/style.css' %}?v=7"
     rel="stylesheet"
   ></link>
 
@@ -99,6 +99,12 @@
   <link
     rel="stylesheet"
     href="{% static 'css/brand.css' %}?v=2"
+  ></link>
+
+  <!-- Asistente de consultas (chat flotante) -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/asistente.css' %}?v=6"
   ></link>
 
   <!-- Botón de ayuda de los módulos -->
@@ -192,10 +198,52 @@
     <!-- Right navbar links -->
     <ul class="navbar-nav ml-auto">
 
+      {% if perms.policies.use_asistente %}
+      <!-- Aslani, el asistente de consultas: abre la ventana de chat (templates/asistente.html) -->
+      <li class="nav-item">
+        <a class="nav-link asist-nav" href="#" id="asistBoton" role="button" aria-expanded="false" aria-controls="asistRaiz" title="Hablar con Aslani">
+          <img src="{% static 'img/aslani.svg' %}" alt="" class="asist-nav-img"><span class="asist-nav-texto">Aslani</span>
+        </a>
+      </li>
+      {% endif %}
+
       <li class="nav-item">
         <a class="nav-link" href="#" id="themeToggle" role="button" title="Cambiar a tema oscuro">
           <i class="fas fa-moon"></i>
         </a>
+      </li>
+
+      <!-- Notificaciones (por ahora datos estáticos de ejemplo, como en AdminLTE) -->
+      <li class="nav-item dropdown" id="menuNotificaciones">
+        <a class="nav-link" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
+          <i class="far fa-bell"></i>
+          <span class="badge navbar-badge notif-contador" id="notifContador" data-n="7">7</span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end notif-menu">
+          <span class="dropdown-item dropdown-header">Notificaciones <small class="text-muted">· datos de ejemplo</small></span>
+          <div class="notif-lista">
+          <div class="dropdown-divider"></div>
+          <a href="#" class="dropdown-item notif-ejemplo">
+            <span class="notif-icono bg-primary"><i class="fas fa-envelope"></i></span>
+            <span class="notif-texto">4 mensajes nuevos</span>
+            <span class="notif-hora">hace 3 min</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          <a href="#" class="dropdown-item notif-ejemplo">
+            <span class="notif-icono bg-success"><i class="fas fa-circle-check"></i></span>
+            <span class="notif-texto">8 cotizaciones completadas</span>
+            <span class="notif-hora">hace 12 horas</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          <a href="#" class="dropdown-item notif-ejemplo">
+            <span class="notif-icono bg-warning"><i class="fas fa-file-lines"></i></span>
+            <span class="notif-texto">3 reportes nuevos</span>
+            <span class="notif-hora">hace 2 días</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          </div>
+          <a href="#" class="dropdown-item dropdown-footer">Ver todas las notificaciones</a>
+        </div>
       </li>
 
       <!--{% if request.user.has_at_least_one_group %}
@@ -278,12 +326,11 @@
       class="brand-link"
     >
       <img
-        src="{{ dashboard.get_image }}"
-        alt="AdminLTE Logo"
+        src="{% static 'img/aslan_lobo.png' %}"
+        alt="ASLAN"
         class="brand-image"
-        style="opacity: .8"
       >
-      <span class="brand-text brand-nexo"><b>NEXO</b> <small>by ASLAN Tecnología</small></span>
+      <span class="brand-text brand-aslan"><b>ASLAN</b> <small>MultiAgente de Seguros</small></span>
     </a>
 
     <!-- Sidebar -->
@@ -292,9 +339,9 @@
       <div class="user-panel mt-3 pb-3 mb-3 d-flex">
         <div class="image">
           <img
-            src="{% static 'lib/adminlte-3.2.0/img/user2-160x160.jpg'%}"
+            src="{{ request.user.get_image }}"
             class="img-circle elevation-2"
-            alt="User Image"
+            alt="Foto de {{ request.user.names|default:request.user.username }}"
           >
         </div>
 
@@ -302,7 +349,7 @@
           <a
             href="#"
             class="d-block"
-          >{{ request.user.names }}</a>
+          >{{ request.user.names|default:request.user.username }}</a>
         </div>
       </div>
 
@@ -326,6 +373,20 @@
     <!-- Begin page content -->
     <main class="flex-shrink-0 mt-4">
       <div class="container-fluid px-3">
+        {% if request.session.soporte %}
+          <div class="alert alert-info d-flex align-items-center gap-2" role="alert"><i class="fa-solid fa-headset"></i><div><b>Modo soporte de ASLAN.</b> Estás viendo la cuenta de {{ request.user.username }} con acceso temporal; cierra sesión al terminar.</div></div>
+        {% endif %}
+        {% if aviso_suscripcion %}
+          <div class="alert {% if aviso_suscripcion.nivel == 'gracia' %}alert-danger{% else %}alert-warning{% endif %} d-flex align-items-start gap-2" role="alert" id="alertaSuscripcion">
+            <i class="fa-solid fa-calendar-xmark mt-1"></i><div>{{ aviso_suscripcion.mensaje }}</div>
+          </div>
+        {% endif %}
+        {% for anuncio in anuncios_plataforma %}
+          <div class="alert {% if anuncio.nivel == 'urgente' %}alert-danger{% elif anuncio.nivel == 'aviso' %}alert-warning{% else %}alert-info{% endif %} alert-dismissible d-flex align-items-start gap-2 anuncio-plataforma" role="alert" data-id="{{ anuncio.pk }}" hidden>
+            <i class="fa-solid fa-bullhorn mt-1"></i><div><b>{{ anuncio.titulo }}</b> {{ anuncio.mensaje }}</div>
+            <button type="button" class="btn-close" aria-label="Cerrar" data-anuncio="{{ anuncio.pk }}"></button>
+          </div>
+        {% endfor %}
         {% if claves_pendientes %}
           <div class="alert alert-warning d-flex align-items-start gap-2" role="alert" id="alertaClavesPendientes">
             <i class="fa-solid fa-key mt-1"></i>
@@ -353,6 +414,8 @@
     <!-- End Footer -->
   </footer>
 
+  {% if perms.policies.use_asistente %}{% include 'asistente.html' %}{% endif %}
+
   <!-- moment -->
   <script src="{% static 'lib/bootstrap-daterangepicker-3.1/js/moment.min.js' %}"></script>
   <script src="{% static 'lib/bootstrap-daterangepicker-3.1/js/moment-with-locales.js' %}"></script>
@@ -360,6 +423,22 @@
   <script src="{% static 'js/main.js' %}"></script>
   <script src="{% static 'js/functions.js' %}"></script>
   <script src="{% static 'js/theme.js' %}"></script>
+  <script src="{% static 'js/notificaciones.js' %}?v=3"></script>
+  <script>
+    (function () {
+      var clave = 'aslan-anuncios-cerrados', cerrados = [];
+      try { cerrados = JSON.parse(localStorage.getItem(clave) || '[]'); } catch (e) { cerrados = []; }
+      document.querySelectorAll('.anuncio-plataforma').forEach(function (el) {
+        var id = el.getAttribute('data-id');
+        if (cerrados.indexOf(id) === -1) { el.hidden = false; }
+        el.querySelector('[data-anuncio]').addEventListener('click', function () {
+          el.hidden = true; cerrados.push(id);
+          try { localStorage.setItem(clave, JSON.stringify(cerrados.slice(-50))); } catch (e) { /* sin almacenamiento */ }
+        });
+      });
+    })();
+  </script>
+  <script src="{% static 'js/asistente.js' %}?v=7"></script>
   <!-- REQUIRED SCRIPTS -->
 
   <!-- AdminLTE App -->

@@ -236,6 +236,7 @@ class Vehiculo(models.Model):
             ('view_vehiculo_registrado', 'Ver vehículos registrados'),
             ('view_comparativo', 'Ver el comparativo de aseguradoras de un vehículo'),
             ('add_valor_externo', 'Registrar valores de aseguradoras sin bot'),
+            ('use_asistente', 'Usar el asistente Aslani'),
         )
 
 
@@ -465,3 +466,68 @@ class Asesor(models.Model):
         ordering = ['nombres']
         default_permissions = ()
         permissions = perms_for('policies.Asesor')
+
+
+class AsistenteConversacion(models.Model):
+    """Una conversación del usuario con Aslani (el historial del chat). Solo la ve su dueño."""
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversaciones_asistente', verbose_name='Usuario')
+    titulo = models.CharField(max_length=80, default='Nuevo chat', verbose_name='Título')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actividad')
+
+    def __str__(self):
+        return f'{self.titulo} ({self.usuario})'
+
+    class Meta:
+        verbose_name = 'Conversación con Aslani'
+        verbose_name_plural = 'Conversaciones con Aslani'
+        ordering = ['-updated_at']
+        default_permissions = ()
+
+
+class AsistenteMensaje(models.Model):
+    """Mensaje de una conversación. Solo se guardan los textos del usuario y de Aslani (no el resultado bruto de las consultas)."""
+    conversacion = models.ForeignKey(AsistenteConversacion, on_delete=models.CASCADE, related_name='mensajes', verbose_name='Conversación')
+    rol = models.CharField(max_length=10, choices=(('user', 'Usuario'), ('assistant', 'Aslani')), verbose_name='Quién')
+    contenido = models.TextField(verbose_name='Texto')
+    consultas = models.JSONField(default=list, blank=True, verbose_name='Consultas que usó Aslani')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Mensaje de Aslani'
+        verbose_name_plural = 'Mensajes de Aslani'
+        ordering = ['id']
+        default_permissions = ()
+
+
+class AsistenteUso(models.Model):
+    """Preguntas que un usuario le hizo a Aslani en un día (hora de Colombia): sostiene el límite diario y el indicador
+    «te quedan N». Vive en la base de datos (no en memoria) para que sea exacto con varios procesos y no se pierda al reiniciar."""
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uso_asistente', verbose_name='Usuario')
+    fecha = models.DateField(verbose_name='Día')
+    preguntas = models.PositiveIntegerField(default=0, verbose_name='Preguntas del día')
+
+    class Meta:
+        verbose_name = 'Uso diario de Aslani'
+        verbose_name_plural = 'Uso diario de Aslani'
+        unique_together = ('usuario', 'fecha')
+        default_permissions = ()
+
+
+class AsistenteConsumo(models.Model):
+    """Lo que costó UNA pregunta a Aslani con IA (suma de todas las llamadas que hizo): tokens reales y su costo en dólares."""
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Usuario')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+    modelo = models.CharField(max_length=60, verbose_name='Modelo')
+    tokens_entrada = models.PositiveIntegerField(default=0, verbose_name='Tokens de entrada')
+    tokens_salida = models.PositiveIntegerField(default=0, verbose_name='Tokens de salida')
+    tokens_cache_lectura = models.PositiveIntegerField(default=0, verbose_name='Tokens leídos de caché')
+    tokens_cache_escritura = models.PositiveIntegerField(default=0, verbose_name='Tokens escritos en caché')
+    llamadas = models.PositiveSmallIntegerField(default=1, verbose_name='Llamadas al modelo')
+    costo_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0, verbose_name='Costo (USD)')
+
+    class Meta:
+        verbose_name = 'Consumo de Aslani'
+        verbose_name_plural = 'Consumo de Aslani'
+        ordering = ['-created_at']
+        default_permissions = ()

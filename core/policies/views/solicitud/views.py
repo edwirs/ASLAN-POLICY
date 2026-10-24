@@ -11,6 +11,7 @@ from core.policies.models import Aseguradora, AseguradoraCredencial, Cotizacion,
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.bots.runner import lanzar_bot_en_segundo_plano
 from core.policies.services.clientes import get_or_update_client
+from core.policies.services.reenvio import reenviar
 from core.policies.services.proceso import (
     EN_CURSO,
     FINALES_CON_ERROR,
@@ -214,29 +215,10 @@ def reintentar_cotizacion(request):
     except (Cotizacion.DoesNotExist, ValueError, TypeError):
         return _json({'error': 'No se encontró la cotización a reenviar'})
 
-    aseguradora = original.aseguradora
-    bot_class = BOTS_DISPONIBLES.get(aseguradora.name)
-    if bot_class is None or not aseguradora.is_active:
-        return _json({'error': f'{aseguradora.name} no está activa para cotizar.'})
-    if original.estado_bot not in FINALES_CON_ERROR:
-        return _json({'error': f'La cotización con {aseguradora.name} no está en error; no hace falta reenviarla.'})
-
-    vigentes = list(Cotizacion.objects.filter(vehiculo=original.vehiculo, aseguradora=aseguradora, estado_bot__in=EN_CURSO))
-    marcar_interrumpidas(vigentes)
-    if any(c.estado_bot in EN_CURSO for c in vigentes):
-        return _json({'error': f'Ya hay una cotización en proceso con {aseguradora.name} para esta placa. Espere a que termine.'})
-    if Cotizacion.objects.filter(vehiculo=original.vehiculo, aseguradora=aseguradora, pk__gt=original.pk).exists():
-        return _json({'error': f'Esta solicitud ya fue reenviada a {aseguradora.name}; revise el intento más reciente.'})
-
-    nueva = Cotizacion.objects.create(
-        vehiculo=original.vehiculo,
-        tomador=original.tomador,
-        asesor=request.user,
-        aseguradora=aseguradora,
-        tipo_poliza=original.tipo_poliza,
-    )
-    lanzar_bot_en_segundo_plano(nueva.id, bot_class, connection.schema_name)
-    return _json({'cotizacion': {'id': nueva.id, 'aseguradora': aseguradora.name}})
+    nueva, motivo = reenviar(original, request.user)
+    if motivo:
+        return _json({'error': motivo})
+    return _json({'cotizacion': {'id': nueva.id, 'aseguradora': original.aseguradora.name}})
 
 
 class SolicitudCotizacionCreateView(GroupPermissionMixin, TemplateView):

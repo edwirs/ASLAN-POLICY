@@ -565,7 +565,7 @@ html, body {
     to { opacity: 1; transform: none; }
 }
 
-/* Marca: «NEXO» grande y «by ASLAN Tecnología» como firma pequeña y discreta. */
+/* Marca: «ASLAN» grande y «MultiAgente de Seguros» como subtítulo pequeño y discreto. */
 .hero-brand-presentation h1 .hero-by {
     display: block;
     margin-top: 6px;
@@ -578,4 +578,44 @@ html, body {
 }
 @media (max-width: 991px) {
     .hero-brand-presentation h1 .hero-by { font-size: 14px !important; }
+}
+
+/* ==========================================================
+   AJUSTE AUTOMÁTICO DEL FORMULARIO A CUALQUIER ALTO DE PANTALLA
+   Antes el panel del formulario se centraba con altura fija y, en pantallas bajas, se recortaban el logo de arriba
+   y la versión de abajo. Ahora el panel se centra sin recortar el principio y, si no cabe, se desplaza. En pantallas
+   bajas solo se reducen ESPACIOS (no tamaños de letra ni se oculta nada) para que quepa sin desplazar en lo posible.
+   El panel de la izquierda no se toca.
+========================================================== */
+.aslan-premium-auth { height: 100vh; height: 100dvh; }
+
+.auth-form-gate {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-items: flex-start;               /* con «center» el contenido alto se cortaba por arriba */
+}
+.compact-form-anchor { margin: auto; }     /* centra cuando sobra espacio; si no cabe, empieza arriba y se desplaza */
+
+@media (max-height: 780px) {
+    .auth-form-gate { padding-top: 20px; padding-bottom: 20px; }
+    .form-brand-space { margin-bottom: 14px; }
+    .gate-header { margin-bottom: 18px; }
+    .gate-field-group { margin-bottom: 14px; }
+    .gate-actions-meta { margin-bottom: 16px; }
+    .gate-compliance { margin-top: 18px; }
+    .gate-copyright { margin-top: 16px; }
+}
+
+@media (max-height: 640px) {
+    .auth-form-gate { padding-top: 12px; padding-bottom: 12px; }
+    .form-brand-space { margin-bottom: 8px; }
+    .gate-header { margin-bottom: 12px; }
+    .gate-field-group { margin-bottom: 10px; }
+    .gate-compliance { margin-top: 12px; }
+    .gate-copyright { margin-top: 10px; }
+}
+
+@media (max-width: 768px) {
+    .auth-form-gate { height: 100vh; height: 100dvh; align-items: flex-start; }
 }

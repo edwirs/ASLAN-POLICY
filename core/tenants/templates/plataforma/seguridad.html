@@ -1,0 +1,54 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Seguridad{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Seguridad del panel</h1>
+{% if aviso %}<div class="alert alert-success py-2">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+<div class="row g-3">
+    <div class="col-lg-6"><section class="pl-panel p-3 h-100">
+        <h2 class="pl-h2"><i class="fas fa-key"></i> Cambiar la clave</h2>
+        <form method="post" action="{% url 'plataforma_seguridad_clave' %}" autocomplete="off">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input class="form-control mb-2" type="password" name="actual" placeholder="Clave actual" required autocomplete="current-password">
+            <input class="form-control mb-2" type="password" name="nueva" placeholder="Clave nueva (mínimo 12 caracteres)" minlength="12" required autocomplete="new-password">
+            <input class="form-control mb-3" type="password" name="repetir" placeholder="Repite la clave nueva" minlength="12" required autocomplete="new-password">
+            <button class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Cambiar clave</button>
+        </form>
+        <p class="text-muted small mt-3 mb-0">Al cambiarla se cierran las demás sesiones abiertas del panel. {% if origen == 'archivo' %}Hoy rige la clave de <code>.env.secrets</code>; la nueva se guardará cifrada en la base y pasará a mandar.{% endif %}</p>
+    </section></div>
+
+    <div class="col-lg-6"><section class="pl-panel p-3 h-100">
+        <h2 class="pl-h2"><i class="fas fa-mobile-screen"></i> Verificación en dos pasos</h2>
+        {% if totp_activo %}
+            <p class="text-success fw-semibold"><i class="fas fa-circle-check"></i> Activa: al ingresar se pide un código de tu app de autenticación.</p>
+            <form method="post" action="{% url 'plataforma_totp_desactivar' %}" class="d-grid gap-2" autocomplete="off">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input class="form-control" type="password" name="clave" placeholder="Tu clave" required>
+                <input class="form-control" name="codigo" inputmode="numeric" placeholder="Código actual de 6 dígitos" required>
+                <button class="btn btn-outline-danger">Desactivar</button>
+            </form>
+        {% elif totp_pendiente %}
+            <p class="small mb-2">1. Escanea este código con Google Authenticator, Authy o Microsoft Authenticator.<br>2. Escribe abajo el código de 6 dígitos que te muestre.</p>
+            <div class="text-center mb-2"><img src="data:image/png;base64,{{ totp_pendiente.qr }}" alt="Código QR" width="180" height="180"><div class="small text-muted">¿No puedes escanear? Clave manual: <code class="user-select-all">{{ totp_pendiente.secreto }}</code></div></div>
+            <form method="post" action="{% url 'plataforma_totp_confirmar' %}" class="d-flex gap-2" autocomplete="off">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input class="form-control" name="codigo" inputmode="numeric" placeholder="000000" required autofocus><button class="btn btn-primary">Activar</button>
+            </form>
+        {% else %}
+            <p class="mb-3">Pide un código de tu celular además de la clave. Aunque alguien conozca la clave, no puede entrar sin el celular.</p>
+            <form method="post" action="{% url 'plataforma_totp_iniciar' %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-primary"><i class="fas fa-shield-halved"></i> Configurar</button></form>
+        {% endif %}
+    </section></div>
+
+    <div class="col-lg-12"><section class="pl-panel p-3">
+        <h2 class="pl-h2"><i class="fas fa-network-wired"></i> Direcciones IP permitidas</h2>
+        <form method="post" action="{% url 'plataforma_ips' %}" class="row g-2 align-items-end">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <div class="col-lg-8"><label class="form-label fw-semibold">Solo estas direcciones podrán abrir el panel (separadas por coma; también sirve un rango como 181.50.10.0/24). Vacío = cualquiera.</label>
+                <input class="form-control" name="ips" value="{{ ips }}" placeholder="Ej. {{ ip }}"></div>
+            <div class="col-lg-4"><button class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Guardar</button></div>
+        </form>
+        <p class="text-muted small mt-2 mb-0">Tu dirección actual es <code>{{ ip }}</code>. Ojo: si tu internet cambia de dirección con frecuencia, te quedarás fuera. Rescate desde el servidor: <code>manage.py plataforma_clave --reset-seguridad</code>.</p>
+    </section></div>
+</div>
+{% endblock %}

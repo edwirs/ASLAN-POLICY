@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="176 196 636 492" role="img" aria-label="Aslani">
+  <!-- Aslani: la cabeza geométrica del logo de ASLAN Tecnología (mitad naranja, mitad azul, chevrons «< >») hecha robot:
+       visor con ojos de luz, antena y hocico. Las dos mitades salen de un mismo trazo, reflejado. -->
+  <style>
+    .ojo { transform-box: fill-box; transform-origin: center; animation: parpadeo 5s infinite; }
+    .antena { animation: pulso 2.4s ease-in-out infinite; }
+    @keyframes parpadeo { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+    @keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+    @media (prefers-reduced-motion: reduce) { .ojo, .antena { animation: none; } }
+  </style>
+  <defs>
+    <clipPath id="izq"><rect x="0" y="0" width="487" height="800"/></clipPath>
+    <clipPath id="der"><rect x="487" y="0" width="600" height="800"/></clipPath>
+    <path id="cabeza" d="M348 222 L442 286 L532 286 L627 222 L627 353 L675 450 L568 663 L407 663 L301 450 L348 353 Z"/>
+    <path id="faceta" d="M348 353 L442 286 L487 286 L465 398 L397 357 Z"/>
+    <path id="chevron" d="M188 448 L300 355 L258 440 Q252 452 258 464 L300 543 Z"/>
+    <path id="oreja" d="M348 222 L442 286 L348 353 Z"/>
+    <linearGradient id="visor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16456e"/><stop offset="1" stop-color="#0a2540"/></linearGradient>
+    <radialGradient id="luzI" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#ffc79a"/></radialGradient>
+    <radialGradient id="luzD" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#a6e6ff"/></radialGradient>
+  </defs>
+
+  <!-- chevrons laterales -->
+  <use href="#chevron" fill="#f28b41"/>
+  <use href="#chevron" fill="#2ab1ee" transform="translate(974 0) scale(-1 1)"/>
+
+  <!-- cabeza bicolor -->
+  <g clip-path="url(#izq)"><use href="#cabeza" fill="#f28b41"/><use href="#faceta" fill="#fff" opacity=".28"/><use href="#oreja" fill="#e0701f"/></g>
+  <g clip-path="url(#der)"><use href="#cabeza" fill="#2ab1ee"/><use href="#faceta" fill="#fff" opacity=".28" transform="translate(974 0) scale(-1 1)"/><use href="#oreja" fill="#1995ce" transform="translate(974 0) scale(-1 1)"/></g>
+
+  <!-- antena -->
+  <path d="M487 286 L487 246" stroke="#0a2540" stroke-width="12" stroke-linecap="round"/>
+  <circle class="antena" cx="487" cy="226" r="22" fill="#fff" stroke="#0a2540" stroke-width="9"/>
+  <circle class="antena" cx="487" cy="226" r="9" fill="#2ab1ee"/>
+
+  <!-- visor y ojos de luz -->
+  <rect x="362" y="392" width="250" height="92" rx="30" fill="url(#visor)" stroke="#0a2540" stroke-width="6"/>
+  <rect class="ojo" x="392" y="418" width="66" height="40" rx="16" fill="url(#luzI)"/>
+  <rect class="ojo" x="516" y="418" width="66" height="40" rx="16" fill="url(#luzD)"/>
+
+  <!-- hocico y rejilla -->
+  <path d="M438 520 L536 520 L487 610 Z" fill="#0a2540"/>
+  <rect x="452" y="636" width="14" height="12" rx="4" fill="#0a2540"/>
+  <rect x="480" y="636" width="14" height="12" rx="4" fill="#0a2540"/>
+  <rect x="508" y="636" width="14" height="12" rx="4" fill="#0a2540"/>
+
+  <!-- remaches -->
+  <circle cx="352" cy="470" r="9" fill="#0a2540" opacity=".55"/>
+  <circle cx="622" cy="470" r="9" fill="#0a2540" opacity=".55"/>
+</svg>

@@ -1,0 +1,31 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Soporte · {{ e.name }}{% endblock %}
+{% block contenido %}
+<p class="mb-1"><a href="{% url 'plataforma_empresa' e.schema_name %}" class="pl-volver"><i class="fas fa-arrow-left"></i> {{ e.name }}</a></p>
+<h1 class="pl-titulo">Soporte <small>{{ e.name }} · <code>{{ e.schema_name }}</code></small></h1>
+{% if aviso %}<div class="alert alert-success py-2">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+{% if clave_nueva %}
+<div class="alert alert-warning">
+    <b>Clave nueva de {{ clave_nueva.usuario }}:</b> <code class="fs-5 user-select-all">{{ clave_nueva.clave }}</code>
+    <div class="small mt-1">Se muestra solo ahora (no queda guardada en ningún lado). Entrégasela a la persona por un canal seguro; que la cambie al ingresar.</div>
+</div>
+{% endif %}
+<section class="pl-panel"><div class="table-responsive"><table class="table pl-tabla align-middle mb-0">
+    <thead><tr><th>Usuario</th><th>Roles</th><th>Estado</th><th>Último ingreso</th><th class="text-end">Acciones</th></tr></thead>
+    <tbody>
+    {% for u in usuarios %}
+    <tr>
+        <td><b>{{ u.username }}</b>{% if u.superusuario %} <span class="badge bg-primary">Super</span>{% endif %}<br><small class="text-muted">{{ u.nombre }} {{ u.email }}</small></td>
+        <td>{{ u.roles|default:"—" }}</td>
+        <td>{% if u.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-danger">Inactivo / bloqueado</span>{% endif %}{% if u.fallos_hoy %}<br><small class="text-muted">{{ u.fallos_hoy }} intento(s) fallido(s) hoy</small>{% endif %}</td>
+        <td>{% if u.ultimo %}{{ u.ultimo|date:"d/m/Y H:i" }}{% else %}Nunca{% endif %}</td>
+        <td class="text-end text-nowrap">
+            {% if not u.activo or u.fallos_hoy %}<form method="post" action="{% url 'plataforma_soporte_desbloquear' e.schema_name u.pk %}" class="d-inline"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-success rounded-pill"><i class="fas fa-lock-open"></i> Desbloquear</button></form>{% endif %}
+            <form method="post" action="{% url 'plataforma_soporte_clave' e.schema_name u.pk %}" class="d-inline" onsubmit="return confirm('¿Generar una clave nueva para {{ u.username|escapejs }}? La actual dejará de servir.')"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-warning rounded-pill"><i class="fas fa-key"></i> Nueva clave</button></form>
+            {% if u.activo %}<form method="post" action="{% url 'plataforma_soporte_entrar' e.schema_name u.pk %}" class="d-inline" onsubmit="return confirm('Vas a entrar a la cuenta de {{ u.username|escapejs }} en {{ e.name|escapejs }}. Queda registrado en la auditoría. ¿Continuar?')"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-primary rounded-pill"><i class="fas fa-user-secret"></i> Entrar como</button></form>{% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div></section>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Salud{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Salud de la plataforma <small>versión {{ version }}</small></h1>
+<div class="pl-semaforo {{ general }} mb-3"><i class="fas {% if general == 'verde' %}fa-circle-check{% elif general == 'ambar' %}fa-triangle-exclamation{% else %}fa-circle-xmark{% endif %}"></i>
+    <div><b>{% if general == 'verde' %}Todo funciona bien.{% elif general == 'ambar' %}Hay cosas por revisar.{% else %}Hay algo que requiere atención ya.{% endif %}</b><br><small>Se calcula al abrir la página; recárgala para volver a medir.</small></div></div>
+<div class="row g-3 mb-4">
+    {% for r in revisiones %}
+    <div class="col-md-6 col-xl-4"><div class="pl-chequeo {{ r.nivel }}"><span class="punto"></span><div><b>{{ r.nombre }}</b><div>{{ r.valor }}</div>{% if r.detalle %}<small>{{ r.detalle }}</small>{% endif %}</div></div></div>
+    {% endfor %}
+</div>
+<h2 class="pl-h2"><i class="fas fa-building"></i> Por empresa</h2>
+<section class="pl-panel"><div class="table-responsive"><table class="table pl-tabla align-middle mb-0">
+    <thead><tr><th>Empresa</th><th>Suscripción</th><th class="text-center">Bots con error (24 h)</th><th class="text-center">Claves de aseguradora vencidas</th><th class="text-center">Usuarios inactivos</th><th class="text-center">Migraciones</th><th></th></tr></thead>
+    <tbody>
+    {% for f in empresas %}
+    <tr>
+        <td><b>{{ f.e.name }}</b><br><small class="text-muted"><code>{{ f.e.schema_name }}</code></small></td>
+        <td>{% if f.estado.nivel == 'ok' or f.estado.nivel == 'sin_fecha' %}<span class="badge bg-success">{% if f.estado.nivel == 'ok' %}Al día · {{ f.estado.dias }} días{% else %}Sin fecha{% endif %}</span>
+            {% elif f.estado.nivel == 'por_vencer' %}<span class="badge bg-warning text-dark">Vence en {{ f.estado.dias }} día(s)</span>
+            {% elif f.estado.nivel == 'gracia' or f.estado.nivel == 'vencida' %}<span class="badge bg-danger">Vencida</span>
+            {% else %}<span class="badge bg-dark">Suspendida</span>{% endif %}</td>
+        <td class="text-center">{% if f.errores_bot %}<span class="badge bg-warning text-dark">{{ f.errores_bot }}</span>{% else %}{{ f.errores_bot|default_if_none:"—" }}{% endif %}</td>
+        <td class="text-center">{% if f.claves_vencidas %}<span class="badge bg-danger">{{ f.claves_vencidas }}</span>{% else %}{{ f.claves_vencidas|default_if_none:"—" }}{% endif %}</td>
+        <td class="text-center">{% if f.bloqueados %}<span class="badge bg-warning text-dark">{{ f.bloqueados }}</span>{% else %}{{ f.bloqueados|default_if_none:"—" }}{% endif %}</td>
+        <td class="text-center">{% if f.migraciones %}<span class="badge bg-danger">{{ f.migraciones }} pendientes</span>{% elif f.migraciones == 0 %}<span class="text-success"><i class="fas fa-check"></i></span>{% else %}—{% endif %}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary rounded-pill" href="{% url 'plataforma_soporte' f.e.schema_name %}">Soporte</a></td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div></section>
+{% endblock %}

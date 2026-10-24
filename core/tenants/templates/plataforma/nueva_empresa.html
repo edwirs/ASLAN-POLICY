@@ -1,0 +1,59 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Nueva empresa{% endblock %}
+{% block contenido %}
+<p class="mb-1"><a href="{% url 'plataforma_empresas' %}" class="pl-volver"><i class="fas fa-arrow-left"></i> Empresas</a></p>
+<h1 class="pl-titulo">Nueva empresa</h1>
+<form method="post" class="row g-3" autocomplete="off">
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    <div class="col-lg-6"><section class="pl-panel p-3 h-100">
+        <h2 class="pl-h2"><i class="fas fa-building"></i> La empresa</h2>
+        <label class="form-label fw-semibold">Razón social</label>
+        <input class="form-control mb-2 {% if errores.nombre %}is-invalid{% endif %}" name="nombre" id="nombre" value="{{ v.nombre }}" required>
+        <div class="invalid-feedback d-block">{{ errores.nombre }}</div>
+        <div class="row g-2">
+            <div class="col-md-6"><label class="form-label fw-semibold">NIT</label><input class="form-control {% if errores.nit %}is-invalid{% endif %}" name="nit" value="{{ v.nit }}" required><div class="invalid-feedback">{{ errores.nit }}</div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Teléfono</label><input class="form-control" name="telefono" value="{{ v.telefono }}"></div>
+            <div class="col-12"><label class="form-label fw-semibold">Correo de la empresa</label><input class="form-control {% if errores.email %}is-invalid{% endif %}" type="email" name="email" value="{{ v.email }}" required><div class="invalid-feedback">{{ errores.email }}</div></div>
+            <div class="col-12"><label class="form-label fw-semibold">Identificador (esquema)</label><input class="form-control {% if errores.schema %}is-invalid{% endif %}" name="schema" id="schema" value="{{ v.schema }}" placeholder="se sugiere desde la razón social"><div class="invalid-feedback">{{ errores.schema }}</div>
+                <div class="form-text">Será su dirección: <code>identificador.aslantecnologia.online</code> (el guion bajo se cambia por guion). No se puede cambiar después.</div></div>
+        </div>
+    </section></div>
+    <div class="col-lg-6"><section class="pl-panel p-3 h-100">
+        <h2 class="pl-h2"><i class="fas fa-user-shield"></i> Administrador inicial</h2>
+        <div class="row g-2">
+            <div class="col-md-6"><label class="form-label fw-semibold">Usuario</label><input class="form-control {% if errores.usuario %}is-invalid{% endif %}" name="usuario" value="{{ v.usuario|default:'admin' }}" required><div class="invalid-feedback">{{ errores.usuario }}</div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Nombre</label><input class="form-control" name="nombre_admin" value="{{ v.nombre_admin }}" placeholder="Opcional"></div>
+            <div class="col-12"><label class="form-label fw-semibold">Clave inicial</label><input class="form-control {% if errores.clave %}is-invalid{% endif %}" type="password" name="clave" autocomplete="new-password" placeholder="Vacía = se genera una segura"><div class="invalid-feedback">{{ errores.clave }}</div></div>
+        </div>
+        <hr>
+        <h2 class="pl-h2"><i class="fas fa-puzzle-piece"></i> Plan</h2>
+        <div class="d-flex flex-wrap gap-3 mb-2">
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="cotizador" id="m1" {% if v.cotizador %}checked{% endif %}><label class="form-check-label" for="m1">Cotizador</label></div>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="asesores" id="m2" {% if v.asesores %}checked{% endif %}><label class="form-check-label" for="m2">Asesores</label></div>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="cartera" id="m3" {% if v.cartera %}checked{% endif %}><label class="form-check-label" for="m3">Cartera</label></div>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="aslani" id="m4" {% if v.aslani %}checked{% endif %}><label class="form-check-label" for="m4">Aslani con IA</label></div>
+        </div>
+        <div class="row g-2">
+            <div class="col-12"><label class="form-label fw-semibold">Plan previsto</label><select class="form-select" name="plan"><option value="">Sin definir</option>{% for clave, nombre in planes %}<option value="{{ clave }}" {% if clave == v.plan %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select></div>
+            <div class="col-6"><label class="form-label fw-semibold">Días de prueba</label><input class="form-control" type="number" min="0" max="365" name="dias_prueba" value="{{ v.dias_prueba }}"></div>
+            <div class="col-6"><label class="form-label fw-semibold">Preguntas de Aslani / mes</label><input class="form-control" type="number" min="0" name="preguntas" value="{{ v.preguntas }}"></div>
+            <div class="col-12"><label class="form-label fw-semibold">Nota interna</label><input class="form-control" name="nota" value="{{ v.nota }}"></div>
+        </div>
+    </section></div>
+    <div class="col-12 d-flex align-items-center gap-3">
+        <button class="btn btn-primary btn-lg" type="submit"><i class="fas fa-rocket"></i> Crear empresa</button>
+        <span class="text-muted small">Antes de crear se hace un respaldo de toda la base. Tarda un par de minutos.</span>
+    </div>
+</form>
+<script>
+    (function () {
+        var nombre = document.getElementById('nombre'), schema = document.getElementById('schema'), tocado = !!schema.value;
+        schema.addEventListener('input', function () { tocado = true; });
+        nombre.addEventListener('input', function () {
+            if (tocado) { return; }
+            var s = nombre.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(s\.?a\.?s?|ltda)\b\.?/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+            schema.value = s;
+        });
+    })();
+</script>
+{% endblock %}

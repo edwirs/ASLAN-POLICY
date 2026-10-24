@@ -41,7 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_image(self):
         if self.image:
             return f'{settings.MEDIA_URL}{self.image}'
-        return f'{settings.STATIC_URL}img/empty.png'
+        return f'{settings.STATIC_URL}img/user-default.svg'  # silueta genérica de usuario
 
     def create_or_update_password(self, password):
         if self.pk is None:

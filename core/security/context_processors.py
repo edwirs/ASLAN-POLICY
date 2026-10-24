@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from django.conf import settings
 from django.urls import NoReverseMatch, reverse
 
 from core.security import registry
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 def site_settings(request):
     return {
+        'app_version': settings.APP_VERSION,
         'date_joined': datetime.now().date(),
         'dashboard': Dashboard.objects.first()
     }
@@ -31,7 +33,7 @@ def claves_pendientes(request):
     return {'claves_pendientes': nombres}
 
 
-def _build_menu(nodes, user):
+def _build_menu(nodes, user, modulos=None):
     """Filtra el menú del registro según los permisos del usuario.
 
     Un ítem es visible si no exige permiso o el usuario lo tiene; una sección
@@ -41,12 +43,14 @@ def _build_menu(nodes, user):
     visible = []
     for node in nodes:
         if isinstance(node, registry.Section):
-            children = _build_menu(node.children, user)
+            children = _build_menu(node.children, user, modulos)
             if children:
                 visible.append({'label': node.label, 'icon': node.icon, 'children': children})
             continue
         if node.view_perm is not None and not user.has_perm(node.view_perm):
             continue
+        if node.modulo and modulos is not None and node.modulo not in modulos:
+            continue  # módulo no contratado por la empresa
         try:
             url = reverse(node.url_name)
         except NoReverseMatch:
@@ -60,4 +64,23 @@ def sidebar_menu(request):
     user = getattr(request, 'user', None)
     if user is None or not user.is_authenticated:
         return {}
-    return {'sidebar_menu': _build_menu(registry.MENU, user)}
+    from core.tenants.estado import modulos_activos  # import local: evita ciclos al cargar la configuración
+
+    return {'sidebar_menu': _build_menu(registry.MENU, user, modulos_activos(getattr(request, 'tenant', None)))}
+
+
+def estado_empresa(request):
+    """Avisos de la plataforma para los usuarios de una empresa: suscripción por vencer o vencida, y anuncios vigentes."""
+    user = getattr(request, 'user', None)
+    if user is None or not user.is_authenticated:
+        return {}
+    from core.tenants.estado import anuncios_para, estado_suscripcion
+
+    empresa = getattr(request, 'tenant', None)
+    try:
+        estado = estado_suscripcion(empresa) if empresa is not None else None
+        return {'aviso_suscripcion': estado if estado and estado['nivel'] in ('por_vencer', 'gracia') else None,
+                'anuncios_plataforma': anuncios_para(empresa)}
+    except Exception:  # un fallo aquí nunca debe tumbar una pantalla de la empresa
+        logger.debug('No se pudo leer el estado de la empresa.', exc_info=True)
+        return {}

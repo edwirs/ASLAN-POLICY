@@ -1,0 +1,38 @@
+{% extends 'plataforma/base.html' %}
+{% load static %}
+{% block titulo %}Ingresar{% endblock %}
+{% block contenido %}
+<div class="pl-login">
+    <div class="pl-tarjeta">
+        <img src="{% static 'img/aslan_logo.png' %}" alt="ASLAN Tecnología" class="pl-login-logo">
+        <h1>Panel de la plataforma</h1>
+        {% if sin_configurar %}
+            <div class="alert alert-warning">
+                <b>Falta configurar el acceso.</b> En la terminal del proyecto ejecuta:
+                <pre class="mb-2">venv/bin/python manage.py plataforma_clave</pre>
+                pega las dos líneas que te muestra en <code>.env.secrets</code> y reinicia el servidor.
+            </div>
+        {% else %}
+            {% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+            {% if paso2 %}
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="previo" value="{{ previo }}">
+                <p class="text-muted small mb-2"><i class="fas fa-shield-halved"></i> Verificación en dos pasos: escribe el código de 6 dígitos de tu app de autenticación.</p>
+                <input class="form-control form-control-lg text-center mb-3" name="codigo" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="000000" required autofocus autocomplete="one-time-code" style="letter-spacing:.35em">
+                <button class="btn btn-primary w-100" type="submit">Verificar</button>
+            </form>
+            {% else %}
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <label class="form-label" for="usuario">Usuario</label>
+                <input class="form-control mb-3" id="usuario" name="usuario" required autofocus autocomplete="username">
+                <label class="form-label" for="clave">Clave</label>
+                <input class="form-control mb-3" id="clave" name="clave" type="password" required autocomplete="current-password">
+                <button class="btn btn-primary w-100" type="submit">Entrar</button>
+            </form>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

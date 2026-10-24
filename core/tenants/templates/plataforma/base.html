@@ -1,0 +1,33 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block titulo %}Plataforma{% endblock %} · ASLAN</title>
+    <link rel="icon" href="{% static 'img/favicon_aslan.png' %}?v=3">
+    <link rel="stylesheet" href="{% static 'lib/bootstrap-5.3.3-dist/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'lib/fontawesome-6.1.1/css/all.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/plataforma.css' %}?v=3">
+</head>
+<body>
+<header class="pl-barra">
+    <a class="pl-marca" href="{% url 'plataforma_inicio' %}"><img src="{% static 'img/aslan_lobo.png' %}" alt=""><b>ASLAN</b> <span>Plataforma</span></a>
+    {% if autenticado %}
+    <nav>
+        <a href="{% url 'plataforma_empresas' %}" class="{% if seccion == 'empresas' %}activo{% endif %}"><i class="fas fa-building"></i> Empresas</a>
+        <a href="{% url 'plataforma_respaldos' %}" class="{% if seccion == 'respaldos' %}activo{% endif %}"><i class="fas fa-database"></i> Respaldos</a>
+        <a href="{% url 'plataforma_salud' %}" class="{% if seccion == 'salud' %}activo{% endif %}"><i class="fas fa-heart-pulse"></i> Salud</a>
+        <a href="{% url 'plataforma_anuncios' %}" class="{% if seccion == 'anuncios' %}activo{% endif %}"><i class="fas fa-bullhorn"></i> Anuncios</a>
+        <a href="{% url 'plataforma_auditoria' %}" class="{% if seccion == 'auditoria' %}activo{% endif %}"><i class="fas fa-clipboard-list"></i> Auditoría</a>
+        <a href="{% url 'plataforma_seguridad' %}" class="{% if seccion == 'seguridad' %}activo{% endif %}"><i class="fas fa-shield-halved"></i> Seguridad</a>
+        <a href="{% url 'plataforma_salir' %}"><i class="fas fa-right-from-bracket"></i> Salir</a>
+    </nav>
+    {% endif %}
+</header>
+<main class="pl-contenedor">
+    {% block contenido %}{% endblock %}
+</main>
+<footer class="pl-pie">Panel privado de ASLAN · los datos de cada empresa viven separados en su propio esquema.</footer>
+</body>
+</html>

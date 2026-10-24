@@ -16,6 +16,13 @@ from core.policies.views.aseguradora.views import (
     AseguradoraUpdateView,
     CoberturaFormView,
 )
+from core.policies.views.asistente.views import (
+    asistente_accion,
+    asistente_chat,
+    asistente_conversacion,
+    asistente_conversaciones,
+    asistente_eliminar,
+)
 from core.policies.views.asesor.views import AsesorCreateView, AsesorListView, AsesorUpdateView
 from core.policies.views.comparativo.views import ComparativoImprimirView, ComparativoValoresView, ComparativoView
 from core.policies.views.vehiculo.views import VehiculoListView
@@ -34,6 +41,11 @@ urlpatterns = [
     path('aseguradoras/<int:pk>/coberturas/', AseguradoraCoberturasView.as_view(), name='aseguradora_coberturas'),
     path('aseguradoras/<int:pk>/coberturas/nueva/', CoberturaFormView.as_view(), name='cobertura_create'),
     path('aseguradoras/<int:pk>/coberturas/<int:ficha>/editar/', CoberturaFormView.as_view(), name='cobertura_update'),
+    path('asistente/', asistente_chat, name='asistente_chat'),
+    path('asistente/conversaciones/', asistente_conversaciones, name='asistente_conversaciones'),
+    path('asistente/conversaciones/<int:pk>/', asistente_conversacion, name='asistente_conversacion'),
+    path('asistente/conversaciones/<int:pk>/eliminar/', asistente_eliminar, name='asistente_eliminar'),
+    path('asistente/accion/', asistente_accion, name='asistente_accion'),
     path('asesores/', AsesorListView.as_view(), name='asesor_list'),
     path('asesores/nuevo/', AsesorCreateView.as_view(), name='asesor_create'),
     path('asesores/<int:pk>/editar/', AsesorUpdateView.as_view(), name='asesor_update'),

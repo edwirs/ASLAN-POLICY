@@ -19,10 +19,12 @@ from django.urls import path, include
 
 from config import settings
 from core.dashboard.views import DashboardView
+from core.tenants.acceso_soporte import acceso_soporte
 
 urlpatterns = [
     path('', include('core.login.urls')),
     path('admin/', admin.site.urls),
+    path('acceso-soporte/', acceso_soporte, name='acceso_soporte'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('pos/', include('core.pos.urls')),
     path('reports/', include('core.reports.urls')),

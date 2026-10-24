@@ -1,0 +1,39 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Creando empresa{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Creando <code>{{ schema }}</code>…</h1>
+<section class="pl-panel p-4" style="max-width:720px">
+    <ul class="pl-pasos list-unstyled mb-0" id="pasos"></ul>
+    <div id="resultado" class="mt-3"></div>
+</section>
+<script>
+    (function () {
+        var url = "{% url 'plataforma_empresa_nueva_estado' schema %}", clave = null;
+        var iconos = {espera: 'fa-circle', haciendo: 'fa-spinner fa-spin', listo: 'fa-circle-check', error: 'fa-circle-xmark'};
+        function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+        function pintar(d) {
+            document.getElementById('pasos').innerHTML = d.pasos.map(function (p) {
+                return '<li class="paso ' + p.estado + '"><i class="fas ' + iconos[p.estado] + '"></i> ' + esc(p.texto) + '</li>';
+            }).join('');
+            var r = document.getElementById('resultado');
+            if (d.clave_inicial) { clave = d.clave_inicial; }
+            if (d.estado === 'error') {
+                r.innerHTML = '<div class="alert alert-danger"><b>No se pudo terminar.</b> ' + esc(d.mensaje) + '<br><small>Revisa el registro del servidor. Si el esquema quedó a medias, la base completa se respaldó antes de empezar.</small></div>' +
+                    '<a class="btn btn-outline-primary" href="{% url "plataforma_empresa_nueva" %}">Volver al formulario</a>';
+            } else if (d.estado === 'listo') {
+                r.innerHTML = '<div class="alert alert-success"><b>Empresa creada.</b> Entra con:<br>Usuario: <code class="user-select-all">' + esc(d.usuario) + '</code><br>' +
+                    'Clave: <code class="user-select-all fs-5">' + esc(clave || '(ya se mostró)') + '</code><br><small>La clave se muestra solo una vez: cópiala ahora y entrégala por un canal seguro.</small><br>' +
+                    'Direcciones: ' + (d.dominios || []).map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(', ') + '</div>' +
+                    '<a class="btn btn-primary" href="/empresas/{{ schema }}/">Administrar la empresa</a>';
+            }
+            return d.estado !== 'corriendo';
+        }
+        function ciclo() {
+            fetch(url, {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) {
+                if (!pintar(d)) { setTimeout(ciclo, 2000); }
+            }).catch(function () { setTimeout(ciclo, 4000); });
+        }
+        ciclo();
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% load static %}{% comment %}
+  Aslani: asistente de consultas. Ventana grande (casi pantalla completa) con historial de chats a la izquierda y la
+  conversación a la derecha. Se abre con el botón «Aslani» de la barra superior (base.html) y solo se incluye si el
+  usuario tiene el permiso use_asistente.
+  Lógica: static/js/asistente.js · estilos: static/css/asistente.css · servidor: core/policies/services/asistente.py
+{% endcomment %}
+<div id="asistRaiz" class="asist-raiz" hidden
+     data-chat="{% url 'asistente_chat' %}" data-lista="{% url 'asistente_conversaciones' %}"
+     data-detalle="{% url 'asistente_conversacion' 0 %}" data-eliminar="{% url 'asistente_eliminar' 0 %}"
+     data-accion="{% url 'asistente_accion' %}" data-nombre="{{ request.user.names|default:request.user.username }}">
+    <div class="asist-ventana" role="dialog" aria-modal="true" aria-label="Aslani, asistente de consultas">
+
+        <aside class="asist-lateral" id="asistLateral">
+            <div class="asist-marca"><img src="{% static 'img/aslani.svg' %}" alt=""><b>Aslani</b></div>
+            <button type="button" class="asist-nuevo" id="asistNuevo"><i class="fas fa-plus"></i> Nuevo chat</button>
+            <nav class="asist-chats" id="asistChats" aria-label="Historial de chats"></nav>
+            <p class="asist-privado"><i class="fas fa-lock"></i> Tus conversaciones solo las ves tú.</p>
+        </aside>
+
+        <section class="asist-principal">
+            <header class="asist-barra">
+                <button type="button" class="asist-icono asist-menu" id="asistMenu" aria-label="Historial de chats"><i class="fas fa-bars"></i></button>
+                <span class="asist-barra-titulo" id="asistTitulo">Nuevo chat</span>
+                <span class="asist-modo" id="asistModo" hidden><i class="fas fa-circle-info"></i> Modo básico</span>
+                <button type="button" class="asist-icono" id="asistCerrar" title="Cerrar (Esc)" aria-label="Cerrar a Aslani"><i class="fas fa-xmark"></i></button>
+            </header>
+
+            <div class="asist-cuerpo" id="asistCuerpo">
+                <div class="asist-inicio" id="asistInicio">
+                    <img src="{% static 'img/aslani.svg' %}" alt="Aslani" class="asist-inicio-logo">
+                    <h2 id="asistSaludo">Hola</h2>
+                    <p>¿En qué te puedo ayudar hoy?</p>
+                    <div class="asist-ideas" id="asistIdeas">
+                        <button type="button"><i class="fas fa-chart-column"></i><span>¿Cómo van las cotizaciones este mes?</span></button>
+                        <button type="button"><i class="fas fa-bell"></i><span>¿Qué requiere mi atención hoy?</span></button>
+                        <button type="button"><i class="fas fa-clock-rotate-left"></i><span>Muéstrame las últimas solicitudes</span></button>
+                        <button type="button"><i class="fas fa-scale-balanced"></i><span>¿Qué aseguradora quedó más barata en BWF282?</span></button>
+                        <button type="button"><i class="fas fa-shield-halved"></i><span>¿Qué cubre Qualitas?</span></button>
+                        <button type="button"><i class="fas fa-circle-question"></i><span>¿Por qué falló la última cotización de HDI?</span></button>
+                    </div>
+                </div>
+                <div class="asist-mensajes" id="asistMensajes" aria-live="polite" hidden></div>
+            </div>
+
+            <form class="asist-compositor" id="asistForm" autocomplete="off">
+                <div class="asist-caja">
+                    <textarea id="asistTexto" rows="1" maxlength="1000" placeholder="Escríbele a Aslani…" aria-label="Tu pregunta"></textarea>
+                    <button type="submit" id="asistEnviar" aria-label="Enviar"><i class="fas fa-arrow-up"></i></button>
+                </div>
+            </form>
+            <div class="asist-pie">
+        <div class="asist-cupo" id="asistCupo" hidden title="La bolsa es de toda tu empresa y se renueva cada mes.">
+            <span class="asist-cupo-texto" id="asistCupoTexto"></span>
+            <span class="asist-cupo-barra"><span id="asistCupoBarra"></span></span>
+        </div>
+        <span>Aslani solo consulta datos de la plataforma y puede equivocarse: verifica lo importante.</span>
+    </div>
+        </section>
+    </div>
+</div>

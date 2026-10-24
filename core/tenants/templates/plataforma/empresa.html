@@ -1,0 +1,173 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}{{ e.name }}<script>
+    (function () {
+        var plan = document.getElementById('plan_p'), meses = document.getElementById('meses_p'), tipo = document.getElementById('tipo_p');
+        var porPlan = {mensual: 1, trimestral: 3, semestral: 6, anual: 12};
+        plan.addEventListener('change', function () { if (porPlan[plan.value]) { meses.value = porPlan[plan.value]; tipo.value = 'suscripcion'; } });
+    })();
+</script>
+{% endblock %}
+{% block contenido %}
+<p class="mb-1"><a href="{% url 'plataforma_empresas' %}" class="pl-volver"><i class="fas fa-arrow-left"></i> Empresas</a></p>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="pl-titulo mb-0">{{ e.name }} <small>NIT {{ e.nit }} · <code>{{ e.schema_name }}</code></small>
+        {% if e.plan %}<span class="badge bg-primary ms-2">Plan {{ e.get_plan_display|lower }}</span>{% endif %}{% if e.suspendida %}<span class="badge bg-dark ms-2">Suspendida</span>{% elif estado.nivel == 'gracia' or estado.nivel == 'vencida' %}<span class="badge bg-danger ms-2">Vencida</span>{% elif estado.nivel == 'por_vencer' %}<span class="badge bg-warning text-dark ms-2">Vence pronto</span>{% endif %}</h1>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary rounded-pill" href="{% url 'plataforma_soporte' e.schema_name %}"><i class="fas fa-headset"></i> Soporte</a>
+        <form method="post" action="{% url 'plataforma_respaldos_crear' %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input type="hidden" name="schema" value="{{ e.schema_name }}"><button class="btn btn-outline-primary rounded-pill" onclick="this.disabled=true;this.form.submit()"><i class="fas fa-database"></i> Respaldar esta empresa</button></form>
+    </div>
+</div>
+{% if aviso %}<div class="alert alert-success py-2">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-wand-magic-sparkles"></i> Plan de Aslani</h2>
+            <form method="post" action="{% url 'plataforma_plan' e.schema_name %}">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="ia" name="ia" {% if e.aslani_ia_activa %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="ia">Inteligencia artificial activa</label>
+                    <div class="form-text">Apagada: Aslani responde solo en modo básico (gratis).</div>
+                </div>
+                <label class="form-label fw-semibold" for="preguntas">Preguntas por mes</label>
+                <input class="form-control mb-1" id="preguntas" name="preguntas" type="number" min="0" max="1000000" value="{{ e.aslani_preguntas_mes }}" required>
+                <div class="form-text mb-3">La bolsa es de toda la empresa, se renueva el día 1 y no se acumula.</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="form-label fw-semibold" for="precio">Paga por Aslani al mes</label>
+                        <div class="input-group"><span class="input-group-text">$</span><input class="form-control" id="precio" name="precio" inputmode="numeric" value="{{ e.aslani_precio_cop }}"></div>
+                        <div class="form-text">COP, IVA incluido. Para calcular tu margen.</div></div>
+                    <div class="col-6"><label class="form-label fw-semibold" for="hasta_ia">IA pagada hasta</label>
+                        <input class="form-control" id="hasta_ia" name="hasta" type="date" value="{{ e.aslani_hasta|date:'Y-m-d' }}">
+                        <div class="form-text">Pasada esta fecha la IA se apaga (queda el modo básico). Vacío = sin vencimiento.</div></div>
+                </div>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i> Guardar plan</button>
+            </form>
+            {% if d.cupo %}
+            <hr>
+            <div class="d-flex justify-content-between"><span>Este mes: <b>{{ d.cupo.usadas }}</b> de {{ d.cupo.limite }}</span><span class="text-muted">{% if d.consumo %}Costo real {{ d.costo_real }}{% else %}Costo estimado {{ d.costo_estimado }}{% endif %}</span></div>
+            <div class="pl-barra-uso my-1"><span class="{% if d.porcentaje >= 100 %}rojo{% elif d.porcentaje >= 90 %}ambar{% endif %}" style="width: {{ d.porcentaje }}%"></span></div>
+            <small class="text-muted">Quedan {{ d.cupo.restantes }} · se renueva el {{ d.cupo.renueva }}.</small>
+            {% endif %}
+            {% if d.consumo %}
+            <hr>
+            <div class="small">
+                <div class="d-flex justify-content-between"><span>Preguntas con IA este mes</span><b>{{ d.consumo.preguntas }}</b></div>
+                <div class="d-flex justify-content-between"><span>Tokens (entrada / salida / caché)</span><b>{{ d.consumo.entrada }} / {{ d.consumo.salida }} / {{ d.consumo.cache }}</b></div>
+                <div class="d-flex justify-content-between"><span>Costo real en Anthropic</span><b>US$ {{ d.consumo.usd|floatformat:4 }} ≈ {{ d.costo_real }}</b></div>
+                <div class="d-flex justify-content-between"><span>Promedio por pregunta</span><b>${{ d.consumo.promedio_cop|floatformat:0 }}</b></div>
+                {% if d.margen %}
+                <div class="d-flex justify-content-between"><span>Cobrado sin IVA − pasarela</span><b>{{ d.margen_neto }}</b></div>
+                <div class="d-flex justify-content-between"><span>Ganancia de este mes</span><b class="{% if d.margen.ganancia < 0 %}text-danger{% else %}text-success{% endif %}">{{ d.margen_ganancia }}</b></div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-chart-column"></i> Consumo de Aslani por mes</h2>
+            <table class="table table-sm pl-tabla mb-1">
+                <thead><tr><th>Mes</th><th class="text-end">Preguntas</th><th class="text-end">Costo estimado</th></tr></thead>
+                <tbody>
+                {% for m in meses %}<tr><td>{{ m.mes }}</td><td class="text-end">{{ m.preguntas }}</td><td class="text-end">{{ m.costo }}</td></tr>
+                {% empty %}<tr><td colspan="3" class="text-muted text-center py-3">Todavía no hay consumo.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            <small class="text-muted">Costo estimado = preguntas × ${{ costo_cop_pregunta }} COP. El «real» sale de los tokens que cobró la API (se registra desde la actualización de hoy).</small>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-globe"></i> Dominios</h2>
+            <ul class="list-unstyled mb-3">
+                {% for dom in d.dominios %}
+                <li class="pl-dominio">
+                    <span><i class="fas fa-link"></i> {{ dom.domain }} {% if dom.is_primary %}<span class="badge bg-primary">Principal</span>{% endif %}</span>
+                    {% if not dom.is_primary %}
+                    <form method="post" action="{% url 'plataforma_dominio_quitar' e.schema_name dom.pk %}" onsubmit="return confirm('¿Quitar el dominio {{ dom.domain|escapejs }}? La empresa dejará de abrir con esa dirección.')">
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                        <button class="btn btn-sm btn-outline-danger rounded-pill" type="submit"><i class="fas fa-trash"></i></button>
+                    </form>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <form method="post" action="{% url 'plataforma_dominio_agregar' e.schema_name %}" class="d-flex gap-2">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input class="form-control" name="dominio" placeholder="nuevo.dominio.com" required>
+                <button class="btn btn-outline-primary text-nowrap" type="submit"><i class="fas fa-plus"></i> Agregar</button>
+            </form>
+            <div class="form-text">Después de agregarlo hay que apuntarlo en el DNS (registro A/CNAME) hacia el servidor.</div>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-file-invoice-dollar"></i> Facturación</h2>
+            <form method="post" action="{% url 'plataforma_facturacion' e.schema_name %}">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prueba" name="en_prueba" {% if e.on_trial %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="prueba">Empresa en prueba</label>
+                </div>
+                <label class="form-label fw-semibold" for="plan_f">Plan de suscripción</label>
+                <select class="form-select mb-3" id="plan_f" name="plan">
+                    <option value="">Sin definir</option>
+                    {% for v, n in e.PLANES %}<option value="{{ v }}" {% if e.plan == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+                </select>
+                <label class="form-label fw-semibold" for="hasta">Pagado hasta</label>
+                <input class="form-control mb-3" id="hasta" name="pagado_hasta" type="date" value="{{ e.paid_until|date:'Y-m-d' }}">
+                <label class="form-label fw-semibold" for="nota">Notas internas</label>
+                <textarea class="form-control mb-3" id="nota" name="nota" rows="2" placeholder="Solo las ves tú">{{ e.nota }}</textarea>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i> Guardar</button>
+            </form>
+            <hr>
+            <small class="text-muted">Creada el {{ e.created_on|date:"d/m/Y" }} · {{ d.usuarios|default_if_none:"—" }} usuarios activos · {{ d.solicitudes|default_if_none:"—" }} solicitudes registradas.</small>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-puzzle-piece"></i> Módulos y acceso</h2>
+            <form method="post" action="{% url 'plataforma_modulos' e.schema_name %}">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="mc" name="cotizador" {% if e.modulo_cotizador %}checked{% endif %}><label class="form-check-label" for="mc"><b>Cotizador</b> <span class="text-muted">· solicitudes, comparativo, aseguradoras</span></label></div>
+                <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="ma" name="asesores" {% if e.modulo_asesores %}checked{% endif %}><label class="form-check-label" for="ma"><b>Asesores</b></label></div>
+                <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="mr" name="cartera" {% if e.modulo_cartera %}checked{% endif %}><label class="form-check-label" for="mr"><b>Cartera</b> <span class="text-muted">· en construcción</span></label></div>
+                <hr>
+                <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" role="switch" id="susp" name="suspendida" {% if e.suspendida %}checked{% endif %}><label class="form-check-label fw-semibold text-danger" for="susp">Suspender el acceso de la empresa</label></div>
+                <div class="form-text mb-3">Suspendida, nadie de la empresa puede usar el sistema (ven un aviso para contactar a ASLAN). Sus datos no se tocan. También se suspende sola {{ gracia }} días después de vencer lo pagado.</div>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i> Guardar</button>
+            </form>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-money-bill-wave"></i> Pagos</h2>
+            <form method="post" action="{% url 'plataforma_pago_registrar' e.schema_name %}" class="row g-2 mb-3">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <div class="col-md-12"><select class="form-select" id="plan_p" name="plan" title="Plan que paga (solo aplica a Suscripción)"><option value="">Plan: sin cambiar</option>{% for v, n in e.PLANES %}<option value="{{ v }}">Plan {{ n|lower }}</option>{% endfor %}</select></div>
+                <div class="col-md-5"><select class="form-select" name="tipo" id="tipo_p"><option value="suscripcion">Suscripción (extiende «pagado hasta»)</option><option value="aslani">Aslani IA (extiende «IA hasta»)</option><option value="otro">Otro (solo registrar)</option></select></div>
+                <div class="col-md-4"><div class="input-group"><span class="input-group-text">$</span><input class="form-control" name="monto" inputmode="numeric" placeholder="Monto con IVA" required></div></div>
+                <div class="col-md-3"><div class="input-group"><input class="form-control" type="number" name="meses" id="meses_p" min="0" max="36" value="1" title="Meses que cubre"><span class="input-group-text">mes(es)</span></div></div>
+                <div class="col-md-4"><input class="form-control" type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}"></div>
+                <div class="col-md-5"><input class="form-control" name="nota" maxlength="200" placeholder="Nota (opcional)"></div>
+                <div class="col-md-3"><button class="btn btn-primary w-100" type="submit"><i class="fas fa-plus"></i> Registrar</button></div>
+            </form>
+            <table class="table table-sm pl-tabla mb-0">
+                <tbody>
+                {% for p in pagos %}<tr><td>{{ p.fecha|date:"d/m/Y" }}</td><td>{{ p.get_tipo_display }} · {{ p.meses }} mes{{ p.meses|pluralize:"es" }}{% if p.nota %}<br><small class="text-muted">{{ p.nota }}</small>{% endif %}</td><td class="text-end">{{ p.valor }}</td>
+                    <td class="text-end"><form method="post" action="{% url 'plataforma_pago_eliminar' e.schema_name p.pk %}" onsubmit="return confirm('¿Quitar este pago del historial? Las fechas de vencimiento no se modifican.')"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="fas fa-xmark"></i></button></form></td></tr>
+                {% empty %}<tr><td class="text-muted text-center py-3">Sin pagos registrados.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            {% if total_pagado %}<div class="text-end small text-muted mt-1">Total recibido: <b>{{ total_pagado }}</b></div>{% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}

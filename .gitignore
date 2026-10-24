@@ -10,7 +10,9 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media
-**/migrations/*
+# Las migraciones SÍ van al repositorio (sin ellas el servidor no sabe armar la base de datos).
+# Única excepción: esta trae credenciales reales de Factus escritas dentro del archivo.
+core/pos/migrations/0029_seed_factus_credential.py
 staticfiles/*
 logs/*
 .idea/*
@@ -376,3 +378,9 @@ pyvenv.cfg
 pip-selfcheck.json
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,venv,intellij,django
+
+# Secretos locales (llaves de API): nunca al repositorio
+.env.secrets
+
+# Respaldos de la base de datos (contienen datos reales): nunca al repositorio
+respaldos/

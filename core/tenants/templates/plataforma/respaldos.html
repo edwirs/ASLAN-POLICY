@@ -1,0 +1,65 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Respaldos{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Respaldos <small>copias de seguridad de la base de datos</small></h1>
+{% if aviso %}<div class="alert alert-success py-2">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+
+<div class="pl-semaforo {{ estado.nivel }} mb-3">
+    <i class="fas {% if estado.nivel == 'verde' %}fa-circle-check{% elif estado.nivel == 'ambar' %}fa-triangle-exclamation{% else %}fa-circle-xmark{% endif %}"></i>
+    <div><b>{{ estado.mensaje }}</b>
+        {% if estado.ultimo %}<br><small>Último completo: {{ estado.ultimo.creado|date:"d/m/Y H:i" }} (hace {{ estado.horas }} h) · {{ estado.ultimo.tamano }}</small>{% else %}<br><small>Haz uno ahora con el botón de abajo y programa el automático.</small>{% endif %}</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-5">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-floppy-disk"></i> Respaldar ahora</h2>
+            <form method="post" action="{% url 'plataforma_respaldos_crear' %}" class="d-grid gap-2">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <select class="form-select" name="schema">
+                    <option value="">Toda la base (todas las empresas)</option>
+                    {% for e in empresas %}<option value="{{ e.schema_name }}">Solo {{ e.name }}</option>{% endfor %}
+                </select>
+                <button class="btn btn-primary" type="submit" onclick="this.disabled=true;this.innerHTML='Respaldando…';this.form.submit()"><i class="fas fa-database"></i> Crear respaldo</button>
+            </form>
+            <p class="text-muted small mt-3 mb-0">Se guardan en <code>{{ carpeta }}</code> (fuera de git). Se conservan {{ retencion }} días y siempre los 3 más recientes de cada tipo. Ocupan {{ total }} en total.</p>
+        </section>
+    </div>
+    <div class="col-lg-7">
+        <section class="pl-panel p-3 h-100">
+            <h2 class="pl-h2"><i class="fas fa-clock"></i> Respaldo automático (cada noche)</h2>
+            <p class="small mb-2">Agrega esta línea al <code>crontab -e</code> del servidor (2:00 a. m.):</p>
+            <pre class="mb-2" style="white-space:pre-wrap;word-break:break-all">{{ cron }}</pre>
+            <p class="text-muted small mb-0">Un respaldo que vive en el mismo servidor no te protege si el servidor se daña: descarga los completos con frecuencia y guárdalos en otro lugar (tu computador o la nube).</p>
+        </section>
+    </div>
+</div>
+
+<section class="pl-panel">
+    <div class="table-responsive">
+        <table class="table pl-tabla align-middle mb-0">
+            <thead><tr><th>Archivo</th><th>Tipo</th><th>Fecha</th><th class="text-end">Tamaño</th><th class="text-end">Acciones</th></tr></thead>
+            <tbody>
+            {% for r in lista %}
+                <tr>
+                    <td><code>{{ r.nombre }}</code></td>
+                    <td>{% if r.completo %}<span class="badge bg-primary">Completo</span>{% else %}<span class="badge bg-info">Empresa: {{ r.etiqueta }}</span>{% endif %}</td>
+                    <td>{{ r.creado|date:"d/m/Y H:i" }}</td>
+                    <td class="text-end">{{ r.tamano }}</td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary rounded-pill" href="{% url 'plataforma_respaldo_descargar' r.nombre %}" title="Descargar"><i class="fas fa-download"></i></a>
+                        <form method="post" action="{% url 'plataforma_respaldo_verificar' r.nombre %}" class="d-inline"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-success rounded-pill" title="Verificar que se pueda leer"><i class="fas fa-circle-check"></i></button></form>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill" type="button" data-bs-toggle="collapse" data-bs-target="#rest{{ forloop.counter }}" title="Cómo restaurar"><i class="fas fa-rotate-left"></i></button>
+                        <form method="post" action="{% url 'plataforma_respaldo_eliminar' r.nombre %}" class="d-inline" onsubmit="return confirm('¿Eliminar este respaldo? No se puede deshacer.')"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-danger rounded-pill" title="Eliminar"><i class="fas fa-trash"></i></button></form>
+                    </td>
+                </tr>
+                <tr class="collapse" id="rest{{ forloop.counter }}"><td colspan="5"><pre class="mb-0" style="white-space:pre-wrap">{{ r.restaurar }}</pre></td></tr>
+            {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-4">Aún no hay respaldos.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

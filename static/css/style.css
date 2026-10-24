@@ -292,6 +292,7 @@ footer.main-footer {
     font-size: .92rem;
     line-height: 1.3;
 }
+.app-footer-version { color: #8a949e; white-space: nowrap; }
 .app-footer {
     display: flex;
     align-items: center;
@@ -309,7 +310,42 @@ footer.main-footer {
     .app-footer { justify-content: center; text-align: center; }
 }
 
-/* === Marca NEXO by ASLAN Tecnología ===
+/* Campana de notificaciones (estilo AdminLTE, un poco más cuidado). */
+/* Contador: gris y discreto en 0; rojo cuando hay algo pendiente. */
+.notif-contador { background: #adb5bd; color: #fff; font-weight: 700; transition: background .2s; }
+.notif-contador.notif-con-avisos { background: #dc3545; }
+/* Con algo pendiente la campana vibra un instante cada pocos segundos (mientras no se abra el menú). */
+.notif-vibra { display: inline-block; transform-origin: 50% 8%; animation: notif-vibrar 6s ease-in-out infinite; }
+@keyframes notif-vibrar {
+    0%, 14%, 100% { transform: rotate(0); }
+    2% { transform: rotate(18deg); } 4% { transform: rotate(-16deg); } 6% { transform: rotate(13deg); }
+    8% { transform: rotate(-10deg); } 10% { transform: rotate(6deg); } 12% { transform: rotate(-3deg); }
+}
+#menuNotificaciones.show .notif-vibra, #menuNotificaciones .nav-link:hover .notif-vibra { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .notif-vibra { animation: none; } }
+.notif-urgente { position: relative; background: rgba(220, 53, 69, .06); }
+.notif-urgente::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #dc3545; }
+.notif-urgente .notif-texto { font-weight: 600; }
+.notif-vacio { padding: 1.1rem 1rem; text-align: center; color: #8a949e; font-size: .9rem; }
+.notif-vacio i { color: #28a745; margin-right: .3rem; }
+
+.notif-menu { min-width: 300px; padding: 0; overflow: hidden; }
+.notif-menu .dropdown-header { padding: .65rem 1rem; font-weight: 700; text-align: center; }
+.notif-menu .dropdown-item { display: flex; align-items: center; gap: .65rem; padding: .6rem 1rem; white-space: normal; }
+.notif-menu .dropdown-divider { margin: 0; }
+.notif-icono {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px;
+}
+.notif-icono.bg-warning { color: #212529; }
+.notif-texto { flex: 1 1 auto; font-size: .9rem; }
+.notif-hora { flex: 0 0 auto; font-size: .75rem; color: #8a949e; }
+.notif-menu .dropdown-footer { justify-content: center; font-size: .85rem; color: var(--aslan-blue-hover, #1995ce); }
+
+/* Foto del usuario en el menú: cuadrada y recortada, aunque la imagen subida no lo sea. */
+.main-sidebar .user-panel .image img { width: 2.1rem; height: 2.1rem; object-fit: cover; background: #fff; }
+
+/* === Marca ASLAN MultiAgente de Seguros ===
    La franja de la marca mide EXACTAMENTE lo que la barra superior (57 px: «Inicio», «Cerrar sesión»), tanto con el
    menú abierto como colapsado, para que ambas líneas inferiores queden alineadas. */
 .main-sidebar .brand-link {
@@ -319,13 +355,13 @@ footer.main-footer {
 .main-sidebar .brand-link .brand-image {
     float: none; flex: 0 0 auto; margin: 0 .6rem 0 0; max-height: 33px; width: auto;
 }
-.main-sidebar .brand-link .brand-nexo {
+.main-sidebar .brand-link .brand-text.brand-aslan {
     display: flex; flex-direction: column; justify-content: center; min-width: 0; margin: 0; line-height: 1.05;
 }
-.brand-link .brand-nexo b { font-size: 1.2rem; font-weight: 800; letter-spacing: .08em; }
-.brand-link .brand-nexo small { font-size: .66rem; font-weight: 500; letter-spacing: .04em; opacity: .85; }
+.brand-link .brand-aslan b { display: block; font-size: 1.2rem; font-weight: 800; letter-spacing: .08em; }
+.brand-link .brand-aslan small { display: block; font-size: .66rem; font-weight: 500; letter-spacing: .04em; opacity: .85; }
 
 /* Menú colapsado: solo el logo, centrado en la franja; al pasar el mouse el menú se abre y vuelve a verse el nombre. */
 .sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link { justify-content: center; padding: 0; }
 .sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link .brand-image { margin: 0; }
-.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link .brand-nexo { display: none; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .brand-link .brand-aslan { display: none; }

@@ -1,0 +1,49 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Anuncios{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Anuncios <small>avisos que ven los usuarios de las empresas</small></h1>
+{% if aviso %}<div class="alert alert-success py-2">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <section class="pl-panel p-3">
+            <h2 class="pl-h2"><i class="fas fa-bullhorn"></i> Nuevo anuncio</h2>
+            <form method="post" action="{% url 'plataforma_anuncio_crear' %}">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <label class="form-label fw-semibold">Título</label>
+                <input class="form-control mb-2" name="titulo" maxlength="80" required placeholder="Ej. Mantenimiento programado">
+                <label class="form-label fw-semibold">Mensaje</label>
+                <textarea class="form-control mb-2" name="mensaje" rows="3" maxlength="400" required placeholder="Ej. El sábado de 10 p. m. a 12 a. m. el sistema no estará disponible."></textarea>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label fw-semibold">Tipo</label>
+                        <select class="form-select" name="nivel">{% for v, n in niveles %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+                    <div class="col-6"><label class="form-label fw-semibold">Para</label>
+                        <select class="form-select" name="schema"><option value="">Todas las empresas</option>{% for e in empresas %}<option value="{{ e.schema_name }}">{{ e.name }}</option>{% endfor %}</select></div>
+                    <div class="col-6"><label class="form-label fw-semibold">Desde</label><input class="form-control" type="date" name="desde" value="{{ hoy|date:'Y-m-d' }}" required></div>
+                    <div class="col-6"><label class="form-label fw-semibold">Hasta</label><input class="form-control" type="date" name="hasta" value="{{ hasta_defecto|date:'Y-m-d' }}" required></div>
+                </div>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Publicar</button>
+            </form>
+        </section>
+    </div>
+    <div class="col-lg-7">
+        <section class="pl-panel">
+            <div class="table-responsive"><table class="table pl-tabla align-middle mb-0">
+                <thead><tr><th>Anuncio</th><th>Para</th><th>Vigencia</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                {% for a in lista %}
+                    <tr>
+                        <td><span class="badge {% if a.nivel == 'urgente' %}bg-danger{% elif a.nivel == 'aviso' %}bg-warning text-dark{% else %}bg-info{% endif %}">{{ a.get_nivel_display }}</span> <b>{{ a.titulo }}</b><br><small class="text-muted">{{ a.mensaje }}</small></td>
+                        <td>{{ a.schema|default:"Todas" }}</td>
+                        <td class="text-nowrap">{{ a.desde|date:"d/m" }} – {{ a.hasta|date:"d/m/Y" }}<br>{% if a.vigente %}<span class="badge bg-success">Vigente</span>{% elif not a.activo %}<span class="badge bg-secondary">Apagado</span>{% else %}<span class="badge bg-light text-dark border">Fuera de fecha</span>{% endif %}</td>
+                        <td class="text-end text-nowrap">
+                            <form method="post" action="{% url 'plataforma_anuncio_cambiar' a.pk %}" class="d-inline"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button class="btn btn-sm btn-outline-primary rounded-pill">{% if a.activo %}Apagar{% else %}Activar{% endif %}</button></form>
+                            <form method="post" action="{% url 'plataforma_anuncio_cambiar' a.pk %}" class="d-inline" onsubmit="return confirm('¿Eliminar el anuncio?')"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger rounded-pill"><i class="fas fa-trash"></i></button></form>
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No hay anuncios.</td></tr>{% endfor %}
+                </tbody></table></div>
+        </section>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'plataforma/base.html' %}
+{% block titulo %}Auditoría{% endblock %}
+{% block contenido %}
+<h1 class="pl-titulo">Auditoría <small>quién hizo qué en el panel (últimas 300)</small></h1>
+<form method="get" class="d-flex gap-2 mb-3" style="max-width:420px"><input class="form-control" name="q" value="{{ q }}" placeholder="Buscar acción, empresa o detalle…"><button class="btn btn-outline-primary"><i class="fas fa-magnifying-glass"></i></button></form>
+<section class="pl-panel"><div class="table-responsive"><table class="table pl-tabla table-sm align-middle mb-0">
+    <thead><tr><th>Fecha</th><th>Acción</th><th>Empresa</th><th>Detalle</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for f in filas %}<tr><td class="text-nowrap">{{ f.fecha|date:"d/m/Y H:i:s" }}</td><td><code>{{ f.accion }}</code></td><td>{{ f.schema|default:"—" }}</td><td>{{ f.detalle }}</td><td class="text-muted">{{ f.ip }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}
+    </tbody></table></div></section>
+{% endblock %}

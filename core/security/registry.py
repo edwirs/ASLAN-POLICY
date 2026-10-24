@@ -1,4 +1,4 @@
-"""Catálogo único de permisos y módulos de NEXO by ASLAN Tecnología.
+"""Catálogo único de permisos y módulos de ASLAN MultiAgente de Seguros.
 
 Es la fuente de verdad de tres cosas, para que nunca se desincronicen:
 
@@ -64,6 +64,7 @@ PERMISSIONS = {
         ('view_vehiculo_registrado', 'Ver vehículos registrados'),
         ('view_comparativo', 'Ver el comparativo de aseguradoras de un vehículo'),
         ('add_valor_externo', 'Registrar valores de aseguradoras sin bot'),
+        ('use_asistente', 'Usar el asistente Aslani (chat de consultas)'),
     ],
 
     # Configuraciones
@@ -116,6 +117,8 @@ class Item:
     # de entrada se administra en otro módulo).
     perms: Tuple[str, ...] = ()
     icon: str = 'far fa-circle'
+    # Módulo comercial al que pertenece ('cotizador', 'asesores', 'cartera'): si la empresa no lo contrató, el ítem no sale en el menú.
+    modulo: str = ''
 
 
 @dataclass(frozen=True)
@@ -139,13 +142,13 @@ MENU = (
              crud_q('pos', 'creditnote', ('view', 'add', 'delete'))),
     )),
     Section('Cotizador', 'fa-solid fa-car-side', (
-        Item('quote_new', 'Nueva solicitud', 'solicitud_cotizacion_create', 'policies.add_vehiculo'),
+        Item('quote_new', 'Nueva solicitud', 'solicitud_cotizacion_create', 'policies.add_vehiculo', modulo='cotizador'),
         Item('quote_list', 'Solicitudes registradas', 'vehiculo_list', 'policies.view_vehiculo',
-             q('policies', 'view_vehiculo', 'add_vehiculo', 'view_comparativo', 'add_valor_externo')),
+             q('policies', 'view_vehiculo', 'add_vehiculo', 'view_comparativo', 'add_valor_externo', 'use_asistente'), modulo='cotizador'),
     )),
     Section('Vehículos', 'fa-solid fa-car', (
         Item('vehicles', 'Vehículos registrados', 'vehiculo_registrado_list', 'policies.view_vehiculo_registrado',
-             q('policies', 'view_vehiculo_registrado')),
+             q('policies', 'view_vehiculo_registrado'), modulo='cotizador'),
     )),
     Section('Configuraciones', 'fas fa-wrench', (
         Section('Generales', 'fas fa-sliders-h', (
@@ -158,9 +161,9 @@ MENU = (
             Item('profile', 'Actualizar Perfil', 'user_update_profile', None),
         )),
         Item('insurers', 'Aseguradoras', 'aseguradora_list', 'policies.view_aseguradora',
-             q('policies', 'view_aseguradora', 'add_aseguradora', 'change_aseguradora')),
+             q('policies', 'view_aseguradora', 'add_aseguradora', 'change_aseguradora'), modulo='cotizador'),
         Item('advisors', 'Asesores', 'asesor_list', 'policies.view_asesor',
-             q('policies', 'view_asesor', 'add_asesor', 'change_asesor')),
+             q('policies', 'view_asesor', 'add_asesor', 'change_asesor'), modulo='asesores'),
     )),
     Section('Seguridad', 'fas fa-lock', (
         Item('users', 'Usuarios', 'user_list', 'user.view_user', crud_q('user', 'user')),

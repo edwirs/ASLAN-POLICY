@@ -2,598 +2,213 @@
 {% load static %}
 {% block assets %}
     <script src="{% static 'lib/highcharts-9.1.1/highcharts.js' %}" type="text/javascript"></script>
-    <script src="{% static 'lib/highcharts-9.1.1/highcharts-3d.js' %}" type="text/javascript"></script>
-    <script src="{% static 'lib/highcharts-9.1.1/modules/exporting.js' %}" type="text/javascript"></script>
-    <script src="{% static 'lib/highcharts-9.1.1/modules/data.js' %}" type="text/javascript"></script>
-    <script src="{% static 'lib/highcharts-9.1.1/modules/drilldown.js' %}" type="text/javascript"></script>
+    <link rel="stylesheet" href="{% static 'css/panel.css' %}?v=4">
 {% endblock %}
 
-{% block breadcrumb_item %}
-
-{% endblock %}
+{% block breadcrumb_item %}{% endblock %}
 
 {% block content %}
+    {% with k=panel.kpi r=panel.resumen a=panel.atencion %}
+    <div class="pn">
 
-        {% comment %}
-        <div class="row">
-          <div class="col-lg-3 col-6">
-            <!-- small card -->
-            <div class="small-box bg-info">
-              <div class="inner">
-                <h3 class="font-weight-bolder" id="recaudos-hoy">$0</h3>
-
-                <p>Ventas totales hoy</p>
-              </div>
-              <div class="icon">
-                <i class="fas fa-money-check-dollar"></i>
-              </div>
+        <!-- Encabezado: saludo, rango y selector de período -->
+        <div class="pn-cabecera">
+            <div>
+                <h1 class="pn-saludo">Hola, {{ request.user.names|default:request.user.username }} <span class="pn-mano">👋</span></h1>
+                <p class="pn-sub">Resumen de las cotizaciones del <b>{{ panel.desde|date:"j M" }}</b> al <b>{{ panel.hasta|date:"j M Y" }}</b></p>
             </div>
-          </div>
-          <!-- ./col -->
-          <div class="col-lg-3 col-6">
-            <!-- small card -->
-            <div class="small-box bg-success">
-              <div class="inner">
-                <h3 class="font-weight-bolder" id="ventas-hoy">0</h3>
-
-                <p>Cant. ventas hoy</p>
-              </div>
-              <div class="icon">
-                <i class="fas fa-shopping-cart"></i>
-              </div>
-            </div>
-          </div>
-          <!-- ./col -->
-          <div class="col-lg-3 col-6">
-            <!-- small card -->
-            <div class="small-box bg-warning">
-              <div class="inner text-white">
-                <h3 class="font-weight-bolder" id="ventas-semana">$0</h3>
-
-                <p>Total ventas semanal</p>
-              </div>
-              <div class="icon">
-                <i class="fas fa-user-plus"></i>
-              </div>
-            </div>
-          </div>
-          <!-- ./col -->
-          <div class="col-lg-3 col-6">
-            <!-- small card -->
-            <div class="small-box bg-danger">
-              <div class="inner">
-                <h3 class="font-weight-bolder" id="producto-mas-vendido">0</h3>
-
-                <p>Producto mas vendido</p>
-              </div>
-              <div class="icon">
-                <i class="fas fa-arrow-trend-up"></i>
-              </div>
-            </div>
-          </div>
-          <!-- ./col -->
-        </div>
-        {% endcomment %}
-
-    <div class="container-fluid p-0">
-        <!-- Gráficas deshabilitadas temporalmente
-        <div class="row gx-2">
-            <div class="col-lg-6">
-                <div id="container" class="card p-3 mt-2" style="border-radius: 20px;"></div>
-            </div>
-
-            <div class="col-lg-6">
-                <div id="container-week" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
-            </div>
-
-            <div class="col-lg-6">
-                <div id="container-day" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
-            </div>
-
-            <div class="col-lg-6">
-                <div id="container-pie" class=" card p-3 mt-2" style="border-radius: 20px;"></div>
+            <div class="pn-acciones">
+                <div class="btn-group pn-periodos" role="group" aria-label="Período">
+                    {% for d in panel.periodos %}
+                        <a href="?dias={{ d }}" class="btn btn-sm {% if d == panel.dias %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ d }} días</a>
+                    {% endfor %}
+                </div>
+                <a href="?dias={{ panel.dias }}" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Actualizar datos"><i class="fas fa-rotate"></i></a>
             </div>
         </div>
-        -->
-        {% comment %}
-        <div class="row">
-            <div class="col-lg-12 col-md-12">
-                <div class="card p-4" style="border-radius: 20px;">
-                    <h4 class="font-weight-bold text-center mb-3">
-                        <i class="fas fa-shopping-cart"></i> Las 10 últimas ventas realizadas
-                    </h4>
-                    <table class="table table-striped">
-                        <thead>
-                        <tr>
-                            <th scope="col">Número</th>
-                            <th scope="col">Cliente</th>
-                            <th scope="col">Fecha de registro</th>
-                            <th scope="col">Subtotal</th>
-                            <th scope="col">IVA</th>
-                            <th scope="col">Descuento</th>
-                            <th scope="col">Total</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {% for sale in sales %}
-                            <tr>
-                                <td>{{ sale.id }}</td>
-                                <td>{{ sale.client }}</td>
-                                <td>{{ sale.date_joined }}</td>
-                                <td>{{ sale.get_subtotal_without_taxes|floatformat:2 }}</td>
-                                <td>{{ sale.total_iva|floatformat:2 }}</td>
-                                <td>{{ sale.total_dscto|floatformat:2 }}</td>
-                                <td>{{ sale.total|floatformat:2 }}</td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+
+        <!-- Indicadores principales -->
+        <div class="row g-3 mb-3">
+            <div class="col-xl-3 col-sm-6">
+                <div class="pn-kpi pn-kpi-azul">
+                    <div class="pn-kpi-cuerpo">
+                        <div class="pn-kpi-valor">{{ k.solicitudes }}</div>
+                        <div class="pn-kpi-label">Solicitudes de cotización</div>
+                        {% if k.solicitudes_var is not None %}
+                            <span class="pn-delta {% if k.solicitudes_var >= 0 %}sube{% else %}baja{% endif %}"><i class="fas fa-arrow-{% if k.solicitudes_var >= 0 %}up{% else %}down{% endif %}"></i> {{ k.solicitudes_var }}% vs. período anterior</span>
+                        {% else %}<span class="pn-delta neutro">Sin período anterior para comparar</span>{% endif %}
+                    </div>
+                    <i class="fas fa-car-side pn-kpi-icono"></i>
+                    {% if perms.policies.view_vehiculo %}<a class="pn-kpi-pie" href="{% url 'vehiculo_list' %}">Ver solicitudes <i class="fas fa-circle-arrow-right"></i></a>{% endif %}
+                </div>
+            </div>
+            <div class="col-xl-3 col-sm-6">
+                <div class="pn-kpi pn-kpi-verde">
+                    <div class="pn-kpi-cuerpo">
+                        <div class="pn-kpi-valor">{{ k.completadas }}</div>
+                        <div class="pn-kpi-label">Cotizaciones completadas</div>
+                        {% if k.completadas_var is not None %}
+                            <span class="pn-delta {% if k.completadas_var >= 0 %}sube{% else %}baja{% endif %}"><i class="fas fa-arrow-{% if k.completadas_var >= 0 %}up{% else %}down{% endif %}"></i> {{ k.completadas_var }}% vs. período anterior</span>
+                        {% else %}<span class="pn-delta neutro">{{ k.total }} intentos en total</span>{% endif %}
+                    </div>
+                    <i class="fas fa-circle-check pn-kpi-icono"></i>
+                    {% if perms.policies.view_vehiculo %}<a class="pn-kpi-pie" href="{% url 'vehiculo_list' %}">Ver resultados <i class="fas fa-circle-arrow-right"></i></a>{% endif %}
+                </div>
+            </div>
+            <div class="col-xl-3 col-sm-6">
+                <div class="pn-kpi pn-kpi-naranja">
+                    <div class="pn-kpi-cuerpo">
+                        <div class="pn-kpi-valor">{% if k.tasa is not None %}{{ k.tasa }}<small>%</small>{% else %}—{% endif %}</div>
+                        <div class="pn-kpi-label">Tasa de éxito de los bots</div>
+                        <span class="pn-delta neutro">{{ k.errores }} con error · {{ k.avisos }} avisos del portal</span>
+                    </div>
+                    <i class="fas fa-bullseye pn-kpi-icono"></i>
+                    <span class="pn-kpi-pie pn-kpi-pie-texto" title="Completadas ÷ (completadas + con error). Los avisos del portal (ej. «ya está asegurado») no cuentan como falla.">Completadas ÷ (completadas + errores)</span>
+                </div>
+            </div>
+            <div class="col-xl-3 col-sm-6">
+                <div class="pn-kpi {% if k.atencion %}pn-kpi-rojo{% else %}pn-kpi-gris{% endif %}">
+                    <div class="pn-kpi-cuerpo">
+                        <div class="pn-kpi-valor">{{ k.atencion }}</div>
+                        <div class="pn-kpi-label">{% if k.atencion %}Requieren tu atención{% else %}Todo en orden{% endif %}</div>
+                        <span class="pn-delta neutro">{% if k.atencion %}Contraseñas, códigos o datos pendientes{% else %}Nada pendiente por ahora{% endif %}</span>
+                    </div>
+                    <i class="fas {% if k.atencion %}fa-triangle-exclamation{% else %}fa-circle-check{% endif %} pn-kpi-icono"></i>
+                    {% if perms.policies.view_aseguradora %}<a class="pn-kpi-pie" href="{% url 'aseguradora_list' %}">Ver aseguradoras <i class="fas fa-circle-arrow-right"></i></a>{% endif %}
                 </div>
             </div>
         </div>
-        {% endcomment %}
+
+        <!-- Datos generales -->
+        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-3">
+            <div class="col"><div class="pn-mini"><i class="fas fa-car pn-mini-i azul"></i><div><b>{{ r.vehiculos }}</b><span>Vehículos registrados</span></div></div></div>
+            <div class="col"><div class="pn-mini"><i class="fas fa-users pn-mini-i verde"></i><div><b>{{ r.clientes }}</b><span>Clientes</span></div></div></div>
+            <div class="col"><div class="pn-mini"><i class="fas fa-user-tie pn-mini-i naranja"></i><div><b>{{ r.asesores }}</b><span>Asesores activos</span></div></div></div>
+            <div class="col"><div class="pn-mini"><i class="fas fa-building-shield pn-mini-i azul"></i><div><b>{{ r.aseguradoras_bot }}<small>/{{ r.aseguradoras_bot_total }}</small></b><span>Aseguradoras con bot activas</span></div></div></div>
+            <div class="col"><div class="pn-mini"><i class="fas fa-coins pn-mini-i verde"></i><div><b>{% if r.prima_promedio %}$<span class="pn-dinero" data-v="{{ r.prima_promedio }}">{{ r.prima_promedio }}</span>{% else %}—{% endif %}</b><span>Prima promedio cotizada</span></div></div></div>
+        </div>
+
+        <!-- Cotizaciones por día + estado -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-8">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-chart-column"></i> Cotizaciones por día <small>últimos {{ panel.dias }} días</small></div>
+                    <div class="pn-card-cuerpo"><div id="grDias" class="pn-grafica"></div></div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-chart-pie"></i> Estado de las cotizaciones</div>
+                    <div class="pn-card-cuerpo"><div id="grEstados" class="pn-grafica"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Por aseguradora -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-building-shield"></i> Resultado por aseguradora</div>
+                    <div class="pn-card-cuerpo"><div id="grAseguradoras" class="pn-grafica"></div></div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-coins"></i> Prima promedio cotizada <small>la más baja arriba</small></div>
+                    <div class="pn-card-cuerpo"><div id="grPrimas" class="pn-grafica"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Últimas solicitudes + atención -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-8">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-clock-rotate-left"></i> Últimas solicitudes</div>
+                    <div class="table-responsive">
+                        <table class="table pn-tabla mb-0">
+                            <thead><tr><th>Placa</th><th>Tomador</th><th class="text-center">Aseguradoras con valor</th><th>Registrada</th><th></th></tr></thead>
+                            <tbody>
+                            {% for u in panel.ultimas %}
+                                <tr>
+                                    <td><b>{{ u.placa }}</b>{% if u.cero_km %} <span class="badge bg-info">0 km</span>{% endif %}</td>
+                                    <td>{{ u.tomador }}</td>
+                                    <td class="text-center">
+                                        {% if u.total %}
+                                            <span class="pn-avance"><span style="width: {% widthratio u.ok u.total 100 %}%"></span></span>
+                                            <small class="text-muted">{{ u.ok }} de {{ u.total }}</small>
+                                        {% else %}<span class="text-muted">Sin cotizar</span>{% endif %}
+                                    </td>
+                                    <td class="text-muted">{{ u.fecha|date:"j M, H:i" }}</td>
+                                    <td class="text-end">
+                                        {% if perms.policies.view_comparativo and u.ok %}
+                                            <a href="{% url 'vehiculo_comparativo' u.id %}" class="btn btn-sm btn-outline-primary rounded-pill" data-bs-toggle="tooltip" title="Ver comparativo"><i class="fas fa-scale-balanced"></i></a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted py-4">Aún no hay solicitudes registradas.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-bell"></i> Requiere atención</div>
+                    <div class="pn-card-cuerpo pn-atencion">
+                        {% for n in a.claves %}
+                            <a class="pn-aviso rojo" {% if perms.policies.view_aseguradora %}href="{% url 'aseguradora_list' %}"{% endif %}><i class="fas fa-key"></i><span><b>{{ n }}</b> pide cambiar la contraseña del portal</span></a>
+                        {% endfor %}
+                        {% if a.esperando %}
+                            <div class="pn-aviso ambar"><i class="fas fa-shield-halved"></i><span><b>{{ a.esperando }}</b> cotización{{ a.esperando|pluralize:",es" }} espera{{ a.esperando|pluralize:",n" }} un código de verificación</span></div>
+                        {% endif %}
+                        {% for i in a.incompletas %}
+                            <a class="pn-aviso ambar" {% if perms.policies.view_aseguradora %}href="{% url 'aseguradora_list' %}"{% endif %}><i class="fas fa-triangle-exclamation"></i><span><b>{{ i.nombre }}</b>: faltan datos de acceso ({{ i.faltan|join:", " }})</span></a>
+                        {% endfor %}
+                        {% if not k.atencion %}
+                            <div class="pn-aviso verde"><i class="fas fa-circle-check"></i><span>No hay contraseñas, códigos ni datos pendientes.</span></div>
+                        {% endif %}
+                        {% if a.causas %}
+                            <div class="pn-subtitulo">Principales causas de falla</div>
+                            {% for c in a.causas %}
+                                <div class="pn-causa"><span>{{ c.tipo }}</span><b>{{ c.n }}</b></div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evolución mensual + asesores -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-8">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-chart-line"></i> Evolución mensual <small>últimos 6 meses</small></div>
+                    <div class="pn-card-cuerpo"><div id="grMeses" class="pn-grafica"></div></div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card pn-card">
+                    <div class="pn-card-titulo"><i class="fas fa-user-tie"></i> Actividad por asesor <small>últimos {{ panel.dias }} días</small></div>
+                    <div class="pn-card-cuerpo">
+                        {% for s in panel.top_asesores %}
+                            <div class="pn-asesor">
+                                <div class="pn-asesor-fila"><span>{{ s.nombre }}</span><b>{{ s.ok }}<small>/{{ s.total }}</small></b></div>
+                                <div class="pn-barra"><span style="width: {% widthratio s.ok s.total 100 %}%"></span></div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted text-center my-4">Sin actividad en este período.</p>
+                        {% endfor %}
+                        <p class="pn-nota">Completadas sobre el total de intentos de cada asesor.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <script type="application/javascript">
-        var chart = {
-            getSalesYearMonth: function () {
-                $.ajax({
-                    url: pathname,
-                    data: {
-                        'action': 'get_graph_sales_year_month'
-                    },
-                    type: 'POST',
-                    dataType: 'json',
-                    headers: {
-                        'X-CSRFToken': csrftoken
-                    },
-                    success: function (request) {
-                        if (!request.hasOwnProperty('error')) {
-                            Highcharts.chart('container', {
-                                chart: {
-                                    type: 'column'
-                                },
-                                exporting: false,
-                                title: {
-                                    text: 'Reporte de ventas del año {{ date_joined.year }}'
-                                },
-                                subtitle: {
-                                    text: ''
-                                },
-                                xAxis: {
-                                    categories: [
-                                        'Enero',
-                                        'Febrero',
-                                        'Marzo',
-                                        'Abril',
-                                        'Mayo',
-                                        'Junio',
-                                        'Julio',
-                                        'Agosto',
-                                        'Septiembre',
-                                        'Octubre',
-                                        'Noviembre',
-                                        'Diciembre'
-                                    ],
-                                    crosshair: true
-                                },
-                                yAxis: {
-                                    min: 0,
-                                    title: {
-                                        text: ''
-                                    }
-                                },
-                                tooltip: {
-                                    headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
-                                    pointFormatter: function () {
-                                        return '<tr><td style="color:' + this.color + ';padding:0">' +
-                                            this.series.name + ': </td><td style="padding:0"><b>' +
-                                            new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y) + '</b></td></tr>';
-                                    },
-                                    footerFormat: '</table>',
-                                    shared: true,
-                                    useHTML: true
-                                },
-                                plotOptions: {
-                                    column: {
-                                        pointPadding: 0.2,
-                                        borderWidth: 0
-                                    }
-                                },
-                                series: [{
-                                    name: 'Total',
-                                    showInLegend: false,
-                                    colorByPoint: true,
-                                    data: request,
-                                    dataLabels: {
-                                        enabled: true,
-                                        rotation: 0,
-                                        color: '#FFFFFF',
-                                        align: 'center',
-                                        formatter: function () {
-                                            return new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y);
-                                        },
-                                        y: 50,
-                                        style: {
-                                            fontSize: '11px',
-                                            fontFamily: 'Verdana, sans-serif'
-                                        }
-                                    }
-                                }]
-                            });
-                            return false;
-                        }
-                        message_error(request.error);
-                    },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        message_error(errorThrown + ' ' + textStatus);
-                    }
-                });
-            },
-            getSalesProductsYearMonth: function () {
-                $.ajax({
-                    url: pathname,
-                    data: {
-                        'action': 'get_graph_sales_products_year_month'
-                    },
-                    type: 'POST',
-                    dataType: 'json',
-                    headers: {
-                        'X-CSRFToken': csrftoken
-                    },
-                    success: function (request) {
-                        if (!request.hasOwnProperty('error')) {
-                            Highcharts.chart('container-pie', {
-                                chart: {
-                                    plotBackgroundColor: null,
-                                    plotBorderWidth: null,
-                                    plotShadow: false,
-                                    type: 'pie'
-                                },
-                                exporting: false,
-                                title: {
-                                    text: 'Total recaudado por producto del mes {{ month }} del año {{ date_joined.year }}'
-                                },
-                                tooltip: {
-                                    pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>'
-                                },
-                                accessibility: {
-                                    point: {
-                                        valueSuffix: '%'
-                                    }
-                                },
-                                plotOptions: {
-                                    pie: {
-                                        allowPointSelect: true,
-                                        cursor: 'pointer',
-                                        dataLabels: {
-                                            enabled: true,
-                                            formatter: function () {
-                                                return new Intl.NumberFormat('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0
-                                                }).format(this.y);
-                                            },
-                                            {#distance: -50,#}
-                                        }
-                                    }
-                                },
-                                series: [{
-                                    'name': 'Porcentaje',
-                                    'colorByPoint': true,
-                                    'data': request
-                                }]
-                            });
-                            return false;
-                        }
-                        message_error(request.error);
-                    },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        message_error(errorThrown + ' ' + textStatus);
-                    }
-                });
-            },
-            getSalesWeekday: function () {
-                $.ajax({
-                    url: pathname,
-                    data: {
-                        'action': 'get_graph_sales_weekday'
-                    },
-                    type: 'POST',
-                    dataType: 'json',
-                    headers: {
-                        'X-CSRFToken': csrftoken
-                    },
-                    success: function (request) {
-                        console.log("Respuesta del servidor:", request);
-                        if (!request.hasOwnProperty('error')) {
-                            // Extraer categorías (días) y valores (totales)
-                            let categories = request.map(item => item.day);
-                            let totals = request.map(item => item.total);
+    {% endwith %}
 
-                            Highcharts.chart('container-day', {
-                                chart: {
-                                    type: 'column'
-                                },
-                                exporting: false,
-                                title: {
-                                    text: 'Ventas por día de la semana'
-                                },
-                                xAxis: {
-                                    categories: categories,
-                                    crosshair: true
-                                },
-                                yAxis: {
-                                    min: 0,
-                                    title: {
-                                        text: ''
-                                    }
-                                },
-                                tooltip: {
-                                    headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
-                                    pointFormatter: function () {
-                                        return '<tr><td style="color:' + this.color + ';padding:0">' +
-                                            this.series.name + ': </td><td style="padding:0"><b>' +
-                                            new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y) + '</b></td></tr>';
-                                    },
-                                    footerFormat: '</table>',
-                                    shared: true,
-                                    useHTML: true
-                                },
-                                plotOptions: {
-                                    column: {
-                                        pointPadding: 0.2,
-                                        borderWidth: 0
-                                    }
-                                },
-                                series: [{
-                                    name: 'Total',
-                                    showInLegend: false,
-                                    colorByPoint: true,
-                                    data: totals,
-                                    dataLabels: {
-                                        enabled: true,
-                                        rotation: 0,
-                                        color: '#FFFFFF',
-                                        align: 'center',
-                                        formatter: function () {
-                                            return new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y);
-                                        },
-                                        y: 50,
-                                        style: {
-                                            fontSize: '11px',
-                                            fontFamily: 'Verdana, sans-serif'
-                                        }
-                                    }
-                                }]
-                            });
-                            return false;
-                        }
-                        message_error(request.error);
-                    },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        message_error(errorThrown + ' ' + textStatus);
-                    }
-                });
-            },
-            getSalesWeek: function () {
-                $.ajax({
-                    url: pathname,
-                    data: {
-                        'action': 'get_graph_sales_week'  // 👈 Cambié el action
-                    },
-                    type: 'POST',
-                    dataType: 'json',
-                    headers: {
-                        'X-CSRFToken': csrftoken
-                    },
-                    success: function (request) {
-                        console.log("Respuesta del servidor:", request);
-                        if (!request.hasOwnProperty('error')) {
-                            // Extraer categorías (semanas) y valores (totales)
-                            let categories = request.map(item => item.week);
-                            let totals = request.map(item => item.total);
-
-                            Highcharts.chart('container-week', {
-                                chart: {
-                                    type: 'column'
-                                },
-                                exporting: false,
-                                title: {
-                                    text: 'Ventas por semana del mes'
-                                },
-                                xAxis: {
-                                    categories: categories,
-                                    crosshair: true
-                                },
-                                yAxis: {
-                                    min: 0,
-                                    title: {
-                                        text: ''
-                                    }
-                                },
-                                tooltip: {
-                                    headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
-                                    pointFormatter: function () {
-                                        return '<tr><td style="color:' + this.color + ';padding:0">' +
-                                            this.series.name + ': </td><td style="padding:0"><b>' +
-                                            new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y) + '</b></td></tr>';
-                                    },
-                                    footerFormat: '</table>',
-                                    shared: true,
-                                    useHTML: true
-                                },
-                                plotOptions: {
-                                    column: {
-                                        pointPadding: 0.2,
-                                        borderWidth: 0
-                                    }
-                                },
-                                series: [{
-                                    name: 'Total',
-                                    showInLegend: false,
-                                    colorByPoint: true,
-                                    data: totals,
-                                    dataLabels: {
-                                        enabled: true,
-                                        rotation: 0,
-                                        color: '#FFFFFF',
-                                        align: 'center',
-                                        formatter: function () {
-                                            return new Intl.NumberFormat('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0
-                                            }).format(this.y);
-                                        },
-                                        y: 50,
-                                        style: {
-                                            fontSize: '11px',
-                                            fontFamily: 'Verdana, sans-serif'
-                                        }
-                                    }
-                                }]
-                            });
-                            return false;
-                        }
-                        message_error(request.error);
-                    },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        message_error(errorThrown + ' ' + textStatus);
-                    }
-                });
-            }
-        };
-        function fetchVentasHoy() {
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken
-                },
-                data: {
-                    'action': 'get_sales_total_today'
-                },
-                success: function (response) {
-                    if (!response.error) {
-                        const total = parseFloat(response.total).toLocaleString('es-CL', {
-                            style: 'currency',
-                            currency: 'CLP',
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                        });
-                        $('#recaudos-hoy').text(total);
-                    } else {
-                        console.error('Error:', response.error);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error al obtener las ventas de hoy:', error);
-                }
-            });
-        }
-        function ProductoMasVendido() {
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken
-                },
-                data: {
-                    'action': 'get_product_total_today'
-                },
-                success: function (response) {
-                    if (!response.error) {
-                        if (response.product) {
-                            // Mostramos el producto y la cantidad
-                            const mensaje = `${response.product} (${response.quantity})`;
-                            $('#producto-mas-vendido').text(mensaje);
-                        } else {
-                            $('#producto-mas-vendido').text("No hay ventas hoy");
-                        }
-                    } else {
-                        console.error('Error:', response.error);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error al obtener las ventas de hoy:', error);
-                }
-            });
-        }
-        function VentasSemanales() {
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken
-                },
-                data: {
-                    'action': 'get_sales_total_week'
-                },
-                success: function (response) {
-                    if (!response.error) {
-                        $('#ventas-semana').text(response.total + ' ventas');
-                    } else {
-                        console.error('Error:', response.error);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error al obtener las ventas de hoy:', error);
-                }
-            });
-        }
-        function CantVentasHoy() {
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken
-                },
-                data: {
-                    'action': 'get_sales_count_today'
-                },
-                success: function (response) {
-                    if (!response.error) {
-                        $('#ventas-hoy').text(response.count);
-                    } else {
-                        console.error('Error:', response.error);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error al obtener las ventas de hoy:', error);
-                }
-            });
-        }
-        $(function () {
-            // Gráficas y tarjetas de totales deshabilitadas temporalmente
-            // chart.getSalesYearMonth();
-            // chart.getSalesWeek();
-            // chart.getSalesWeekday();
-            // chart.getSalesProductsYearMonth();
-            // fetchVentasHoy();
-            // ProductoMasVendido();
-            // VentasSemanales();
-            // CantVentasHoy();
-        });
-    </script>
+    {{ panel.graficas|json_script:"panelGraficas" }}
+    <script src="{% static 'js/panel.js' %}?v=2"></script>
 {% endblock %}
