@@ -35,6 +35,7 @@ def reenviar(original, usuario):
     nueva = Cotizacion.objects.create(
         vehiculo=original.vehiculo, tomador=original.tomador, asesor=usuario,
         aseguradora=original.aseguradora, tipo_poliza=original.tipo_poliza,
+        zona_circulacion_id=original.zona_circulacion_id or original.vehiculo.zona_circulacion_id,
     )
     lanzar_bot_en_segundo_plano(nueva.id, BOTS_DISPONIBLES[original.aseguradora.name], connection.schema_name)
     return nueva, None

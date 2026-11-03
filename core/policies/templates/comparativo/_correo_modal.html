@@ -1,0 +1,38 @@
+{# Ventana «Armar correo»: el correo tal como lo recibirá el cliente, para una última revisión antes de enviarlo #}
+<div class="modal fade pc-modal" id="modalCorreo" tabindex="-1" aria-labelledby="modalCorreoTitulo" aria-hidden="true" data-url="{{ correo_url }}">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="modalCorreoTitulo"><i class="fa-solid fa-envelope"></i> Correo al cliente · {{ vehiculo.placa }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pcCorreoAvisos"></div>
+                <div class="pc-campos">
+                    <div class="pc-campo" id="pcFilaPlantilla"><label for="pcPlantilla">Plantilla</label><select id="pcPlantilla"></select></div>
+                    <div class="pc-campo"><label>De</label><div class="pc-campo-valor" id="pcDe"></div></div>
+                    <div class="pc-campo"><label for="pcPara">Para</label><input type="text" id="pcPara" autocomplete="off" placeholder="correo@cliente.com"></div>
+                    <div class="pc-campo"><label for="pcCc">CC</label><input type="text" id="pcCc" autocomplete="off"></div>
+                    <div class="pc-campo"><label for="pcAsunto">Asunto</label><input type="text" id="pcAsunto" autocomplete="off"></div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="pcFilaAdjunto">
+                    <a href="#" target="_blank" rel="noopener" class="pc-adjunto" id="pcAdjunto" title="Ver el PDF que se adjunta"><i class="fa-solid fa-file-pdf"></i> <span></span></a>
+                    <small class="text-muted">Clic para ver el PDF que se adjunta (tarda unos segundos en generarse).</small>
+                </div>
+                <!-- Cotizaciones de las dos aseguradoras más baratas: las de valor manual se adjuntan subiendo su PDF. -->
+                <div class="pc-cotizaciones d-none" id="pcCotizaciones">
+                    <div class="pc-cotizaciones-titulo"><i class="fa-solid fa-paperclip"></i> Pólizas</div>
+                    <div class="pc-cotizaciones-lista" id="pcCotizacionesLista"></div>
+                    <input type="file" id="pcCotizacionArchivo" accept="application/pdf,.pdf" class="d-none">
+                </div>
+                <iframe id="pcCorreoMarco" class="pc-marco" title="Correo que recibirá el cliente" sandbox="allow-same-origin"></iframe>
+                <div class="pc-enviados mt-2" id="pcEnviados"></div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted me-auto">Revise el correo: se envía tal como se ve. Para cambiar el texto, edite la plantilla.</small>
+                <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary rounded-pill" id="pcEnviar"><i class="fa-solid fa-paper-plane"></i> Enviar correo</button>
+            </div>
+        </div>
+    </div>
+</div>

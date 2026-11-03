@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap4.min.css' %}">
     <script src="{% static 'lib/tempusdominus-bootstrap-4.5.37.0/js/tempusdominus-bootstrap.js' %}"></script>
     <link rel="stylesheet" href="{% static 'lib/tempusdominus-bootstrap-4.5.37.0/css/tempusdominus-bootstrap.css' %}"/>
-    <script src="{% static 'client/js/form.js' %}"></script>
+    <script src="{% static 'client/js/form.js' %}?v=3"></script>
 {% endblock %}
 
 {% block form_fields %}
@@ -126,6 +126,44 @@
                             <div class="form-group">
                                 <label>{{ form.mobile.label }}:</label>
                                 {{ form.mobile }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="custom-control custom-switch mb-3">
+                        <input type="checkbox" class="custom-control-input" id="chkMasContacto"
+                               {% if form.instance.phone or form.instance.email_secundario %}checked{% endif %}>
+                        <label class="custom-control-label" for="chkMasContacto">El cliente tiene otro celular u otro correo</label>
+                    </div>
+
+                    <!-- Otro celular y otro correo (opcionales): se muestran con el interruptor de arriba -->
+                    <div class="row" id="row-mas-contacto">
+                        <div class="col-lg-6">
+                            <div class="form-group">
+                                <label>{{ form.phone.label }} <small class="text-muted">(opcional)</small>:</label>
+                                {{ form.phone }}
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="form-group">
+                                <label>{{ form.email_secundario.label }} <small class="text-muted">(opcional)</small>:</label>
+                                {{ form.email_secundario }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Solo con NIT: persona dueña de la empresa (opcional) -->
+                    <div class="row" id="row-propietario-empresa">
+                        <div class="col-lg-6">
+                            <div class="form-group">
+                                <label>{{ form.propietario_documento.label }} <small class="text-muted">(opcional)</small>:</label>
+                                {{ form.propietario_documento }}
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="form-group">
+                                <label>{{ form.propietario_nombre.label }} <small class="text-muted">(opcional)</small>:</label>
+                                {{ form.propietario_nombre }}
                             </div>
                         </div>
                     </div>

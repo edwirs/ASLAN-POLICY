@@ -142,6 +142,20 @@ class QualitasBot(RegistroErrorMixin):
         except Exception:
             logger.exception('No se pudo capturar el diagnóstico de la página tras la falla')
 
+    def _descargar_cotizacion(self, page):
+        """PDF de la cotización: tras «Guardar cambios» se pasa al Resumen con «Siguiente» y al final está «Descargar PDF».
+        No se pulsa «Emitir» ni «Enviar»."""
+        self._paso('PDF de la cotización')
+        try:
+            page.locator('button.next:visible', has_text=re.compile(r'Siguiente', re.I)).first.click(timeout=15000)
+            boton = page.locator('button:visible, a:visible', has_text=re.compile(r'^\s*Descargar PDF\s*$', re.I)).first
+            boton.wait_for(state='visible', timeout=60000)
+            boton.scroll_into_view_if_needed()
+        except Exception:
+            logger.warning('Qualitas: no apareció «Descargar PDF» en el Resumen (cotización #%s).', self.cotizacion.pk, exc_info=True)
+            return
+        self._descargar_pdf(page, lambda: boton.click(timeout=15000))
+
     def _cerrar_sesion(self, page):
         """Best-effort: cierra la sesión para no acumular sesiones activas
         entre corridas. Nunca lanza excepción.
@@ -207,6 +221,8 @@ class QualitasBot(RegistroErrorMixin):
                     self._guardar_y_capturar_total(cotizador_page)
                     self._paso('Paquetes y formas de pago')
                     self._capturar_resumen(cotizador_page)
+                    self._mapear_documentos(cotizador_page)
+                    self._descargar_cotizacion(cotizador_page)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:

@@ -166,14 +166,41 @@ class ClientForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Número celular'
             }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Opcional',
+                'inputmode': 'tel'
+            }),
+            'email_secundario': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Opcional'
+            }),
             'email': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Correo electrónico'
+            }),
+            'propietario_documento': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Opcional',
+                'inputmode': 'numeric'
+            }),
+            'propietario_nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Opcional'
             }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             })
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        tipo = cleaned.get('document_type')
+        if not (tipo and tipo.abbreviation == 'NIT'):
+            # El propietario solo aplica a empresas: si no es NIT no se guarda.
+            cleaned['propietario_documento'] = None
+            cleaned['propietario_nombre'] = None
+        return cleaned
 
     def save(self, commit=True):
         data = {}

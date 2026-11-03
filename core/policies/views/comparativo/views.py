@@ -3,16 +3,19 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView, View
 
-from core.policies.models import Aseguradora, ValorExterno, Vehiculo
+from core.policies.models import Aseguradora, CorreoEnviado, Cotizacion, PlantillaCorreo, ValorExterno, Vehiculo
+from core.policies.services import correo
+from core.policies.services.polizas import registrar_evento
 from core.pos.models import Company
-from core.policies.services.comparativo import aseguradoras_sin_bot, construir, dinero, indicadores, resumen_cliente
+from core.policies.services.bots import BOTS_DISPONIBLES
+from core.policies.services.comparativo import aseguradoras_valor_manual, construir, dinero, indicadores, resumen_cliente
 from core.security.mixins import StrictPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -43,13 +46,18 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'resumen': resumen_cliente(filas),
             'indicadores': indicadores(filas),
             'sin_valor': resultado['sin_valor'],
+            'aseguradora_actual': resultado['actual'],
             'mas_barata': filas[0] if filas else None,
             'puede_registrar_valores': self.request.user.has_perm('policies.add_valor_externo'),
-            'aseguradoras_sin_bot': aseguradoras_sin_bot(),
+            'aseguradoras_manual': [(a, a.name in BOTS_DISPONIBLES) for a in aseguradoras_valor_manual(vehiculo, filas)],
             'guardar_url': reverse('vehiculo_comparativo_valores', args=[vehiculo.pk]),
             'comparativo_url': reverse('vehiculo_comparativo', args=[vehiculo.pk]),
             'imprimir_url': reverse('vehiculo_comparativo_imprimir', args=[vehiculo.pk]),
+            'puede_enviar_correo': self.request.user.has_perm('policies.send_cotizacion_correo'),
+            'correo_url': reverse('vehiculo_comparativo_correo', args=[vehiculo.pk]),
             'vehiculo_id': vehiculo.pk,
+            'poliza_vigente': vehiculo.polizas.filter(estado='generada', fecha_renovacion__gte=timezone.localdate())
+                                            .select_related('aseguradora').order_by('-fecha_renovacion').first(),
         })
         return context
 
@@ -111,6 +119,15 @@ class ComparativoImprimirView(ComparativoView):
         return context
 
 
+def _leer_valor(texto):
+    """'1.234.567' / '$1,234,567' -> Decimal, o None si no es un valor válido."""
+    try:
+        valor = Decimal(str(texto or '').replace('.', '').replace(',', '').replace('$', '').strip())
+    except InvalidOperation:
+        return None
+    return valor if 0 < valor <= VALOR_MAXIMO else None
+
+
 class ComparativoValoresView(StrictPermissionMixin, View):
     """Registra los valores finales de aseguradoras sin bot para el vehículo.
 
@@ -127,27 +144,172 @@ class ComparativoValoresView(StrictPermissionMixin, View):
         if not isinstance(filas, list) or not filas:
             return JsonResponse({'error': 'Agrega al menos una aseguradora con su valor'}, status=400)
 
-        sin_bot = {a.pk: a for a in aseguradoras_sin_bot()}
+        permitidas = {a.pk: a for a in aseguradoras_valor_manual(vehiculo)}
         nuevos, vistas = [], set()
         for numero, fila in enumerate(filas, start=1):
             try:
                 aseguradora_id = int(fila.get('aseguradora'))
             except (TypeError, ValueError, AttributeError):
                 return JsonResponse({'error': f'Fila {numero}: elige la aseguradora'}, status=400)
-            aseguradora = sin_bot.get(aseguradora_id)
+            aseguradora = permitidas.get(aseguradora_id)
             if aseguradora is None:
-                return JsonResponse({'error': f'Fila {numero}: la aseguradora no existe, está inactiva o ya cotiza con bot'}, status=400)
+                return JsonResponse({'error': f'Fila {numero}: la aseguradora no existe, está inactiva o su bot ya trajo el valor'}, status=400)
             if aseguradora_id in vistas:
                 return JsonResponse({'error': f'{aseguradora.name} está repetida: registra un solo valor por aseguradora'}, status=400)
             vistas.add(aseguradora_id)
-            try:
-                valor = Decimal(str(fila.get('valor', '')).replace('.', '').replace(',', '').replace('$', '').strip())
-            except InvalidOperation:
-                return JsonResponse({'error': f'{aseguradora.name}: el valor no es un número válido'}, status=400)
-            if valor <= 0 or valor > VALOR_MAXIMO:
-                return JsonResponse({'error': f'{aseguradora.name}: el valor debe ser mayor que cero'}, status=400)
+            valor = _leer_valor(fila.get('valor'))
+            if valor is None:
+                return JsonResponse({'error': f'{aseguradora.name}: el valor debe ser un número mayor que cero'}, status=400)
             nuevos.append(ValorExterno(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, asesor=request.user))
 
         with transaction.atomic():
             ValorExterno.objects.bulk_create(nuevos)
         return JsonResponse({'url': reverse('vehiculo_comparativo', args=[vehiculo.pk])})
+
+
+class ComparativoPdfView(StrictPermissionMixin, View):
+    """El PDF del comparativo tal como va adjunto en el correo (mismo diseño de «Imprimir»)."""
+    permission_required = 'policies.view_comparativo'
+
+    def get(self, request, pk):
+        vehiculo = get_object_or_404(Vehiculo, pk=pk)
+        pdf = correo.pdf_comparativo(request, vehiculo, solo_diferencias=request.GET.get('solo_diferencias') == '1')
+        respuesta = HttpResponse(pdf, content_type='application/pdf')
+        respuesta['Content-Disposition'] = f'inline; filename="Comparativo {vehiculo.placa}.pdf"'
+        return respuesta
+
+
+class ComparativoCorreoView(StrictPermissionMixin, View):
+    """«Armar correo»: GET devuelve el correo armado con la plantilla para revisarlo; POST lo envía."""
+    permission_required = 'policies.send_cotizacion_correo'
+
+    @staticmethod
+    def _cotizaciones(vehiculo):
+        """Las más baratas del ranking, para la sección «Cotizaciones que se adjuntan» de la ventana."""
+        return [{k: v for k, v in c.items() if k != 'documento'} for c in correo.cotizaciones_a_adjuntar(construir(vehiculo)['filas'])]
+
+    def get(self, request, pk):
+        if request.GET.get('cotizacion_pdf') or request.GET.get('portal_pdf'):
+            # Ver el PDF (subido o del portal): se sirve por aquí (con permiso), nunca por un enlace público de /media.
+            if request.GET.get('portal_pdf'):
+                origen = get_object_or_404(Cotizacion.objects.select_related('aseguradora'), pk=request.GET['portal_pdf'], vehiculo_id=pk)
+                archivo = origen.pdf
+            else:
+                origen = get_object_or_404(ValorExterno.objects.select_related('aseguradora'), pk=request.GET['cotizacion_pdf'], vehiculo_id=pk)
+                archivo = origen.documento
+            if not archivo:
+                raise Http404
+            return FileResponse(archivo.open('rb'), content_type='application/pdf', filename=f'Cotización {origen.aseguradora.name}.pdf')
+        vehiculo = get_object_or_404(Vehiculo.objects.select_related('tomador', 'zona_circulacion__departamento'), pk=pk)
+        plantilla = correo.plantilla_para(vehiculo, request.GET.get('plantilla'))
+        if plantilla is None:
+            return JsonResponse({'error': 'No hay plantillas de correo activas. Créelas en Configuraciones › Plantillas de correo.'})
+        armado = correo.armar(plantilla, vehiculo, request.user)
+        solo = '?solo_diferencias=1' if request.GET.get('solo_diferencias') == '1' else ''
+        enviados = [{
+            'fecha': timezone.localtime(c.created_at).strftime('%d/%m/%Y %H:%M'),
+            'para': c.para, 'estado': c.estado, 'estado_display': c.get_estado_display(),
+            'por': (c.enviado_por.names or c.enviado_por.username) if c.enviado_por else '',
+        } for c in CorreoEnviado.objects.filter(vehiculo=vehiculo).select_related('enviado_por')[:5]]
+        return JsonResponse({
+            'plantillas': [{'id': p.pk, 'nombre': p.nombre, 'predeterminada': p.predeterminada}
+                           for p in PlantillaCorreo.objects.filter(is_active=True, tipo_seguro='autos').order_by('-predeterminada', 'nombre')],
+            'plantilla_id': plantilla.pk,
+            'de': armado['de'],
+            'para': ', '.join(armado['para']),
+            'cc': ', '.join(armado['cc']),
+            'asunto': armado['asunto'],
+            'html': armado['html'],
+            'avisos': armado['avisos'],
+            'adjunto': armado['adjunto'],
+            'cotizaciones': [{k: v for k, v in c.items() if k != 'documento'} for c in armado['cotizaciones']],
+            'pdf_url': reverse('vehiculo_comparativo_pdf', args=[vehiculo.pk]) + solo,
+            'puede_enviar': bool(plantilla.cuenta and plantilla.cuenta.is_active and plantilla.cuenta.clave),
+            'enviados': enviados,
+        })
+
+    def post(self, request, pk):
+        vehiculo = get_object_or_404(Vehiculo.objects.select_related('tomador'), pk=pk)
+        accion = request.POST.get('action')
+        if accion in ('subir_cotizacion', 'quitar_cotizacion'):
+            return self._cotizacion_manual(request, vehiculo, accion)
+        plantilla = correo.plantilla_para(vehiculo, request.POST.get('plantilla'))
+        if plantilla is None:
+            return JsonResponse({'error': 'No hay plantillas de correo activas.'}, status=400)
+        try:
+            pdf = None
+            if plantilla.adjuntar_pdf:
+                pdf = correo.pdf_comparativo(request, vehiculo, solo_diferencias=request.POST.get('solo_diferencias') == '1')
+            registro = correo.enviar(plantilla, vehiculo, request.user, request.POST.get('para', ''),
+                                     request.POST.get('cc', ''), request.POST.get('asunto', ''), pdf=pdf)
+        except correo.CorreoError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({'ok': True, 'mensaje': f'Correo enviado a {registro.para}' + (f' (CC {registro.cc})' if registro.cc else '') + '.'})
+
+    def _cotizacion_manual(self, request, vehiculo, accion):
+        """Sube o quita el PDF de la cotización de una de las más baratas: de un valor manual (tipo 'manual') o de una
+        cotización de bot cuyo PDF no bajó del portal o se quiere cambiar (tipo 'bot')."""
+        if request.POST.get('tipo') == 'bot':
+            origen = Cotizacion.objects.select_related('aseguradora').filter(pk=request.POST.get('ref_id'), vehiculo=vehiculo).first()
+            campo = 'pdf'
+        else:
+            origen = ValorExterno.objects.select_related('aseguradora').filter(
+                pk=request.POST.get('ref_id') or request.POST.get('valor_id'), vehiculo=vehiculo).first()
+            campo = 'documento'
+        if origen is None:
+            return JsonResponse({'error': 'Ese valor ya no existe: vuelva a abrir el correo.'}, status=404)
+        nombre = origen.aseguradora.name
+        actual = getattr(origen, campo)
+        if accion == 'subir_cotizacion':
+            try:
+                archivo = correo.leer_pdf_subido(request.FILES.get('archivo'))
+            except correo.CorreoError as e:
+                return JsonResponse({'error': str(e)}, status=400)
+            if actual:
+                actual.delete(save=False)
+            if campo == 'pdf':
+                origen.pdf_descargado_en = timezone.now()
+            getattr(origen, campo).save('cotizacion.pdf', archivo, save=True)
+            registrar_evento(vehiculo, 'valor', '', f'{nombre}: PDF de la cotización adjuntado',
+                             'Para el correo al cliente', request.user)
+        else:
+            if actual:
+                actual.delete(save=True)
+            registrar_evento(vehiculo, 'valor', f'{nombre}: PDF de la cotización', 'Quitado', 'Correo al cliente', request.user)
+        return JsonResponse({'ok': True, 'cotizaciones': self._cotizaciones(vehiculo)})
+
+
+class ComparativoValorManualView(StrictPermissionMixin, View):
+    """Corrige o elimina el valor manual (aseguradora sin bot) que muestra el comparativo.
+
+    Corregir registra un valor nuevo (el anterior queda como historial y el comparativo toma el más reciente);
+    eliminar borra todos los valores manuales de esa aseguradora para el vehículo, para que no reaparezca uno viejo.
+    Las dos acciones quedan en el historial del vehículo."""
+    permission_required = 'policies.add_valor_externo'
+
+    def post(self, request, pk, valor_id):
+        vehiculo = get_object_or_404(Vehiculo, pk=pk)
+        actual = ValorExterno.objects.select_related('aseguradora').filter(pk=valor_id, vehiculo=vehiculo).first()
+        if actual is None:
+            return JsonResponse({'error': 'Ese valor ya no existe: recargue el comparativo.'}, status=404)
+        aseguradora = actual.aseguradora
+        anterior = dinero(actual.valor)
+        accion = request.POST.get('action')
+        if accion == 'editar':
+            valor = _leer_valor(request.POST.get('valor'))
+            if valor is None:
+                return JsonResponse({'error': 'El valor debe ser un número mayor que cero.'}, status=400)
+            if valor == actual.valor:
+                return JsonResponse({'ok': True})
+            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, asesor=request.user,
+                                        documento=actual.documento.name or None)
+            registrar_evento(vehiculo, 'valor', f'{aseguradora.name}: {anterior}', f'{aseguradora.name}: {dinero(valor)}',
+                             'Valor manual corregido en el comparativo', request.user)
+        elif accion == 'eliminar':
+            with transaction.atomic():
+                ValorExterno.objects.filter(vehiculo=vehiculo, aseguradora=aseguradora).delete()
+                registrar_evento(vehiculo, 'valor', f'{aseguradora.name}: {anterior}', 'Eliminado',
+                                 'Valor manual eliminado del comparativo', request.user)
+        else:
+            return JsonResponse({'error': 'No ha seleccionado ninguna opción'}, status=400)
+        return JsonResponse({'ok': True})

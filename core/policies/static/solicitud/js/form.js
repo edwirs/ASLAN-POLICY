@@ -22,6 +22,29 @@ $(function () {
     var estadoUrl = $form.data('estado-url');
     var reintentarUrl = $form.data('reintentar-url');
     var defaultDocumentType = $('select[name="document_type"]').val();
+
+    // Cédula y nombre del dueño de la empresa: solo se piden (opcionales) cuando el tomador es NIT.
+    function mostrarPropietarioEmpresa() {
+        var esNit = /\bNIT\b/i.test($('select[name="document_type"] option:selected').text());
+        $('#filaPropietarioEmpresa').toggleClass('d-none', !esNit);
+        if (!esNit) {
+            $('input[name="propietario_documento"], input[name="propietario_nombre"]').val('');
+        }
+    }
+    $('select[name="document_type"]').on('change', mostrarPropietarioEmpresa);
+    mostrarPropietarioEmpresa();
+
+    // Otro celular y otro correo: solo se ven si el asesor indica que el cliente tiene más datos de contacto.
+    var $masContacto = $('input[name="mas_contacto"]');
+    function mostrarMasContacto() {
+        var activo = $masContacto.is(':checked');
+        $('#filaMasContacto').toggleClass('d-none', !activo);
+        if (!activo) {
+            $('input[name="phone"], input[name="email_secundario"]').val('');
+        }
+    }
+    $masContacto.on('change', mostrarMasContacto);
+    mostrarMasContacto();
     var pollCotizaciones = null;
     var aseguradorasSeleccionadas = [];
     var aseguradorasModal = new bootstrap.Modal(document.getElementById('modalAseguradoras'));
@@ -38,34 +61,251 @@ $(function () {
 
     $('input[name="placa"]').on('input', function () {
         $(this).val($(this).val().toUpperCase());
+        aplicarEstadoPlaca(null);  // el aviso de la placa anterior deja de aplicar hasta consultar la nueva
     });
-
-    // Al salir de Cédula o Placa, se busca si ya existe el registro y, de
-    // haberlo, se autocompleta el resto del formulario con lo guardado.
-    $('input[name="dni"]').on('blur', function () {
-        consultarRegistro('dni', $(this).val());
-    });
+    // En el paso 3 la placa se puede escribir o cambiar: solo se revisa si está bloqueada y su ciudad de
+    // circulación. Los datos del tomador ya se confirmaron en el paso 2 y no se pisan.
     $('input[name="placa"]').on('blur', function () {
-        consultarRegistro('placa', $(this).val());
-    });
-
-    function consultarRegistro(tipo, valor) {
-        valor = (valor || '').trim();
-        if (!valor || !lookupUrl) {
+        var placa = $(this).val().trim();
+        if (!placa || !lookupUrl) {
             return;
         }
-        $.ajax({
-            url: lookupUrl,
-            type: 'GET',
-            data: {tipo: tipo, valor: valor},
-            dataType: 'json',
-            success: function (response) {
-                if (response.found) {
-                    aplicarDatosEncontrados(response);
-                }
+        $.getJSON(lookupUrl, {tipo: 'placa', valor: placa}).done(function (data) {
+            aplicarEstadoPlaca(data.found ? data.estado_placa : null);
+            if (data.found && data.zona_circulacion_id && !$('select[name="zona_circulacion"]').val()) {
+                $('select[name="zona_circulacion"]').val(data.zona_circulacion_id).trigger('change');
             }
         });
+    });
+
+    // ------------------------------------------------------------------
+    // Asistente: 1 consulta › 2 tomador › 3 vehículo
+    // ------------------------------------------------------------------
+    var pasoActual = 1;
+
+    function irAPaso(paso) {
+        pasoActual = paso;
+        $('.qw-panel').removeClass('activo').filter('[data-paso="' + paso + '"]').addClass('activo');
+        $('.qw-paso-ind').each(function () {
+            var n = Number($(this).data('paso'));
+            $(this).toggleClass('activo', n === paso).toggleClass('hecho', n < paso);
+        });
+        if (paso === 3) {
+            pintarResumenTomador();
+        }
+        var tarjeta = $('.quote-request-card')[0];
+        if (tarjeta && tarjeta.getBoundingClientRect().top < 0) {
+            tarjeta.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+        setTimeout(function () {
+            var foco = {1: '#qwBuscarValor', 2: 'input[name="names"]', 3: 'input[name="placa"]'}[paso];
+            if (paso === 3 && !$('#qwCampoPlaca').is(':visible')) {
+                return;
+            }
+            $(foco).trigger('focus');
+        }, 320);
     }
+
+    $form.on('click', '.qw-btn-atras', function () { irAPaso(Number($(this).data('ir'))); });
+    $form.on('click', '[data-editar-tomador]', function () { irAPaso(2); });
+    // La placa cargada en la consulta se ve en el resumen; «Cambiar» abre el campo para escribir otra.
+    var editandoPlaca = false;
+    $form.on('click', '[data-cambiar-placa]', function () {
+        editandoPlaca = true;
+        pintarResumenTomador();
+        $('input[name="placa"]').trigger('focus').select();
+    });
+
+    // Paso 1: consultar por cédula o placa.
+    var $buscar = $('#qwBuscarValor');
+
+    function tipoConsulta() {
+        return $('input[name="qw_tipo"]:checked').val();
+    }
+
+    $('input[name="qw_tipo"]').on('change', function () {
+        var porPlaca = tipoConsulta() === 'placa';
+        $buscar.toggleClass('qw-placa', porPlaca).attr('placeholder', porPlaca ? 'ABC123' : 'Número de documento')
+            .attr('maxlength', porPlaca ? 10 : 20).val('').trigger('focus');
+        $('#qwBuscarIcono').attr('class', porPlaca ? 'fa-solid fa-car' : 'fa-solid fa-id-card');
+        $('#qwConsultaError').addClass('d-none');
+    });
+
+    $buscar.on('input', function () {
+        if (tipoConsulta() === 'placa') {
+            $(this).val($(this).val().toUpperCase().replace(/\s/g, ''));
+        }
+        $('#qwConsultaError').addClass('d-none');
+    }).on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            consultar();
+        }
+    });
+    $('#btnConsultar').on('click', consultar);
+
+    function limpiarTomador() {
+        $('input[name="dni"], input[name="names"], input[name="birthdate"], input[name="email"], input[name="mobile"], ' +
+          'input[name="phone"], input[name="email_secundario"], input[name="propietario_documento"], ' +
+          'input[name="propietario_nombre"], input[name="placa"]').val('');
+        $('select[name="document_type"]').val(defaultDocumentType).trigger('change');
+        $('select[name="zona_circulacion"]').val(null).trigger('change');
+        $masContacto.prop('checked', false);
+        mostrarMasContacto();
+        aplicarEstadoPlaca(null);
+        $errors.addClass('d-none').empty();
+        editandoPlaca = false;
+    }
+
+    function consultar() {
+        var tipo = tipoConsulta();
+        var valor = $buscar.val().trim();
+        var $error = $('#qwConsultaError');
+        if (!valor) {
+            $error.removeClass('d-none').text(tipo === 'placa' ? 'Escribe la placa a consultar.' : 'Escribe el número de documento a consultar.');
+            $buscar.trigger('focus');
+            return;
+        }
+        var $boton = $('#btnConsultar').prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Consultando...');
+        $.getJSON(lookupUrl, {tipo: tipo, valor: valor}).done(function (data) {
+            limpiarTomador();
+            if (tipo === 'placa') {
+                $('input[name="placa"]').val(valor.toUpperCase());
+            } else {
+                $('input[name="dni"]').val(valor);
+            }
+            if (data.found) {
+                aplicarDatosEncontrados(data);
+                mostrarAvisoCliente(true, data.names);
+            } else {
+                mostrarAvisoCliente(false, null, tipo);
+            }
+            irAPaso(2);
+            if (data.found && data.vehiculos && data.vehiculos.length > 1) {
+                mostrarSeleccionPlaca(data.vehiculos);
+            }
+        }).fail(function () {
+            $error.removeClass('d-none').text('No se pudo consultar en este momento. Intenta nuevamente.');
+        }).always(function () {
+            $boton.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Consultar');
+        });
+    }
+
+    function mostrarAvisoCliente(encontrado, nombre, tipo) {
+        var html = encontrado
+            ? '<i class="fa-solid fa-circle-check"></i><div><b>Cliente registrado: ' + ProcesoCotizacion.esc(nombre || '') + '</b>' +
+              '<small>Cargamos sus datos. Revisa que estén al día y continúa.</small></div>'
+            : '<i class="fa-solid fa-user-plus"></i><div><b>Cliente nuevo</b><small>' +
+              (tipo === 'placa' ? 'No encontramos esa placa registrada.' : 'No encontramos ese documento registrado.') +
+              ' Completa los datos del tomador.</small></div>';
+        $('#qwAvisoCliente').removeClass('d-none encontrado nuevo').addClass(encontrado ? 'encontrado' : 'nuevo').html(html);
+    }
+
+    // Paso 2 › 3: se revisan los datos obligatorios del tomador antes de seguir.
+    $('#btnPaso2Siguiente').on('click', function () {
+        if (validarTomador()) {
+            irAPaso(3);
+        }
+    });
+
+    function validarTomador() {
+        if (!$('select[name="document_type"]').val()) {
+            toastr.warning('Selecciona el tipo de documento.');
+            return false;
+        }
+        var campos = ['dni', 'names', 'birthdate', 'email', 'mobile', 'phone', 'email_secundario'];
+        for (var i = 0; i < campos.length; i++) {
+            var el = $form.find('[name="' + campos[i] + '"]')[0];
+            if (el && !el.checkValidity()) {
+                el.reportValidity();
+                return false;
+            }
+        }
+        var nacimiento = $('input[name="birthdate"]').val();
+        if (nacimiento && nacimiento > new Date().toISOString().slice(0, 10)) {
+            toastr.warning('La fecha de nacimiento no puede ser futura.');
+            $('input[name="birthdate"]').trigger('focus');
+            return false;
+        }
+        var celulares = ['mobile', 'phone'];
+        for (var j = 0; j < celulares.length; j++) {
+            var digitos = ($form.find('[name="' + celulares[j] + '"]').val() || '').replace(/\D/g, '').replace(/^57(?=\d{10}$)/, '');
+            if (digitos && digitos.length !== 10) {
+                toastr.warning('El celular debe tener 10 dígitos.');
+                $form.find('[name="' + celulares[j] + '"]').trigger('focus');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function pintarResumenTomador() {
+        var nombre = $('input[name="names"]').val().trim();
+        var iniciales = nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0]; }).join('').toUpperCase();
+        var tipo = $('select[name="document_type"] option:selected').text().replace(/^.*\((.*)\)$/, '$1');
+        var detalle = [tipo + ' ' + $('input[name="dni"]').val().trim(), $('input[name="email"]').val().trim()].filter(Boolean).join(' · ');
+        var placa = $('input[name="placa"]').val().trim();
+        // Con placa cargada solo se pide la ciudad; sin placa (cliente sin vehículos) o al pulsar «Cambiar», también la placa.
+        var pedirPlaca = !placa || editandoPlaca;
+        $('#qwCampoPlaca').toggleClass('d-none', !pedirPlaca);
+        $('#qwCampoZona').toggleClass('col-md-12', !pedirPlaca).toggleClass('col-md-6', pedirPlaca);
+        var bloquePlaca = (placa && !editandoPlaca)
+            ? '<span class="qw-resumen-placa"><small>Placa</small><span class="qw-placa-chip">' + ProcesoCotizacion.esc(placa) + '</span>' +
+              '<button type="button" class="qw-link" data-cambiar-placa><i class="fa-solid fa-arrows-rotate"></i> Cambiar</button></span>'
+            : '';
+        $('#qwResumenTomador').html(
+            '<span class="qw-resumen-avatar">' + ProcesoCotizacion.esc(iniciales || '?') + '</span>' +
+            '<span class="qw-resumen-datos"><b>' + ProcesoCotizacion.esc(nombre) + '</b><small>' + ProcesoCotizacion.esc(detalle) + '</small></span>' +
+            bloquePlaca +
+            '<button type="button" class="qw-link" data-editar-tomador><i class="fa-solid fa-pen"></i> Editar</button>');
+    }
+
+    // Desde la ficha del vehículo («Nueva cotización») llega con ?placa=: se consulta esa placa de una vez.
+    var placaInicial = (new URLSearchParams(location.search).get('placa') || '').trim().toUpperCase();
+    if (placaInicial) {
+        $('#qwTipoPlaca').prop('checked', true).trigger('change');
+        $buscar.val(placaInicial);
+        consultar();
+    } else {
+        setTimeout(function () { $buscar.trigger('focus'); }, 200);
+    }
+
+    // ------------------------------------------------------------------
+    // Placa marcada (vendido, siniestrado…): se avisa y se bloquea «Cotizar ahora» hasta reactivarla.
+    // ------------------------------------------------------------------
+    var placaBloqueada = false;
+
+    function aplicarEstadoPlaca(estado) {
+        placaBloqueada = !!(estado && estado.bloqueado);
+        $('#avisoPlaca').toggleClass('d-none', !placaBloqueada);
+        $btn.prop('disabled', placaBloqueada);
+        if (!placaBloqueada) {
+            return;
+        }
+        $('#avisoPlacaTexto').text(estado.aviso || 'La placa no está activa.');
+        var puede = $form.data('puede-reactivar') === 1;
+        $('#avisoPlacaReactivar').toggleClass('d-none', !puede);
+        $('#avisoPlacaSinPermiso').toggleClass('d-none', puede);
+        $('#notaReactivar').val('');
+    }
+
+    $('#btnReactivarPlaca').on('click', function () {
+        var $boton = $(this).prop('disabled', true);
+        $.ajax({
+            url: $form.data('reactivar-url'),
+            type: 'POST',
+            data: {placa: $('input[name="placa"]').val(), nota: $('#notaReactivar').val()},
+            dataType: 'json',
+            headers: {'X-CSRFToken': csrftoken}
+        }).done(function (response) {
+            aplicarEstadoPlaca(response.estado_placa);
+            toastr.success('Placa reactivada: ya puedes cotizarla.');
+        }).fail(function (xhr) {
+            toastr.error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo reactivar la placa.');
+        }).always(function () {
+            $boton.prop('disabled', false);
+        });
+    });
 
     function aplicarDatosEncontrados(data) {
         if (data.document_type_id) {
@@ -80,16 +320,18 @@ $(function () {
         $('input[name="names"]').val(data.names || '');
         $('input[name="birthdate"]').val(data.birthdate || '');
         $('input[name="email"]').val(data.email || '');
+        $('input[name="mobile"]').val(data.mobile || '');
+        $masContacto.prop('checked', !!(data.phone || data.email_secundario));
+        mostrarMasContacto();
+        $('input[name="phone"]').val(data.phone || '');
+        $('input[name="email_secundario"]').val(data.email_secundario || '');
+        $('input[name="propietario_documento"]').val(data.propietario_documento || '');
+        $('input[name="propietario_nombre"]').val(data.propietario_nombre || '');
+        if (data.estado_placa) {
+            aplicarEstadoPlaca(data.estado_placa);
+        }
         if (data.zona_circulacion_id) {
             $('select[name="zona_circulacion"]').val(data.zona_circulacion_id).trigger('change');
-        }
-
-        toastr.success('Datos cargados exitosamente');
-
-        // El tomador tiene más de un vehículo registrado: se le pregunta
-        // cuál placa cargar en vez de adivinar una.
-        if (data.vehiculos && data.vehiculos.length > 1) {
-            mostrarSeleccionPlaca(data.vehiculos);
         }
     }
 
@@ -101,6 +343,11 @@ $(function () {
                 .on('click', function () {
                     $('input[name="placa"]').val(v.placa);
                     $('select[name="zona_circulacion"]').val(v.zona_circulacion_id).trigger('change');
+                    aplicarEstadoPlaca(v.estado_placa);
+                    editandoPlaca = false;
+                    if (pasoActual === 3) {
+                        pintarResumenTomador();
+                    }
                     seleccionPlacaModal.hide();
                 })
                 .appendTo($lista);
@@ -113,6 +360,24 @@ $(function () {
     // el submit real.
     $form.on('submit', function (e) {
         e.preventDefault();
+        if (pasoActual !== 3) {
+            return;  // Enter en otro paso no envía: se avanza con los botones
+        }
+        if (placaBloqueada) {
+            return;
+        }
+        var placa = $('input[name="placa"]')[0];
+        if (!placa.checkValidity()) {
+            editandoPlaca = true;
+            pintarResumenTomador();
+            placa.reportValidity();
+            return;
+        }
+        if (!$('select[name="zona_circulacion"]').val()) {
+            toastr.warning('Selecciona la ciudad de circulación del vehículo.');
+            $('select[name="zona_circulacion"]').select2('open');
+            return;
+        }
         actualizarContadorAseguradoras();
         aseguradorasModal.show();
     });
@@ -227,6 +492,9 @@ $(function () {
             success: function (response) {
                 if (response.hasOwnProperty('error')) {
                     showErrors(response.error);
+                    if (response.estado_placa) {
+                        aplicarEstadoPlaca(response.estado_placa);
+                    }
                 } else {
                     showSuccess(response);
                 }
@@ -235,7 +503,7 @@ $(function () {
                 showErrors('Ocurrió un error inesperado al enviar la solicitud. Intenta nuevamente.');
             },
             complete: function () {
-                $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar ahora');
+                $btn.prop('disabled', placaBloqueada).html('<i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar ahora');
             }
         });
     }
@@ -245,7 +513,11 @@ $(function () {
         if (typeof error === 'object') {
             var parts = [];
             $.each(error, function (field, msgs) {
-                parts.push((Array.isArray(msgs) ? msgs.join(', ') : msgs));
+                // Cada error con el nombre del campo, porque puede ser de un paso anterior (ej. el correo del tomador).
+                var etiqueta = $.trim($form.find('[name="' + field + '"]').closest('.quote-field-group').find('label').first()
+                    .clone().children('small').remove().end().text());
+                parts.push((etiqueta ? '<b>' + ProcesoCotizacion.esc(etiqueta) + ':</b> ' : '') +
+                    ProcesoCotizacion.esc(Array.isArray(msgs) ? msgs.join(', ') : msgs));
             });
             message = parts.join('<br>');
         }
@@ -335,6 +607,9 @@ $(function () {
         pollCotizaciones = setInterval(consultarEstado, 3000);
     }
 
+    // Valor cotizado a mano: se vuelve a pintar el estado para que la tarjeta lo muestre.
+    $(document).on('valorManual:guardado', function () { consultarEstado(); });
+
     // Reenviar la solicitud SOLO a la aseguradora cuya tarjeta falló.
     $resultados.on('click', '.pc-reintentar', function () {
         var $boton = $(this).prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Reenviando...');
@@ -365,10 +640,12 @@ $(function () {
         $form[0].reset();
         $('#id_es_cero_km').val('false');
         $('#id_codigo_fasecolda, #id_valor_comercial, #inputFasecolda, #inputValorComercial').val('');
-        $('select[name="zona_circulacion"]').val(null).trigger('change');
-        $('select[name="document_type"]').val(defaultDocumentType).trigger('change');
+        limpiarTomador();
+        $('#qwAvisoCliente').addClass('d-none');
+        $('#qwTipoDni').prop('checked', true).trigger('change');
         $('#quoteSuccessState').fadeOut(150, function () {
             $form.fadeIn(200).css('display', 'block');
+            irAPaso(1);
         });
     });
 

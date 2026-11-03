@@ -6,6 +6,7 @@ from core.policies.views.solicitud.views import (
     estado_cotizaciones,
     iniciar_cotizacion,
     proceso_vehiculo,
+    reactivar_placa,
     reintentar_cotizacion,
     verificar_cotizacion,
 )
@@ -24,7 +25,11 @@ from core.policies.views.asistente.views import (
     asistente_eliminar,
 )
 from core.policies.views.asesor.views import AsesorCreateView, AsesorListView, AsesorUpdateView
-from core.policies.views.comparativo.views import ComparativoImprimirView, ComparativoValoresView, ComparativoView
+from core.policies.views.buscar import BuscarView
+from core.policies.views.comparativo.views import (ComparativoCorreoView, ComparativoImprimirView, ComparativoPdfView,
+                                                   ComparativoValoresView, ComparativoValorManualView, ComparativoView)
+from core.policies.views.plantilla_correo.views import CuentaCorreoFormView, PlantillaCorreoFormView, PlantillaCorreoListView
+from core.policies.views.poliza.views import PolizaConvertirView, PolizaCreateView, PolizaListView, PolizaUpdateView
 from core.policies.views.vehiculo.views import VehiculoListView
 from core.policies.views.vehiculo_registrado.views import VehiculoRegistradoListView
 
@@ -35,6 +40,7 @@ urlpatterns = [
     path('solicitud/cotizar/estado/', estado_cotizaciones, name='solicitud_estado_cotizaciones'),
     path('solicitud/cotizar/verificacion/', verificar_cotizacion, name='solicitud_verificar_cotizacion'),
     path('solicitud/cotizar/reintentar/', reintentar_cotizacion, name='solicitud_reintentar_cotizacion'),
+    path('solicitud/reactivar-placa/', reactivar_placa, name='solicitud_reactivar_placa'),
     path('aseguradoras/', AseguradoraListView.as_view(), name='aseguradora_list'),
     path('aseguradoras/nueva/', AseguradoraCreateView.as_view(), name='aseguradora_create'),
     path('aseguradoras/<int:pk>/editar/', AseguradoraUpdateView.as_view(), name='aseguradora_update'),
@@ -49,10 +55,24 @@ urlpatterns = [
     path('asesores/', AsesorListView.as_view(), name='asesor_list'),
     path('asesores/nuevo/', AsesorCreateView.as_view(), name='asesor_create'),
     path('asesores/<int:pk>/editar/', AsesorUpdateView.as_view(), name='asesor_update'),
+    path('buscar/', BuscarView.as_view(), name='buscar_global'),
+    path('polizas/', PolizaListView.as_view(), name='poliza_list'),
+    path('polizas/nueva/', PolizaCreateView.as_view(), name='poliza_create'),
+    path('polizas/convertir/', PolizaConvertirView.as_view(), name='poliza_convertir'),
+    path('polizas/<int:pk>/editar/', PolizaUpdateView.as_view(), name='poliza_update'),
     path('vehiculos/', VehiculoListView.as_view(), name='vehiculo_list'),
     path('vehiculos/registrados/', VehiculoRegistradoListView.as_view(), name='vehiculo_registrado_list'),
     path('vehiculos/<int:pk>/proceso/', proceso_vehiculo, name='vehiculo_proceso'),
     path('vehiculos/<int:pk>/comparativo/', ComparativoView.as_view(), name='vehiculo_comparativo'),
     path('vehiculos/<int:pk>/comparativo/imprimir/', ComparativoImprimirView.as_view(), name='vehiculo_comparativo_imprimir'),
     path('vehiculos/<int:pk>/comparativo/valores/', ComparativoValoresView.as_view(), name='vehiculo_comparativo_valores'),
+    path('vehiculos/<int:pk>/comparativo/valores/<int:valor_id>/', ComparativoValorManualView.as_view(),
+         name='vehiculo_comparativo_valor_manual'),
+    path('vehiculos/<int:pk>/comparativo/pdf/', ComparativoPdfView.as_view(), name='vehiculo_comparativo_pdf'),
+    path('vehiculos/<int:pk>/comparativo/correo/', ComparativoCorreoView.as_view(), name='vehiculo_comparativo_correo'),
+    path('plantillas-correo/', PlantillaCorreoListView.as_view(), name='plantilla_correo_list'),
+    path('plantillas-correo/nueva/', PlantillaCorreoFormView.as_view(), name='plantilla_correo_create'),
+    path('plantillas-correo/<int:pk>/', PlantillaCorreoFormView.as_view(), name='plantilla_correo_update'),
+    path('plantillas-correo/cuentas/nueva/', CuentaCorreoFormView.as_view(), name='cuenta_correo_create'),
+    path('plantillas-correo/cuentas/<int:pk>/', CuentaCorreoFormView.as_view(), name='cuenta_correo_update'),
 ]

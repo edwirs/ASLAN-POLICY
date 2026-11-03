@@ -219,6 +219,45 @@
 .dark-mode .quote-bot-results-title { color: #6ccbf2; }
 .dark-mode .placa-choice-btn { background: #3a4047; border-color: #4b545c; color: #f8f9fa; }
 .dark-mode .placa-choice-btn .placa-choice-city { color: #adb5bd; }
+
+/* Asistente de nueva solicitud (consulta › tomador › circulación) */
+.dark-mode .qw-paso-ind { color: #8f98a1; }
+.dark-mode .qw-paso-ind.activo, .dark-mode .qw-paso-ind.hecho { color: #6ccbf2; }
+.dark-mode .qw-num { background: #3f474e; border-color: #6c757d; color: #adb5bd; }
+.dark-mode .qw-paso-ind.activo .qw-num { background: #2ab1ee; border-color: #2ab1ee; color: #fff; box-shadow: 0 0 0 5px rgba(42, 177, 238, .25); }
+.dark-mode .qw-paso-ind.hecho .qw-num { background: #1995ce; border-color: #1995ce; color: #fff; }
+.dark-mode .qw-paso-ind + .qw-paso-ind::before { background: #4b545c; }
+.dark-mode .qw-paso-ind.hecho + .qw-paso-ind::before { background: linear-gradient(90deg, #1995ce, #2ab1ee); }
+.dark-mode .qw-consulta-icono { background: rgba(42, 177, 238, .18); color: #6ccbf2; }
+.dark-mode .qw-titulo { color: #f8f9fa; }
+.dark-mode .qw-ayuda { color: #adb5bd; }
+.dark-mode .qw-segmento { background: #3a4047; border-color: #4b545c; }
+.dark-mode .qw-segmento label { color: #ced4da; }
+.dark-mode .qw-segmento .btn-check:checked + label { background: #2ab1ee; color: #fff; box-shadow: none; }
+.dark-mode .qw-buscador { background: #3f474e; border-color: #6c757d; box-shadow: 0 6px 22px rgba(0, 0, 0, .3); }
+.dark-mode .qw-buscador:focus-within { border-color: #2ab1ee; box-shadow: 0 6px 22px rgba(42, 177, 238, .2); }
+/* AdminLTE pinta los campos enfocados con un selector muy específico: aquí el campo va sin fondo, dentro del buscador. */
+.dark-mode .qw-buscador .form-control, .dark-mode .qw-buscador .form-control:focus { background: transparent !important; color: #f8f9fa; border: 0 !important; }
+.dark-mode .qw-buscador-icono { color: #6ccbf2; }
+.dark-mode .qw-error { color: #ff9b9b; }
+.dark-mode .qw-aviso small { color: #ced4da; }
+.dark-mode .qw-aviso.encontrado { background: rgba(42, 177, 238, .14); border-color: rgba(42, 177, 238, .45); color: #6ccbf2; }
+.dark-mode .qw-aviso.nuevo { background: rgba(242, 139, 65, .14); border-color: rgba(242, 139, 65, .45); color: #f6b07c; }
+.dark-mode .qw-mas { background: #3a4047; border-color: #6c757d; }
+.dark-mode .qw-mas:hover { border-color: #2ab1ee; }
+.dark-mode .qw-mas b { color: #f8f9fa; }
+.dark-mode .qw-mas small { color: #adb5bd; }
+.dark-mode .qw-mas .form-check-input:checked { background-color: #2ab1ee; border-color: #2ab1ee; }
+.dark-mode .qw-resumen { background: rgba(42, 177, 238, .1); border-color: rgba(42, 177, 238, .35); }
+.dark-mode .qw-resumen-datos b { color: #f8f9fa; }
+.dark-mode .qw-resumen-datos small, .dark-mode .qw-resumen-placa small { color: #adb5bd; }
+.dark-mode .qw-resumen-placa { border-color: rgba(42, 177, 238, .35); }
+.dark-mode .qw-placa-chip { background: #3f474e; border-color: #6ccbf2; color: #f8f9fa; }
+.dark-mode .qw-link { color: #6ccbf2; }
+.dark-mode .qw-acciones { border-top-color: #4b545c; }
+.dark-mode .qw-btn-atras { background: #3a4047; border-color: #6c757d; color: #dee2e6; }
+.dark-mode .qw-btn-atras:hover { background: #3f474e; border-color: #2ab1ee; color: #fff; }
+.dark-mode .quote-field-group input[type=date]::-webkit-calendar-picker-indicator { filter: invert(.85); }
 .dark-mode .pc-card { background: #3a4047; border-color: #4b545c; }
 .dark-mode .pc-card.pc-ok { background: rgba(25, 135, 84, .18); border-color: rgba(95, 211, 154, .45); }
 .dark-mode .pc-card.pc-error { background: rgba(220, 53, 69, .16); border-color: rgba(255, 107, 107, .45); }

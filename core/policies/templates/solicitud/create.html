@@ -14,11 +14,11 @@
     <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
     <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
-    <link rel="stylesheet" href="{% static 'solicitud/css/create.css' %}">
-    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}">
-    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}"};</script>
-    <script src="{% static 'solicitud/js/proceso.js' %}?v=2"></script>
-    <script src="{% static 'solicitud/js/form.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'solicitud/css/create.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}?v=2">
+    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}", valorManual: "{% url 'vehiculo_comparativo_valores' 0 %}", puedeValorManual: {{ perms.policies.add_valor_externo|yesno:'true,false' }}};</script>
+    <script src="{% static 'solicitud/js/proceso.js' %}?v=3"></script>
+    <script src="{% static 'solicitud/js/form.js' %}?v=9"></script>
 {% endblock %}
 
 {% block content %}
@@ -28,109 +28,234 @@
         <div class="quote-request-hero">
             <div class="hero-icon"><i class="fa-solid fa-car-side"></i></div>
             <h2>Cotizar seguro todo riesgo</h2>
-            <p>Ingresa los datos básicos del tomador y del vehículo. Con esta información buscaremos la mejor opción entre todas nuestras aseguradoras aliadas.</p>
+            <p>En tres pasos: consulta al cliente, confirma sus datos y la zona de circulación del vehículo. Buscaremos la mejor opción entre todas nuestras aseguradoras aliadas.</p>
         </div>
 
         <div class="quote-request-body">
 
-            <!-- FORMULARIO -->
-            <form method="post" id="frmSolicitud" autocomplete="off"
+            <!-- FORMULARIO: asistente en tres pasos (consulta › tomador › vehículo). form.js mueve entre pasos. -->
+            <form method="post" id="frmSolicitud" autocomplete="off" novalidate
                   data-lookup-url="{% url 'solicitud_consultar_registro' %}"
                   data-cotizar-url="{% url 'solicitud_iniciar_cotizacion' %}"
                   data-estado-url="{% url 'solicitud_estado_cotizaciones' %}"
-                  data-reintentar-url="{% url 'solicitud_reintentar_cotizacion' %}">
+                  data-reintentar-url="{% url 'solicitud_reintentar_cotizacion' %}"
+                  data-reactivar-url="{% url 'solicitud_reactivar_placa' %}"
+                  data-puede-reactivar="{% if perms.policies.change_vehiculo_estado %}1{% else %}0{% endif %}">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add">
                 {{ form.es_cero_km }}
                 {{ form.codigo_fasecolda }}
                 {{ form.valor_comercial }}
 
-                <div class="quote-section-title"><i class="fa-solid fa-user"></i> Datos del tomador <span class="line"></span></div>
+                <ol class="qw-pasos" aria-label="Pasos de la solicitud">
+                    <li class="qw-paso-ind activo" data-paso="1"><span class="qw-num">1</span><span class="qw-txt">Consulta</span></li>
+                    <li class="qw-paso-ind" data-paso="2"><span class="qw-num">2</span><span class="qw-txt">Tomador</span></li>
+                    <li class="qw-paso-ind" data-paso="3"><span class="qw-num">3</span><span class="qw-txt">Circulación</span></li>
+                </ol>
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.document_type.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-id-badge"></i></span>
-                                {{ form.document_type }}
+                <!-- PASO 1: CONSULTA -->
+                <section class="qw-panel activo" data-paso="1">
+                    <div class="qw-consulta">
+                        <div class="qw-consulta-icono"><i class="fa-solid fa-magnifying-glass"></i></div>
+                        <h3 class="qw-titulo">¿A quién vamos a cotizar?</h3>
+                        <p class="qw-ayuda">Consulta por cédula o por placa. Si ya está registrado, cargamos sus datos para que no los escribas de nuevo.</p>
+
+                        <div class="qw-segmento" role="radiogroup" aria-label="Consultar por">
+                            <input type="radio" class="btn-check" name="qw_tipo" id="qwTipoDni" value="dni" checked>
+                            <label for="qwTipoDni"><i class="fa-solid fa-id-card"></i> Cédula / NIT</label>
+                            <input type="radio" class="btn-check" name="qw_tipo" id="qwTipoPlaca" value="placa">
+                            <label for="qwTipoPlaca"><i class="fa-solid fa-car"></i> Placa</label>
+                        </div>
+
+                        <div class="qw-buscador">
+                            <span class="qw-buscador-icono"><i class="fa-solid fa-id-card" id="qwBuscarIcono"></i></span>
+                            <input type="text" id="qwBuscarValor" class="form-control" maxlength="20" autocomplete="off"
+                                   placeholder="Número de documento" aria-label="Valor a consultar">
+                            <button type="button" class="btn quote-submit-btn" id="btnConsultar">
+                                <i class="fa-solid fa-magnifying-glass"></i> Consultar
+                            </button>
+                        </div>
+                        <div class="qw-error d-none" id="qwConsultaError"></div>
+                    </div>
+                </section>
+
+                <!-- PASO 2: DATOS DEL TOMADOR -->
+                <section class="qw-panel" data-paso="2">
+                    <div class="qw-aviso d-none" id="qwAvisoCliente"></div>
+
+                    <div class="quote-section-title"><i class="fa-solid fa-user"></i> Datos del tomador <span class="line"></span></div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.document_type.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-id-badge"></i></span>
+                                    {{ form.document_type }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.dni.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
+                                    {{ form.dni }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.dni.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
-                                {{ form.dni }}
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="quote-field-group">
+                                <label>{{ form.names.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-signature"></i></span>
+                                    {{ form.names }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="quote-field-group">
-                            <label>{{ form.names.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-signature"></i></span>
-                                {{ form.names }}
+                    <!-- Solo con NIT: persona dueña de la empresa (opcional). form.js la muestra u oculta. -->
+                    <div class="row d-none" id="filaPropietarioEmpresa">
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.propietario_documento.label }} <small class="text-muted">(opcional)</small></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-id-card-clip"></i></span>
+                                    {{ form.propietario_documento }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.propietario_nombre.label }} <small class="text-muted">(opcional)</small></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user-tie"></i></span>
+                                    {{ form.propietario_nombre }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.birthdate.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-cake-candles"></i></span>
-                                {{ form.birthdate }}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.birthdate.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-cake-candles"></i></span>
+                                    {{ form.birthdate }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.email.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                                    {{ form.email }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.email.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
-                                {{ form.email }}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.mobile.label }} <small class="text-muted">(opcional)</small></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-mobile-screen"></i></span>
+                                    {{ form.mobile }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="quote-section-title mt-4"><i class="fa-solid fa-car"></i> Datos del vehículo <span class="line"></span></div>
+                    <label class="qw-mas" for="{{ form.mas_contacto.id_for_label }}">
+                        <span class="form-check form-switch m-0">{{ form.mas_contacto }}</span>
+                        <span><b>Más información de contacto</b><small>{{ form.mas_contacto.label }}</small></span>
+                    </label>
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.placa.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-hashtag"></i></span>
-                                {{ form.placa }}
+                    <!-- Otro celular y otro correo (opcionales): form.js los muestra con el interruptor «mas_contacto». -->
+                    <div class="row d-none" id="filaMasContacto">
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.phone.label }} <small class="text-muted">(opcional)</small></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-mobile-screen"></i></span>
+                                    {{ form.phone }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="quote-field-group">
+                                <label>{{ form.email_secundario.label }} <small class="text-muted">(opcional)</small></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-envelope-open-text"></i></span>
+                                    {{ form.email_secundario }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="quote-field-group">
-                            <label>{{ form.zona_circulacion.label }}</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-location-dot"></i></span>
-                                {{ form.zona_circulacion }}
+
+                    <div class="qw-acciones">
+                        <button type="button" class="btn qw-btn-atras" data-ir="1"><i class="fa-solid fa-arrow-left"></i> Atrás</button>
+                        <button type="button" class="btn quote-submit-btn" id="btnPaso2Siguiente">Siguiente <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </section>
+
+                <!-- PASO 3: VEHÍCULO Y CIRCULACIÓN -->
+                <section class="qw-panel" data-paso="3">
+                    <div class="qw-resumen" id="qwResumenTomador"></div>
+
+                    <div class="quote-section-title"><i class="fa-solid fa-car"></i> Vehículo y circulación <span class="line"></span></div>
+
+                    <div class="row">
+                        <!-- La placa solo se pide si la consulta no trajo una (o si el asesor pulsa «Cambiar» en el resumen). -->
+                        <div class="col-md-6 d-none" id="qwCampoPlaca">
+                            <div class="quote-field-group">
+                                <label>{{ form.placa.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-hashtag"></i></span>
+                                    {{ form.placa }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12" id="qwCampoZona">
+                            <div class="quote-field-group">
+                                <label>{{ form.zona_circulacion.label }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-location-dot"></i></span>
+                                    {{ form.zona_circulacion }}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div id="frmSolicitudErrors" class="alert alert-danger d-none mt-2"></div>
+                    <!-- La placa está marcada (vendido, siniestrado…): no se cotiza hasta que alguien la reactive. -->
+                    <div id="avisoPlaca" class="alert alert-warning d-none mt-2" role="alert">
+                        <div class="d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i><div id="avisoPlacaTexto"></div></div>
+                        <div id="avisoPlacaReactivar" class="mt-2 d-none">
+                            <label class="form-label small fw-bold mb-1" for="notaReactivar">¿Por qué se vuelve a cotizar?</label>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <input type="text" id="notaReactivar" class="form-control form-control-sm" style="max-width: 420px" maxlength="300" placeholder="Ej. llegó con nuevo propietario">
+                                <button type="button" class="btn btn-sm btn-dark rounded-pill" id="btnReactivarPlaca"><i class="fa-solid fa-rotate-left"></i> Reactivar placa</button>
+                            </div>
+                        </div>
+                        <div id="avisoPlacaSinPermiso" class="small mt-2 d-none">Pide a un administrador que la reactive.</div>
+                    </div>
 
-                <div class="text-center mt-4">
-                    <button type="submit" class="btn quote-submit-btn" id="btnSubmitSolicitud">
-                        <i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar ahora
-                    </button>
-                </div>
+                    <div id="frmSolicitudErrors" class="alert alert-danger d-none mt-2"></div>
+
+                    <div class="qw-acciones">
+                        <button type="button" class="btn qw-btn-atras" data-ir="2"><i class="fa-solid fa-arrow-left"></i> Atrás</button>
+                        <button type="submit" class="btn quote-submit-btn" id="btnSubmitSolicitud">
+                            <i class="fa-solid fa-magnifying-glass-dollar"></i> Cotizar ahora
+                        </button>
+                    </div>
+                </section>
             </form>
 
             <!-- ESTADO DE ÉXITO -->

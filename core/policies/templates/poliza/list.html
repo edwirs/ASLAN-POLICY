@@ -1,0 +1,71 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-file-shield"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=3">
+    <script>
+        var puedeEditar = {% if perms.policies.change_poliza %}true{% else %}false{% endif %};
+        var puedeEliminar = {% if perms.policies.delete_poliza %}true{% else %}false{% endif %};
+        var diasAviso = {{ dias_aviso }};
+    </script>
+    <script src="{% static 'poliza/js/list.js' %}?v=5"></script>
+{% endblock %}
+
+{% block ayuda %}
+    Las pólizas que los clientes <b>tomaron</b> después de cotizar (o del histórico). <b>Vence</b> es la fecha de renovación:
+    {{ dias_aviso }} días antes la póliza aparece en <b>Por renovar</b> para avisarle al cliente. Las cuotas son mensuales y las financia la aseguradora;
+    aquí solo se hace el seguimiento. <b>Comisión pendiente</b> = la aseguradora aún no ha dado fecha de pago de la comisión (antes «Cartera»).
+{% endblock %}
+
+{% block content_list %}
+    <div class="filtros-etapa" id="filtrosPoliza" role="group" aria-label="Filtrar pólizas">
+        {% for valor, nombre in filtros %}
+            <button type="button" class="btn btn-sm rounded-pill pz-filtro {% if valor == filtro %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-filtro="{{ valor }}">
+                {{ nombre }} <span class="badge rounded-pill" data-conteo="{{ valor }}">…</span>
+            </button>
+        {% endfor %}
+    </div>
+    <div class="row g-2 mb-3 pz-barra">
+        <div class="col-sm-4 col-lg-3">
+            <label class="form-label small fw-bold mb-1" for="fAsesor">Asesor</label>
+            <select class="form-select form-select-sm" id="fAsesor"><option value="">Todos los asesores</option>
+                {% for a in asesores %}<option value="{{ a.pk }}">{{ a.nombres }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-sm-4 col-lg-3">
+            <label class="form-label small fw-bold mb-1" for="fAseguradora">Aseguradora</label>
+            <select class="form-select form-select-sm" id="fAseguradora"><option value="">Todas las aseguradoras</option>
+                {% for a in aseguradoras %}<option value="{{ a.pk }}">{{ a.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-sm-4 col-lg-3">
+            <label class="form-label small fw-bold mb-1" for="fMes">Vence en el mes</label>
+            <input type="month" class="form-control form-control-sm" id="fMes">
+        </div>
+        <div class="col-lg-3 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="fLimpiar"><i class="fa-solid fa-eraser"></i> Quitar filtros</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block columns %}
+    <th>Placa</th>
+    <th>Cliente</th>
+    <th>Aseguradora</th>
+    <th>Asesor</th>
+    <th>Ciudad</th>
+    <th>Vence</th>
+    <th>Prima</th>
+    <th>Comisión</th>
+    <th>Pago y cuotas</th>
+    <th>Estado comisión</th>
+    <th>Acciones</th>
+{% endblock %}
+
+{% block javascript_list %}{% endblock %}

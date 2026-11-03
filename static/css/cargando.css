@@ -1,0 +1,63 @@
+/* Cargando de la plataforma (ver static/js/cargando.js): lobo de ASLAN que late + anillo naranja/azul que gira. */
+/* La librería reparte los elementos con «space-around» y les fija un tamaño en línea: aquí van juntos y al centro. */
+.loadingoverlay { justify-content: center !important; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.loadingoverlay > .loadingoverlay_element { width: auto !important; height: auto !important; }
+
+.aslan-cargando {
+    position: relative;
+    width: 104px;
+    height: 104px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.aslan-cargando-anillo {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid rgba(42, 177, 238, 0.12);
+    border-top-color: #f28b41;
+    border-bottom-color: #2ab1ee;
+    animation: aslan-gira 1.2s cubic-bezier(.55, .15, .45, .85) infinite;
+}
+
+.aslan-cargando-lobo {
+    width: 64px;
+    height: auto;
+    animation: aslan-respira 1.6s ease-in-out infinite;
+    will-change: transform, filter;
+}
+
+.aslan-cargando-texto {
+    margin-top: 16px;
+    font-size: 15px !important;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: #0e6490;
+    text-align: center;
+    max-width: 80vw;
+}
+
+@keyframes aslan-gira {
+    to { transform: rotate(360deg); }
+}
+
+/* Late suave y alterna un brillo naranja y azul, los dos colores del lobo. */
+@keyframes aslan-respira {
+    0%, 100% { transform: scale(.9); filter: drop-shadow(0 0 0 rgba(242, 139, 65, 0)); }
+    25% { filter: drop-shadow(0 0 9px rgba(242, 139, 65, .55)); }
+    50% { transform: scale(1.04); filter: drop-shadow(0 0 2px rgba(42, 177, 238, .2)); }
+    75% { filter: drop-shadow(0 0 9px rgba(42, 177, 238, .6)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aslan-cargando-anillo { animation-duration: 3s; }
+    .aslan-cargando-lobo { animation: none; }
+}
+
+/* Modo oscuro: el fondo del overlay y el texto los pone la librería en línea; aquí se ajustan. */
+.dark-mode .loadingoverlay { background-color: rgba(33, 37, 41, .82) !important; }
+.dark-mode .aslan-cargando-anillo { border-color: rgba(108, 203, 242, .15); border-top-color: #f28b41; border-bottom-color: #2ab1ee; }
+.dark-mode .aslan-cargando-texto { color: #6ccbf2; }

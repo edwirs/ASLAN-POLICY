@@ -1,9 +1,13 @@
 from datetime import date
+from decimal import Decimal
 
 from django import forms
 
-from core.policies.models import Aseguradora, AseguradoraCredencial, Asesor, CoberturaAseguradora
+from core.policies.models import (Aseguradora, AseguradoraCredencial, Asesor, CoberturaAseguradora, CuentaCorreo, PlantillaCorreo,
+                                  Poliza, TipoPoliza, Vehiculo)
+from core.policies.services.polizas import MAX_CUOTAS
 from core.policies.services.bots import BOTS_DISPONIBLES
+from core.policies.services import correo as servicio_correo
 from core.policies.services.coberturas import CAMPOS as CAMPOS_COBERTURA, SECCIONES as SECCIONES_COBERTURA
 from core.policies.services.credenciales import campos_de, obligatorios_de
 from core.pos.models import DocumentType, Municipio
@@ -17,7 +21,6 @@ class SolicitudCotizacionForm(forms.Form):
         widget=forms.Select(attrs={
             'class': 'form-control select2',
             'style': 'width: 100%',
-            'autofocus': True,
         })
     )
     dni = forms.CharField(
@@ -68,6 +71,43 @@ class SolicitudCotizacionForm(forms.Form):
             'placeholder': 'correo@ejemplo.com',
         })
     )
+    mobile = forms.CharField(
+        required=False,
+        max_length=20,
+        label='Celular',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 3001234567', 'inputmode': 'tel'})
+    )
+    # «Tiene más datos de contacto»: si está apagado, otro celular y otro correo se ignoran (y se borran del cliente).
+    mas_contacto = forms.BooleanField(
+        required=False,
+        label='El cliente tiene otro celular u otro correo',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'})
+    )
+    phone = forms.CharField(
+        required=False,
+        max_length=20,
+        label='Otro celular',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 3101234567', 'inputmode': 'tel'})
+    )
+    email_secundario = forms.EmailField(
+        required=False,
+        max_length=100,
+        label='Otro correo',
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'otro@ejemplo.com'})
+    )
+    # Solo se muestran si el tipo de documento es NIT: la persona dueña de la empresa. Opcionales.
+    propietario_documento = forms.CharField(
+        required=False,
+        max_length=20,
+        label='Cédula del propietario',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional', 'inputmode': 'numeric'})
+    )
+    propietario_nombre = forms.CharField(
+        required=False,
+        max_length=150,
+        label='Nombre del propietario de la empresa',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional'})
+    )
     es_cero_km = forms.BooleanField(
         required=False,
         label='¿Es 0 kilómetros?',
@@ -108,14 +148,47 @@ class SolicitudCotizacionForm(forms.Form):
             raise forms.ValidationError('La fecha de nacimiento no puede ser futura')
         return birthdate
 
+    @staticmethod
+    def _celular(valor):
+        celular = ''.join(c for c in valor or '' if c.isdigit())
+        if celular.startswith('57') and len(celular) == 12:
+            celular = celular[2:]
+        if celular and len(celular) != 10:
+            raise forms.ValidationError('El celular debe tener 10 dígitos')
+        return celular
+
+    def clean_mobile(self):
+        return self._celular(self.cleaned_data.get('mobile'))
+
+    def clean_phone(self):
+        return self._celular(self.cleaned_data.get('phone'))
+
     def clean_codigo_fasecolda(self):
         codigo = (self.cleaned_data.get('codigo_fasecolda') or '').strip()
         if codigo and not codigo.isdigit():
             raise forms.ValidationError('El código Fasecolda solo debe contener números')
         return codigo
 
+    def clean_propietario_documento(self):
+        return ''.join(c for c in self.cleaned_data.get('propietario_documento') or '' if c.isdigit())
+
+    def clean_propietario_nombre(self):
+        return ' '.join((self.cleaned_data.get('propietario_nombre') or '').split())
+
     def clean(self):
         cleaned = super().clean()
+        tipo = cleaned.get('document_type')
+        if not (tipo and tipo.abbreviation == 'NIT'):
+            cleaned['propietario_documento'] = ''
+            cleaned['propietario_nombre'] = ''
+        if not cleaned.get('mas_contacto'):
+            cleaned['phone'] = ''
+            cleaned['email_secundario'] = ''
+        else:
+            if cleaned.get('phone') and cleaned['phone'] == cleaned.get('mobile'):
+                cleaned['phone'] = ''  # repetido: no aporta
+            if (cleaned.get('email_secundario') or '').lower() == (cleaned.get('email') or '').lower():
+                cleaned['email_secundario'] = ''
         if cleaned.get('es_cero_km'):
             if not cleaned.get('codigo_fasecolda'):
                 self.add_error('codigo_fasecolda', 'El código Fasecolda es obligatorio para un vehículo 0 km')
@@ -367,3 +440,197 @@ class AsesorForm(forms.ModelForm):
             if not cleaned.get('numero_cuenta'):
                 self.add_error('numero_cuenta', 'Indique el número de cuenta.')
         return cleaned
+
+
+class PolizaForm(forms.ModelForm):
+    """La póliza que eligió el cliente. El vehículo y el tomador se fijan en la vista (el tomador es el dueño de ESE momento)."""
+    numero_cuotas = forms.TypedChoiceField(
+        coerce=int, label='Forma de pago',
+        choices=[(1, 'Totalidad (un solo pago)')] + [(n, f'{n} cuotas mensuales') for n in range(2, MAX_CUOTAS + 1)],
+        widget=forms.Select(attrs={'class': 'form-select'}))
+
+    class Meta:
+        model = Poliza
+        fields = ('asesor', 'aseguradora', 'tipo_poliza', 'plan', 'numero_poliza', 'zona_circulacion', 'fecha_renovacion',
+                  'prima_total', 'valor_sin_iva', 'valor_comision', 'descuentos', 'fecha_descuento', 'numero_cuotas', 'fecha_pago',
+                  'estado', 'fecha_pago_aseguradora', 'estado_comision', 'fecha_pago_cartera', 'observaciones')
+        fecha = lambda: forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'})
+        dinero = lambda: forms.TextInput(attrs={'class': 'form-control dinero', 'inputmode': 'numeric', 'autocomplete': 'off'})
+        widgets = {
+            'asesor': forms.Select(attrs={'class': 'form-select select2', 'style': 'width: 100%'}),
+            'aseguradora': forms.Select(attrs={'class': 'form-select select2', 'style': 'width: 100%'}),
+            'tipo_poliza': forms.Select(attrs={'class': 'form-select'}),
+            'plan': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Plus, Vip, Premium'}),
+            'numero_poliza': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Opcional'}),
+            'zona_circulacion': forms.Select(attrs={'class': 'form-select select2', 'style': 'width: 100%'}),
+            'fecha_renovacion': fecha(),
+            'prima_total': dinero(), 'valor_sin_iva': dinero(), 'valor_comision': dinero(), 'descuentos': dinero(),
+            'fecha_descuento': fecha(),
+            'fecha_pago': fecha(),
+            'estado': forms.Select(attrs={'class': 'form-select'}),
+            'fecha_pago_aseguradora': fecha(),
+            'estado_comision': forms.Select(attrs={'class': 'form-select'}),
+            'fecha_pago_cartera': fecha(),
+            'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Notas del seguimiento…'}),
+        }
+
+    def __init__(self, *args, vehiculo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.vehiculo = vehiculo
+        asesores = Asesor.objects.filter(is_active=True)
+        if self.instance.pk:
+            asesores = Asesor.objects.filter(pk=self.instance.asesor_id) | asesores
+        self.fields['asesor'].queryset = asesores.order_by('nombres')
+        self.fields['aseguradora'].queryset = Aseguradora.objects.filter(is_active=True) | Aseguradora.objects.filter(
+            pk=self.instance.aseguradora_id or 0)
+        self.fields['tipo_poliza'].queryset = TipoPoliza.objects.filter(is_active=True)
+        self.fields['zona_circulacion'].queryset = Municipio.objects.select_related('departamento').order_by('departamento__nombre', 'nombre')
+        for campo in ('asesor', 'aseguradora', 'zona_circulacion', 'tipo_poliza'):
+            self.fields[campo].empty_label = 'Seleccione…'
+        for campo in ('valor_sin_iva', 'valor_comision', 'descuentos'):
+            self.fields[campo].required = False  # vacío = 0 (en el histórico a veces no vienen)
+        for campo in ('prima_total', 'valor_sin_iva', 'valor_comision', 'descuentos'):
+            self.fields[campo].localize = False
+            valor = self.initial.get(campo)
+            if valor not in (None, ''):
+                self.initial[campo] = int(Decimal(str(valor)))  # sin decimales: en pantalla se ve $1.234.567
+        if not self.instance.pk:
+            del self.fields['estado']  # una póliza nueva siempre nace «generada»
+
+    def _dinero(self, campo):
+        """Los montos llegan con puntos de miles ($1.234.567): se dejan solo los dígitos."""
+        crudo = str(self.data.get(campo, '') or '').replace('.', '').replace('$', '').replace(' ', '').replace(',', '')
+        return crudo or '0'
+
+    def full_clean(self):
+        if self.is_bound:
+            self.data = self.data.copy()
+            for campo in ('prima_total', 'valor_sin_iva', 'valor_comision', 'descuentos'):
+                self.data[campo] = self._dinero(campo)
+        super().full_clean()
+
+    def clean(self):
+        cleaned = super().clean()
+        prima, sin_iva, comision = cleaned.get('prima_total'), cleaned.get('valor_sin_iva'), cleaned.get('valor_comision')
+        if prima is not None and prima <= 0:
+            self.add_error('prima_total', 'La prima total debe ser mayor que cero.')
+        if sin_iva and prima and sin_iva > prima:
+            self.add_error('valor_sin_iva', 'El valor sin IVA no puede ser mayor que la prima total.')
+        if comision and sin_iva and comision > sin_iva:
+            self.add_error('valor_comision', 'La comisión no puede ser mayor que el valor sin IVA.')
+        renovacion, tipo = cleaned.get('fecha_renovacion'), cleaned.get('tipo_poliza')
+        vehiculo = self.vehiculo or getattr(self.instance, 'vehiculo', None)
+        if vehiculo and renovacion and tipo:
+            repetida = (Poliza.objects.filter(vehiculo=vehiculo, tipo_poliza=tipo, fecha_renovacion=renovacion)
+                        .exclude(estado='cancelada').exclude(pk=self.instance.pk or 0))
+            if repetida.exists():
+                self.add_error('fecha_renovacion', f'{vehiculo.placa} ya tiene una póliza de {tipo} que vence ese mismo día.')
+        return cleaned
+
+
+class PlantillaCorreoForm(forms.ModelForm):
+    """Plantilla del correo de cotización. El cuerpo llega del editor como HTML y se limpia (solo formato básico)."""
+    NUNCA = 'nunca'
+    # «Mostrarla»: Siempre / Nunca / solo si cierta aseguradora está en el comparativo. Se guarda en
+    # promocion_activa + promocion_aseguradora (ver save).
+    promocion_aseguradora = forms.ChoiceField(required=False, label='Mostrarla', widget=forms.Select(attrs={'class': 'form-select'}))
+
+    class Meta:
+        model = PlantillaCorreo
+        fields = ('nombre', 'tipo_seguro', 'cuenta', 'para', 'cc', 'asunto', 'cuerpo', 'promocion_texto', 'promocion_imagen',
+                  'vigencia_cotizacion_dias', 'adjuntar_pdf', 'predeterminada', 'is_active')
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Cotización de autos'}),
+            'tipo_seguro': forms.Select(attrs={'class': 'form-select'}),
+            'cuenta': forms.Select(attrs={'class': 'form-select'}),
+            'para': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '{correo_cliente}'}),
+            'cc': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'correo@empresa.com, otro@empresa.com'}),
+            'asunto': forms.TextInput(attrs={'class': 'form-control'}),
+            'cuerpo': forms.Textarea(attrs={'hidden': True}),
+            'promocion_texto': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: MAPFRE te da la opción de pagar tu póliza en 3 cuotas sin intereses'}),
+            'promocion_imagen': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
+            'vigencia_cotizacion_dias': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '90'}),
+            'adjuntar_pdf': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'predeterminada': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['cuenta'].queryset = CuentaCorreo.objects.filter(is_active=True) | CuentaCorreo.objects.filter(pk=self.instance.cuenta_id or 0)
+        self.fields['cuenta'].empty_label = 'Sin cuenta (no se puede enviar)'
+        aseguradoras = [(str(a.pk), f'Solo si {a.name} está en el comparativo') for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
+        self.fields['promocion_aseguradora'].choices = [('', 'Siempre'), (self.NUNCA, 'Nunca')] + aseguradoras
+        if not self.is_bound:
+            self.initial['promocion_aseguradora'] = (self.NUNCA if not self.instance.promocion_activa
+                                                     else str(self.instance.promocion_aseguradora_id or ''))
+        self.fields['cuerpo'].required = True
+
+    def _correos(self, campo):
+        texto = ' '.join((self.cleaned_data.get(campo) or '').split())
+        for parte in [p.strip() for p in texto.replace(';', ',').split(',') if p.strip()]:
+            if parte.startswith('{') and parte.endswith('}'):
+                if parte[1:-1] not in servicio_correo.VARIABLES_CORREO:
+                    raise forms.ValidationError(f'{parte} no es una variable de correo (use {{correo_cliente}} o {{correo_asesor}}).')
+                continue
+            try:
+                forms.EmailField().clean(parte)
+            except forms.ValidationError:
+                raise forms.ValidationError(f'«{parte}» no es un correo válido.')
+        return ', '.join(p.strip() for p in texto.replace(';', ',').split(',') if p.strip())
+
+    def clean_para(self):
+        para = self._correos('para')
+        if not para:
+            raise forms.ValidationError('Indique a quién va el correo (normalmente {correo_cliente}).')
+        return para
+
+    def clean_cc(self):
+        return self._correos('cc')
+
+    def clean_cuerpo(self):
+        cuerpo = servicio_correo.limpiar_cuerpo(self.cleaned_data.get('cuerpo'))
+        if not servicio_correo.strip_tags(cuerpo).strip():
+            raise forms.ValidationError('Escriba el cuerpo del correo.')
+        return cuerpo
+
+    def clean_promocion_imagen(self):
+        imagen = self.cleaned_data.get('promocion_imagen')
+        if imagen and hasattr(imagen, 'content_type'):  # recién subida: se pasa a PNG
+            return servicio_correo.normalizar_imagen(imagen, 'promocion')
+        return imagen
+
+    def save(self, commit=True):
+        mostrar = self.cleaned_data.get('promocion_aseguradora') or ''
+        self.instance.promocion_activa = mostrar != self.NUNCA
+        self.instance.promocion_aseguradora_id = int(mostrar) if mostrar.isdigit() else None
+        plantilla = super().save(commit=commit)
+        if commit and plantilla.predeterminada:
+            PlantillaCorreo.objects.filter(tipo_seguro=plantilla.tipo_seguro).exclude(pk=plantilla.pk).update(predeterminada=False)
+        return plantilla
+
+
+class CuentaCorreoForm(forms.ModelForm):
+    """Cuenta SMTP desde la que salen los correos. La contraseña nunca se muestra: si se deja vacía se conserva."""
+    clave = forms.CharField(required=False, label='Contraseña de aplicación', strip=True,
+                            widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}, render_value=False))
+
+    class Meta:
+        model = CuentaCorreo
+        fields = ('nombre', 'correo', 'nombre_remitente', 'servidor', 'puerto', 'seguridad', 'usuario', 'clave', 'is_active')
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Lilian - Gali Seguros'}),
+            'correo': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'correo@galiseguros.com'}),
+            'nombre_remitente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Gali Seguros'}),
+            'servidor': forms.TextInput(attrs={'class': 'form-control'}),
+            'puerto': forms.NumberInput(attrs={'class': 'form-control'}),
+            'seguridad': forms.Select(attrs={'class': 'form-select'}),
+            'usuario': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Vacío = el mismo correo'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def clean_clave(self):
+        clave = (self.cleaned_data.get('clave') or '').replace(' ', '')  # Google muestra la clave de aplicación en grupos de 4
+        if not clave and not (self.instance.pk and self.instance.clave):
+            raise forms.ValidationError('Escriba la contraseña de aplicación de la cuenta.')
+        return clave or self.instance.clave

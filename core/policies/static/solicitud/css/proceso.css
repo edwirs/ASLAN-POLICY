@@ -147,3 +147,26 @@
 }
 .pc-digito:focus { border-color: var(--aslan-blue, #2ab1ee); box-shadow: 0 0 0 .2rem rgba(42, 177, 238, .25); }
 @media (max-width: 420px) { .pc-digito { width: 38px; height: 46px; font-size: 22px; } .pc-digitos { gap: 5px; } }
+
+/* Cotizar a mano (aseguradora con bot que no trajo valor) */
+.pc-a-mano { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(100, 116, 139, .35); }
+.pc-a-mano-valor { font-size: .85rem; margin-bottom: 6px; color: #b45309; }
+.pc-a-mano-valor b { color: inherit; }
+.pc-a-mano-valor small { color: #64748b; }
+.pc-am-paso { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(100, 116, 139, .2); }
+.pc-am-paso:last-child { border-bottom: 0; }
+.pc-am-num {
+    flex: none; width: 26px; height: 26px; border-radius: 50%; background: #0891b2; color: #fff; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; font-size: .85rem;
+}
+.pc-am-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-top: 8px; }
+.pc-am-dato {
+    display: flex; flex-direction: column; align-items: flex-start; position: relative; text-align: left;
+    border: 1px solid rgba(100, 116, 139, .3); border-radius: 8px; background: transparent; color: inherit; padding: 6px 28px 6px 10px; cursor: pointer;
+}
+.pc-am-dato span { font-size: .7rem; text-transform: uppercase; letter-spacing: .4px; opacity: .7; }
+.pc-am-dato b { font-size: .9rem; word-break: break-word; }
+.pc-am-dato i { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); opacity: .5; }
+.pc-am-dato:hover { border-color: #0891b2; }
+.pc-am-dato.copiado { border-color: #15803d; background: rgba(22, 163, 74, .1); }
+.pc-am-dato.copiado i::before { content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; }

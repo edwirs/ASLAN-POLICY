@@ -34,6 +34,7 @@ from core.policies.services.bots.base import (
     click_by_text,
     click_select,
     exigir_clave_al_dia,
+    nombre_para_portal,
     normalizar_texto,
     parse_money,
     wait_visible,
@@ -168,6 +169,7 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
             with sync_playwright() as playwright, schema_context(self.schema_name):
                 browser = playwright.chromium.launch(headless=self.headless)
                 page = browser.new_page()
+                self._vigilar_verificaciones(page)
                 try:
                     self._paso(PASO_LOGIN)
                     self._login(page)
@@ -185,6 +187,7 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
                     self._cotizar_y_aceptar(page)
                     self._paso('Planes cotizados')
                     self._capturar_planes(page)
+                    self._mapear_documentos(page)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:
@@ -274,19 +277,103 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
             page.get_by_label(re.compile(r'cero\s*k', re.I)).first.check()
 
         click_by_text(page, 'Buscar', role='button')
+        self._siguiente_tras_buscar(page)
         self._esperar_vehiculo_o_aviso(page)
+
+    def _siguiente_tras_buscar(self, page, timeout=60):
+        """Como lo hace el asesor: después de «Buscar», unos segundos después, «Siguiente» (el de la sección Placa).
+        Mientras el portal verifica la placa ese botón dice «LOADING...»; cuando termina vuelve a decir «SIGUIENTE» y se
+        pulsa. Ojo: el «SIGUIENTE» de Datos Generales sigue en pantalla (gris), por eso se ubica el botón que está
+        debajo del campo placa y no «el último Siguiente». Si antes sale un aviso, se explica."""
+        page.wait_for_timeout(2500)
+        boton = page.locator('input[name="placa"]').locator(
+            'xpath=following::button[contains(translate(normalize-space(.),"siguientloadg.","SIGUIENTLOADG."),"SIGUIENTE")'
+            ' or contains(translate(normalize-space(.),"siguientloadg.","SIGUIENTLOADG."),"LOADING")][1]')
+        for _ in range(timeout * 2):
+            aviso = self._aviso_visible(page)
+            if aviso:
+                self._explicar_aviso(aviso)
+            try:
+                if re.fullmatch(r'\s*siguiente\s*', boton.inner_text(timeout=1000), re.I) and boton.is_enabled():
+                    boton.click(timeout=5000)
+                    return
+            except PlaywrightTimeoutError:
+                pass
+            page.wait_for_timeout(500)
+        raise BotPortalError('Seguros del Estado no habilitó «Siguiente» después de buscar la placa.')
+
+    # Al buscar la placa, el portal consulta en los servidores de Seguros del Estado (apim-prod) las pólizas vigentes
+    # y las alertas de la placa. Si esas consultas fallan, el portal NO lo dice: muestra «condiciones especiales
+    # [Codigo:007]» como si el vehículo tuviera un problema. Verificado el 2026-10-27 con REM327: desde el bot el
+    # servidor responde la consulta previa (CORS) SIN «Access-Control-Allow-Origin» y el navegador bloquea ambas
+    # consultas (4 intentos cada una, ~16 s); desde el navegador del asesor la misma placa cotiza.
+    SERVIDOR_VERIFICACION = 'apim-prod.segurosdelestado.com'
+
+    def _vigilar_verificaciones(self, page):
+        """Anota las consultas de verificación (pólizas vigentes / alertas por placa) que fallan, para explicar el 007."""
+        self._verificaciones_fallidas = []
+
+        def fallo(url):
+            if 'PolizaVigente' in url:
+                nombre = 'pólizas vigentes'
+            elif 'Alerta' in url:
+                nombre = 'alertas de la placa'
+            else:
+                nombre = url.rstrip('/').split('/')[-1] or url
+            if nombre not in self._verificaciones_fallidas:
+                self._verificaciones_fallidas.append(nombre)
+
+        def al_responder(resp):
+            if self.SERVIDOR_VERIFICACION in resp.url and resp.status >= 400:
+                fallo(resp.url)
+
+        def al_fallar(req):
+            if self.SERVIDOR_VERIFICACION in req.url:
+                fallo(req.url)
+
+        def al_enviar(req):
+            # El propio portal registra en su bitácora (applicationInside) las consultas que le fallan.
+            datos = (req.post_data or '') if 'applicationInside' in req.url else ''
+            if self.SERVIDOR_VERIFICACION in datos and ('CORS error' in datos or '"status":5' in datos):
+                url = re.search(r'"url":"([^"]+)"', datos)
+                fallo(url.group(1) if url else self.SERVIDOR_VERIFICACION)
+
+        def en_consola(mensaje):
+            # «Access to fetch at 'https://apim-prod…' … has been blocked by CORS policy …»
+            url = re.search(r"'(https://" + re.escape(self.SERVIDOR_VERIFICACION) + r"[^']*)'", mensaje.text)
+            if url and 'CORS' in mensaje.text:
+                fallo(url.group(1))
+
+        page.on('response', al_responder)
+        page.on('requestfailed', al_fallar)
+        page.on('request', al_enviar)
+        page.on('console', en_consola)
 
     def _esperar_vehiculo_o_aviso(self, page, timeout=60):
         """Espera los datos del vehículo; si antes sale un aviso del portal, lo explica."""
         for _ in range(timeout):
             aviso = self._aviso_visible(page)
             if aviso:
-                raise self._error_de_aviso(aviso)
+                self._explicar_aviso(aviso)
             if page.get_by_text(_accent_insensitive_pattern('Clase')).and_(page.locator(':visible')).count():
                 return
             page.wait_for_timeout(1000)
         raise BotPortalError(
             f'Seguros del Estado no mostró los datos del vehículo de placa «{self.vehiculo.placa}» después de {timeout} segundos.')
+
+    def _explicar_aviso(self, aviso):
+        """Lanza el error que explica un aviso del portal (el 007 por verificación fallida se distingue del real)."""
+        fallidas = getattr(self, '_verificaciones_fallidas', [])
+        if fallidas and '007' in aviso:
+            raise BotNoCotizableError(
+                'Seguros del Estado no pudo verificar la placa desde el bot: su servidor de verificación '
+                f'({", ".join(fallidas)}) rechaza las consultas del navegador automático, y por eso el portal mostró '
+                '«condiciones especiales [Código 007]». No es un problema del vehículo.',
+                accion='Cotice esta placa manualmente en el portal de Seguros del Estado (desde el navegador sí '
+                       'responde). Si pasa con todas las placas, hay que pedirle a Seguros del Estado que habilite '
+                       'el acceso automático para el intermediario.',
+            )
+        raise self._error_de_aviso(aviso)
 
     @staticmethod
     def _aviso_visible(page):
@@ -379,7 +466,8 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
         self.cotizacion.save(update_fields=['documento_verificado'])
 
         # Paso 13: ubicación = solo el departamento del vehículo.
-        departamento = self.vehiculo.zona_circulacion.departamento.nombre
+        # Sin «- D.c.»: el portal no tiene «Bogota- D.c.» tal cual (se busca por texto parcial, sin tildes).
+        departamento = nombre_para_portal(self.vehiculo.zona_circulacion.departamento.nombre)
         click_select(page, 'Ubicación', departamento)
 
         # Paso 14: comparar fecha de nacimiento mostrada vs. la registrada.

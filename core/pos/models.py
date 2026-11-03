@@ -192,11 +192,20 @@ class Client(models.Model):
     address = models.CharField(max_length=500, null=True, blank=True, verbose_name='Dirección')
     
     mobile = models.CharField(max_length=10, null=True, blank=True, verbose_name='Teléfono')
+    phone = models.CharField(max_length=20, null=True, blank=True, verbose_name='Otro celular')
     email = models.CharField(max_length=50, null=True, blank=True, verbose_name='Email')
+    email_secundario = models.CharField(max_length=100, null=True, blank=True, verbose_name='Otro correo')
+    # Solo para empresas (NIT): la persona dueña de la empresa. Opcionales.
+    propietario_documento = models.CharField(max_length=20, null=True, blank=True, verbose_name='Cédula del propietario')
+    propietario_nombre = models.CharField(max_length=150, null=True, blank=True, verbose_name='Nombre del propietario de la empresa')
     is_active = models.BooleanField(default=True, verbose_name='Estado')
 
     def __str__(self):
         return self.get_full_name()
+
+    @property
+    def es_empresa(self):
+        return bool(self.document_type and self.document_type.abbreviation == 'NIT')
 
     def get_full_name(self):
         doc_abbr = self.document_type.abbreviation if self.document_type else ''

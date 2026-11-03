@@ -3,6 +3,8 @@ var aseguradora = {
         $('#data').DataTable({
             autoWidth: false,
             destroy: true,
+            // En pantallas angostas las columnas menos importantes pasan al «+» en vez de salirse de la tarjeta.
+            responsive: true,
             paging: false,
             searching: false,
             info: false,
@@ -14,12 +16,12 @@ var aseguradora = {
                 dataSrc: ""
             },
             columns: [
-                {data: "name"},
-                {data: "portal_url"},
-                {data: "username"},
-                {data: "completa"},
-                {data: "is_active"},
-                {data: "id"},
+                {data: "name", responsivePriority: 1},
+                {data: "portal_url", responsivePriority: 5},
+                {data: "username", responsivePriority: 4},
+                {data: "completa", responsivePriority: 3},
+                {data: "is_active", responsivePriority: 2},
+                {data: "id", responsivePriority: 1},
             ],
             columnDefs: [
                 {
@@ -30,9 +32,15 @@ var aseguradora = {
                     }
                 },
                 {
+                    // Solo el dominio, en una pastilla del mismo ancho para todas; la dirección completa va en el tooltip.
                     targets: [1],
-                    render: function (data) {
-                        return data ? '<a href="' + aseguradora.esc(data) + '" target="_blank" rel="noopener">' + aseguradora.esc(data) + '</a>' : '<span class="text-muted">—</span>';
+                    className: 'ase-col-portal',
+                    render: function (data, type) {
+                        if (type !== 'display') { return data || ''; }
+                        if (!data) { return '<span class="text-muted">—</span>'; }
+                        var dominio = data.replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
+                        return '<a class="ase-portal" href="' + aseguradora.esc(data) + '" target="_blank" rel="noopener" data-bs-toggle="tooltip" title="' +
+                            aseguradora.esc(data) + '"><i class="fa-solid fa-arrow-up-right-from-square"></i><span>' + aseguradora.esc(dominio) + '</span></a>';
                     }
                 },
                 {
@@ -76,20 +84,22 @@ var aseguradora = {
                     }
                 },
                 {
+                    // Botones en una sola fila (nunca uno encima del otro): primero editar, luego coberturas.
                     targets: [5],
-                    class: 'text-center',
+                    className: 'text-center text-nowrap',
                     orderable: false,
                     render: function (data, type, row) {
-                        var botones = '<a href="' + pathname + data + '/coberturas/" data-bs-toggle="tooltip" title="Ver coberturas" class="btn btn-info btn-sm rounded-pill"><i class="fas fa-shield-halved"></i></a> ';
+                        var botones = '';
                         if (puedeEditar) {
                             botones += '<a href="' + pathname + data + '/editar/" data-bs-toggle="tooltip" title="' +
                                 (row.clave_pendiente ? 'Actualizar la contraseña' : 'Editar datos de acceso') + '" class="btn btn-warning btn-sm rounded-pill"><i class="fas fa-edit"></i></a>';
-                            if (row.clave_pendiente) {
-                                botones += ' <button type="button" rel="clave_resuelta" data-id="' + data + '" data-nombre="' + aseguradora.esc(row.name) +
-                                    '" data-bs-toggle="tooltip" title="Quitar el aviso sin cambiar la contraseña (falsa alarma)" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-unlock"></i></button>';
-                            }
                         }
-                        return botones;
+                        botones += '<a href="' + pathname + data + '/coberturas/" data-bs-toggle="tooltip" title="Ver coberturas" class="btn btn-info btn-sm rounded-pill"><i class="fas fa-shield-halved"></i></a>';
+                        if (puedeEditar && row.clave_pendiente) {
+                            botones += '<button type="button" rel="clave_resuelta" data-id="' + data + '" data-nombre="' + aseguradora.esc(row.name) +
+                                '" data-bs-toggle="tooltip" title="Quitar el aviso sin cambiar la contraseña (falsa alarma)" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-unlock"></i></button>';
+                        }
+                        return '<div class="ase-acciones">' + botones + '</div>';
                     }
                 },
             ],

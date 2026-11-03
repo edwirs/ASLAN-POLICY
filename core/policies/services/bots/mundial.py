@@ -46,9 +46,12 @@ from core.policies.services.bots.base import (  # noqa: E402
     BotSaturadoError,
     BotTimeout,
     RegistroErrorMixin,
+    es_bogota,
     exigir_clave_al_dia,
+    nombre_para_portal,
     normalizar_texto,
     parse_money,
+    sin_signos,
 )
 
 logger = logging.getLogger(__name__)
@@ -246,14 +249,18 @@ class MundialBot(RegistroErrorMixin):
         )
 
     def _opcion_zona(self):
-        """Función que reconoce, entre las opciones «Municipio - Departamento», la de la zona de circulación."""
-        municipio = normalizar_texto(self.vehiculo.zona_circulacion.nombre)
-        departamento = normalizar_texto(self.vehiculo.zona_circulacion.departamento.nombre)
+        """Función que reconoce, entre las opciones «Municipio - Departamento», la de la zona de circulación.
+        Se compara sin tildes ni puntuación y sin el «, D.c.»: el portal muestra Bogotá como «Bogotá - Cundinamarca»."""
+        zona = self.vehiculo.zona_circulacion
+        municipios = {sin_signos(zona.nombre), sin_signos(nombre_para_portal(zona.nombre))}
+        departamentos = {sin_signos(zona.departamento.nombre), sin_signos(nombre_para_portal(zona.departamento.nombre))}
+        if es_bogota(zona):
+            departamentos.add('cundinamarca')
 
         def coincide(texto):
-            normal = normalizar_texto(texto)
-            nombre, _, depto = normal.partition(' - ')
-            return nombre.strip() == municipio and (not depto or departamento in depto or depto in departamento)
+            nombre, _, depto = texto.partition(' - ')
+            nombre, depto = sin_signos(nombre), sin_signos(depto)
+            return nombre in municipios and (not depto or any(d in depto or depto in d for d in departamentos))
         return coincide
 
     def _dato_de_otras_fuentes(self, page, campo, timeout=180):
@@ -307,6 +314,8 @@ class MundialBot(RegistroErrorMixin):
                     self._coberturas(page)
                     self._paso('Resumen de la cotización')
                     nota = self._capturar_resumen(page)
+                    self._mapear_documentos(page)
+                    self._descargar_cotizacion(page)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:
@@ -404,7 +413,7 @@ class MundialBot(RegistroErrorMixin):
                        'en la solicitud.',
             )
         self._escribir(page.locator('#modelo'), str(modelo), comparar='digitos')
-        municipio = self.vehiculo.zona_circulacion.nombre
+        municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
 
         page.get_by_role('button', name=re.compile(r'COMENZAR COTIZACI', re.I)).click()
@@ -539,7 +548,7 @@ class MundialBot(RegistroErrorMixin):
         etiqueta_genero = 'Hombre' if (self.tomador.gender or 'male') == 'male' else 'Mujer'
         page.locator('.alz-cont-radios', has_text=etiqueta_genero).locator('label.alz-radio').first.click()
         self._elegir_fecha(page, self.tomador.birthdate)
-        municipio = self.vehiculo.zona_circulacion.nombre
+        municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
         self._escribir(page.locator('#direccionPropietario'), DIRECCION_RESIDENCIA)
         self._escribir(page.locator('#celularPropietario'), self.credencial.telefono_contacto or CELULAR_POR_DEFECTO,
@@ -620,6 +629,18 @@ class MundialBot(RegistroErrorMixin):
     # ------------------------------------------------------------------
     # Cierre de sesión
     # ------------------------------------------------------------------
+
+    def _descargar_cotizacion(self, page):
+        """PDF de la cotización: en el Resumen, «IMPRIMIR COTIZACIÓN» lo descarga directo. Nunca «CONTINUAR A EMISIÓN»."""
+        self._paso('PDF de la cotización')
+        try:
+            boton = page.get_by_role('button', name=re.compile(r'IMPRIMIR\s+COTIZACI', re.I)).first
+            boton.wait_for(state='visible', timeout=30000)
+            boton.scroll_into_view_if_needed()
+        except Exception:
+            logger.warning('Seguros Mundial: no apareció «IMPRIMIR COTIZACIÓN» (cotización #%s).', self.cotizacion.pk, exc_info=True)
+            return
+        self._descargar_pdf(page, lambda: boton.click(timeout=15000))
 
     def _cerrar_sesion(self, page):
         """Cierra sesión SIEMPRE y verifica que el portal ya no la reconoce, sin lanzar excepción:

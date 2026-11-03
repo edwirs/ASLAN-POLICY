@@ -1,6 +1,7 @@
 from core.policies.services.bots.axa_colpatria import AxaColpatriaBot
 from core.policies.services.bots.equidad import EquidadBot
 from core.policies.services.bots.hdi import HdiBot
+from core.policies.services.bots.mapfre import MapfreBot
 from core.policies.services.bots.mundial import MundialBot
 from core.policies.services.bots.qualitas import QualitasBot
 from core.policies.services.bots.seguros_del_estado import SegurosDelEstadoBot
@@ -14,4 +15,6 @@ BOTS_DISPONIBLES = {
     'La Equidad Seguros': EquidadBot,
     'AXA Colpatria': AxaColpatriaBot,
     'Seguros Mundial': MundialBot,
+    # Asistido: el asesor marca «No soy un robot» en la ventana de Mapfre y escribe el código SMS en la plataforma.
+    'Mapfre': MapfreBot,
 }

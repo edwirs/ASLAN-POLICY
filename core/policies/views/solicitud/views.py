@@ -4,6 +4,7 @@ import re
 from django.contrib.auth.decorators import login_required
 from django.db import connection, transaction
 from django.http import HttpResponse
+from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView
 
 from core.policies.forms import SolicitudCotizacionForm
@@ -11,6 +12,7 @@ from core.policies.models import Aseguradora, AseguradoraCredencial, Cotizacion,
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.bots.runner import lanzar_bot_en_segundo_plano
 from core.policies.services.clientes import get_or_update_client
+from core.policies.services.polizas import aviso_estado, cambiar_estado, registrar_evento
 from core.policies.services.reenvio import reenviar
 from core.policies.services.proceso import (
     EN_CURSO,
@@ -45,8 +47,18 @@ def _client_lookup_data(client):
         'names': client.names,
         'birthdate': client.birthdate.strftime('%Y-%m-%d'),
         'email': client.email or '',
+        'mobile': client.mobile or '',
+        'phone': client.phone or '',
+        'email_secundario': client.email_secundario or '',
+        'propietario_documento': client.propietario_documento or '',
+        'propietario_nombre': client.propietario_nombre or '',
         'zona_circulacion_id': client.municipality_id,
     }
+
+
+def _estado_placa(vehiculo):
+    """Estado de la placa para el formulario: si no está activa, el botón de cotizar se bloquea y se explica por qué."""
+    return {**vehiculo.estado_json(), 'aviso': aviso_estado(vehiculo)}
 
 
 @login_required
@@ -69,12 +81,14 @@ def consultar_registro(request):
                 if len(vehiculos) == 1:
                     data['placa'] = vehiculos[0].placa
                     data['zona_circulacion_id'] = vehiculos[0].zona_circulacion_id
+                    data['estado_placa'] = _estado_placa(vehiculos[0])
                 elif len(vehiculos) > 1:
                     data['vehiculos'] = [
                         {
                             'placa': v.placa,
                             'zona_circulacion_id': v.zona_circulacion_id,
                             'zona_circulacion': str(v.zona_circulacion),
+                            'estado_placa': _estado_placa(v),
                         }
                         for v in vehiculos
                     ]
@@ -83,6 +97,7 @@ def consultar_registro(request):
             if vehiculo:
                 data = _client_lookup_data(vehiculo.tomador)
                 data['zona_circulacion_id'] = vehiculo.zona_circulacion_id
+                data['estado_placa'] = _estado_placa(vehiculo)
     except Exception as e:
         data = {'found': False, 'error': str(e)}
 
@@ -103,6 +118,8 @@ def iniciar_cotizacion(request):
         vehiculo = Vehiculo.objects.select_related('tomador').get(pk=vehiculo_id)
     except (Vehiculo.DoesNotExist, ValueError, TypeError):
         return HttpResponse(json.dumps({'error': 'No se encontró el vehículo indicado'}), content_type='application/json')
+    if vehiculo.bloqueado_para_cotizar:
+        return HttpResponse(json.dumps({'error': aviso_estado(vehiculo)}), content_type='application/json')
 
     tipo_poliza, _ = TipoPoliza.objects.get_or_create(code='todo-riesgo', defaults={'name': 'Todo Riesgo'})
     schema_name = connection.schema_name
@@ -134,6 +151,7 @@ def iniciar_cotizacion(request):
             asesor=request.user,
             aseguradora=aseguradora,
             tipo_poliza=tipo_poliza,
+            zona_circulacion_id=vehiculo.zona_circulacion_id,
         )
         lanzar_bot_en_segundo_plano(cotizacion.id, bot_class, schema_name)
         cotizaciones.append({'id': cotizacion.id, 'aseguradora': nombre_aseguradora})
@@ -178,6 +196,24 @@ def proceso_vehiculo(request, pk):
         'cotizaciones': cotizaciones,
         'en_curso': any(c['estado_bot'] in EN_CURSO for c in cotizaciones),
     })
+
+
+@login_required
+@require_POST
+def reactivar_placa(request):
+    """Vuelve «activa» una placa marcada (vendido, siniestrado…) para poder cotizarla: por ejemplo, llegó con un nuevo
+    propietario. Queda en el historial del vehículo quién lo hizo y por qué."""
+    if not request.user.has_perm('policies.change_vehiculo_estado'):
+        return _json({'error': 'Tu perfil no puede cambiar el estado de un vehículo. Pídeselo a un administrador.'}, status=403)
+    vehiculo = Vehiculo.objects.filter(placa=(request.POST.get('placa') or '').strip().upper()).first()
+    if vehiculo is None:
+        return _json({'error': 'No se encontró la placa.'}, status=404)
+    nota = (request.POST.get('nota') or '').strip()
+    if len(nota) < 5:
+        return _json({'error': 'Escribe brevemente por qué se reactiva (ej. «llegó con nuevo propietario»).'}, status=400)
+    if vehiculo.bloqueado_para_cotizar:
+        cambiar_estado(vehiculo, 'activo', nota=nota, usuario=request.user)
+    return _json({'estado_placa': _estado_placa(vehiculo)})
 
 
 @login_required
@@ -243,6 +279,10 @@ class SolicitudCotizacionCreateView(GroupPermissionMixin, TemplateView):
                     if cd['es_cero_km']:
                         defaults_vehiculo['codigo_fasecolda'] = cd['codigo_fasecolda']
                         defaults_vehiculo['valor_comercial'] = cd['valor_comercial']
+                    existente = Vehiculo.objects.select_related('tomador', 'zona_circulacion').filter(placa=cd['placa']).first()
+                    if existente and existente.bloqueado_para_cotizar:
+                        return HttpResponse(json.dumps({'error': aviso_estado(existente), 'estado_placa': _estado_placa(existente)}),
+                                            content_type='application/json')
                     with transaction.atomic():
                         client = get_or_update_client(cd, municipality=cd['zona_circulacion'])
                         defaults_vehiculo['tomador'] = client
@@ -250,6 +290,12 @@ class SolicitudCotizacionCreateView(GroupPermissionMixin, TemplateView):
                             placa=cd['placa'],
                             defaults=defaults_vehiculo,
                         )
+                        # Trazabilidad: si el carro llegó con otro dueño o circula en otra ciudad, queda en su historial.
+                        if existente and existente.tomador_id != client.pk:
+                            registrar_evento(vehiculo, 'propietario', existente.tomador.get_full_name(), client.get_full_name(),
+                                             usuario=request.user)
+                        if existente and existente.zona_circulacion_id != cd['zona_circulacion'].pk:
+                            registrar_evento(vehiculo, 'ciudad', existente.zona_circulacion, cd['zona_circulacion'], usuario=request.user)
                         data = vehiculo.toJSON()
                 else:
                     data['error'] = dict(form.errors.items())

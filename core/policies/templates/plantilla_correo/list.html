@@ -1,0 +1,156 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block assets %}
+    <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=2">
+{% endblock %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active"><i class="fa-solid fa-envelope-open-text"></i> {{ module_name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="pc-page">
+    <header class="pc-cabecera">
+        <div>
+            <h1 class="pc-titulo"><i class="fa-solid fa-envelope-open-text"></i> Plantillas de correo</h1>
+            <p class="pc-ayuda mb-0">El correo con el que se envía la cotización al cliente desde el comparativo («Armar correo»):
+                desde qué cuenta sale, a quién va, el texto, la tabla del vehículo y del comparativo, la promoción y la firma de quien envía.</p>
+        </div>
+        {% if not puede_editar and not puede_crear and puede_ver %}
+            <span class="pc-chip"><i class="fa-solid fa-eye"></i> Solo lectura{% if puede_firma %} · puedes cambiar tu firma{% endif %}</span>
+        {% endif %}
+    </header>
+
+    {% if puede_ver %}
+    {# ===== Plantillas ===== #}
+    <section class="pc-seccion">
+        <div class="pc-seccion-cabecera">
+            <h2><i class="fa-solid fa-file-lines"></i> Plantillas</h2>
+            {% if puede_crear %}<a href="{% url 'plantilla_correo_create' %}" class="btn btn-primary btn-sm rounded-pill"><i class="fa-solid fa-plus"></i> Nueva plantilla</a>{% endif %}
+        </div>
+        <div class="table-responsive">
+            <table class="table pc-tabla mb-0">
+                <thead><tr><th>Plantilla</th><th>Tipo</th><th>Sale desde</th><th>Asunto</th><th>Actualizada</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                {% for p in plantillas %}
+                    <tr>
+                        <td class="pc-nombre">{{ p.nombre }}{% if p.predeterminada %} <span class="pc-chip pc-chip-ok" title="Es la que se usa al armar el correo">Predeterminada</span>{% endif %}</td>
+                        <td>{{ p.get_tipo_seguro_display }}</td>
+                        <td>{% if p.cuenta %}{{ p.cuenta.correo }}{% else %}<span class="pc-chip pc-chip-alerta">Sin cuenta</span>{% endif %}</td>
+                        <td class="pc-asunto">{{ p.asunto }}</td>
+                        <td class="text-nowrap">{{ p.updated_at|date:"d/m/Y H:i" }}{% if p.actualizada_por %}<br><small class="text-muted">{{ p.actualizada_por.names|default:p.actualizada_por.username }}</small>{% endif %}</td>
+                        <td>
+                            {% if puede_editar %}
+                                <div class="form-check form-switch mb-0"><input class="form-check-input pc-estado" type="checkbox" data-id="{{ p.pk }}" {% if p.is_active %}checked{% endif %} title="Activa / inactiva"></div>
+                            {% else %}
+                                <span class="pc-chip {% if p.is_active %}pc-chip-ok{% endif %}">{% if p.is_active %}Activa{% else %}Inactiva{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <a href="{% url 'plantilla_correo_update' p.pk %}" class="btn btn-sm btn-outline-primary rounded-pill">
+                                {% if puede_editar %}<i class="fa-solid fa-pen"></i> Editar{% else %}<i class="fa-solid fa-eye"></i> Ver{% endif %}</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="pc-vacio">Todavía no hay plantillas.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {# ===== Cuentas de envío ===== #}
+    <section class="pc-seccion" id="cuentas">
+        <div class="pc-seccion-cabecera">
+            <h2><i class="fa-solid fa-paper-plane"></i> Cuentas desde las que salen los correos</h2>
+            {% if puede_cuentas %}<a href="{% url 'cuenta_correo_create' %}" class="btn btn-primary btn-sm rounded-pill"><i class="fa-solid fa-plus"></i> Nueva cuenta</a>{% endif %}
+        </div>
+        <p class="pc-ayuda">Cada plantilla elige su cuenta. Para correos de Google Workspace (como galiseguros.com) se usa una
+            <b>contraseña de aplicación</b> de esa cuenta, no la contraseña normal.</p>
+        <div class="table-responsive">
+            <table class="table pc-tabla mb-0">
+                <thead><tr><th>Cuenta</th><th>Correo que envía</th><th>Servidor</th><th>Última prueba</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                {% for c in cuentas %}
+                    <tr>
+                        <td class="pc-nombre">{{ c.nombre }}{% if c.nombre_remitente %}<br><small class="text-muted">El cliente ve: {{ c.nombre_remitente }}</small>{% endif %}</td>
+                        <td>{{ c.correo }}</td>
+                        <td class="text-nowrap">{{ c.servidor }}:{{ c.puerto }}{% if not c.clave %}<br><span class="pc-chip pc-chip-alerta">Sin contraseña</span>{% endif %}</td>
+                        <td class="pc-prueba" data-id="{{ c.pk }}">
+                            {% if c.probada_en %}
+                                <span class="pc-chip {% if c.prueba_ok %}pc-chip-ok{% else %}pc-chip-alerta{% endif %}">{% if c.prueba_ok %}Funciona{% else %}Falló{% endif %}</span>
+                                <small class="text-muted">{{ c.probada_en|date:"d/m/Y H:i" }}</small>
+                                {% if not c.prueba_ok %}<div class="small text-muted">{{ c.prueba_mensaje }}</div>{% endif %}
+                            {% else %}<small class="text-muted">Sin probar</small>{% endif %}
+                        </td>
+                        <td><span class="pc-chip {% if c.is_active %}pc-chip-ok{% endif %}">{% if c.is_active %}Activa{% else %}Inactiva{% endif %}</span></td>
+                        <td class="text-end text-nowrap">
+                            {% if puede_cuentas %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill pc-probar" data-id="{{ c.pk }}"><i class="fa-solid fa-plug"></i> Probar</button>
+                                <a href="{% url 'cuenta_correo_update' c.pk %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-pen"></i> Editar</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="pc-vacio">Todavía no hay cuentas de envío{% if puede_cuentas %}: cree la cuenta desde la que saldrán los correos{% endif %}.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+
+    {# ===== Mi firma ===== #}
+    <section class="pc-seccion" id="firma">
+        <div class="pc-seccion-cabecera">
+            <h2><i class="fa-solid fa-signature"></i> Mi firma</h2>
+        </div>
+        <div class="pc-firma">
+            <div class="pc-firma-vista" id="miFirmaVista">
+                {% if mi_firma %}<img src="{{ mi_firma.imagen.url }}" alt="Mi firma">
+                {% else %}<div class="pc-firma-vacia"><i class="fa-regular fa-image"></i><span>Todavía no has subido tu firma. Sin firma, el correo lleva tu nombre y los datos de la empresa en texto.</span></div>{% endif %}
+            </div>
+            <div class="pc-firma-ayuda">
+                <p class="pc-ayuda">Imagen horizontal con tu nombre, cargo, teléfono, correo y logos (como la firma de ejemplo de Gali Seguros).
+                    Se recomienda de <b>1200 px de ancho</b>; en el correo se ve a 600 px. PNG, JPG o WebP: se convierte a PNG para que se vea en Outlook.</p>
+                {% if puede_firma %}
+                    <div class="d-flex flex-wrap gap-2">
+                        <label class="btn btn-primary btn-sm rounded-pill mb-0"><i class="fa-solid fa-upload"></i> {% if mi_firma %}Cambiar firma{% else %}Subir firma{% endif %}
+                            <input type="file" accept="image/*" class="d-none pc-firma-archivo" data-usuario=""></label>
+                        {% if mi_firma %}<button type="button" class="btn btn-outline-danger btn-sm rounded-pill pc-firma-quitar" data-usuario=""><i class="fa-solid fa-trash"></i> Quitar</button>{% endif %}
+                    </div>
+                {% else %}
+                    <p class="pc-ayuda mb-0"><i class="fa-solid fa-lock"></i> Tu perfil no puede cambiar la firma.</p>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {% if equipo %}
+    {# ===== Firmas del equipo (solo quien edita plantillas) ===== #}
+    <section class="pc-seccion">
+        <div class="pc-seccion-cabecera"><h2><i class="fa-solid fa-users"></i> Firmas del equipo</h2></div>
+        <div class="table-responsive">
+            <table class="table pc-tabla mb-0">
+                <thead><tr><th>Usuario</th><th>Firma</th><th></th></tr></thead>
+                <tbody>
+                {% for fila in equipo %}
+                    <tr>
+                        <td class="pc-nombre">{{ fila.usuario.names|default:fila.usuario.username }}<br><small class="text-muted">{{ fila.usuario.username }}{% if fila.usuario.email %} · {{ fila.usuario.email }}{% endif %}</small></td>
+                        <td>{% if fila.firma %}<img src="{{ fila.firma.imagen.url }}" class="pc-firma-mini" alt="Firma">{% else %}<span class="pc-chip">Sin firma</span>{% endif %}</td>
+                        <td class="text-end text-nowrap">
+                            <label class="btn btn-sm btn-outline-primary rounded-pill mb-0"><i class="fa-solid fa-upload"></i> {% if fila.firma %}Cambiar{% else %}Subir{% endif %}
+                                <input type="file" accept="image/*" class="d-none pc-firma-archivo" data-usuario="{{ fila.usuario.pk }}"></label>
+                            {% if fila.firma %}<button type="button" class="btn btn-sm btn-outline-danger rounded-pill pc-firma-quitar" data-usuario="{{ fila.usuario.pk }}"><i class="fa-solid fa-trash"></i></button>{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</div>
+<script src="{% static 'plantilla_correo/js/list.js' %}?v=1"></script>
+{% endblock %}

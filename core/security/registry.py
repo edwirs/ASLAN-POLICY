@@ -65,7 +65,9 @@ PERMISSIONS = {
         ('view_comparativo', 'Ver el comparativo de aseguradoras de un vehículo'),
         ('add_valor_externo', 'Registrar valores de aseguradoras sin bot'),
         ('use_asistente', 'Usar el asistente Aslani (chat de consultas)'),
+        ('change_vehiculo_estado', 'Cambiar el estado de un vehículo (vendido, siniestrado…) y reactivarlo para cotizar'),
     ],
+    'policies.Poliza': crud('poliza', 'pólizas'),
 
     # Configuraciones
     'pos.Company': [
@@ -84,6 +86,20 @@ PERMISSIONS = {
         ('view_asesor', 'Ver asesores internos y externos'),
         ('add_asesor', 'Crear asesores'),
         ('change_asesor', 'Editar asesores, su comisión y activarlos o inactivarlos'),
+    ],
+    'policies.PlantillaCorreo': [
+        ('view_plantillacorreo', 'Ver las plantillas de correo (solo lectura)'),
+        ('add_plantillacorreo', 'Crear plantillas de correo'),
+        ('change_plantillacorreo', 'Editar las plantillas de correo y las firmas de todos los usuarios'),
+    ],
+    'policies.CuentaCorreo': [
+        ('change_cuentacorreo', 'Configurar las cuentas desde las que salen los correos (servidor y contraseña)'),
+    ],
+    'policies.FirmaCorreo': [
+        ('change_firma_propia', 'Subir o cambiar su propia firma de correo'),
+    ],
+    'policies.CorreoEnviado': [
+        ('send_cotizacion_correo', 'Enviar la cotización por correo al cliente'),
     ],
 
     # Seguridad
@@ -144,11 +160,16 @@ MENU = (
     Section('Cotizador', 'fa-solid fa-car-side', (
         Item('quote_new', 'Nueva solicitud', 'solicitud_cotizacion_create', 'policies.add_vehiculo', modulo='cotizador'),
         Item('quote_list', 'Solicitudes registradas', 'vehiculo_list', 'policies.view_vehiculo',
-             q('policies', 'view_vehiculo', 'add_vehiculo', 'view_comparativo', 'add_valor_externo', 'use_asistente'), modulo='cotizador'),
+             q('policies', 'view_vehiculo', 'add_vehiculo', 'view_comparativo', 'add_valor_externo', 'use_asistente',
+               'send_cotizacion_correo'), modulo='cotizador'),
+    )),
+    Section('Pólizas', 'fa-solid fa-file-contract', (
+        Item('policies', 'Pólizas tomadas', 'poliza_list', 'policies.view_poliza',
+             crud_q('policies', 'poliza'), icon='fa-solid fa-file-shield', modulo='cotizador'),
     )),
     Section('Vehículos', 'fa-solid fa-car', (
         Item('vehicles', 'Vehículos registrados', 'vehiculo_registrado_list', 'policies.view_vehiculo_registrado',
-             q('policies', 'view_vehiculo_registrado'), modulo='cotizador'),
+             q('policies', 'view_vehiculo_registrado', 'change_vehiculo_estado'), modulo='cotizador'),
     )),
     Section('Configuraciones', 'fas fa-wrench', (
         Section('Generales', 'fas fa-sliders-h', (
@@ -164,6 +185,9 @@ MENU = (
              q('policies', 'view_aseguradora', 'add_aseguradora', 'change_aseguradora'), modulo='cotizador'),
         Item('advisors', 'Asesores', 'asesor_list', 'policies.view_asesor',
              q('policies', 'view_asesor', 'add_asesor', 'change_asesor'), modulo='asesores'),
+        Item('email_templates', 'Plantillas de correo', 'plantilla_correo_list', 'policies.view_plantillacorreo',
+             q('policies', 'view_plantillacorreo', 'add_plantillacorreo', 'change_plantillacorreo', 'change_cuentacorreo',
+               'change_firma_propia'), icon='fa-solid fa-envelope-open-text', modulo='cotizador'),
     )),
     Section('Seguridad', 'fas fa-lock', (
         Item('users', 'Usuarios', 'user_list', 'user.view_user', crud_q('user', 'user')),

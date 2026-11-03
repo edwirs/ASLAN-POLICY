@@ -8,14 +8,60 @@
 {% endblock %}
 
 {% block assets_list %}
-    <link rel="stylesheet" href="{% static 'vehiculo_registrado/css/detalle.css' %}?v=4">
-    <script src="{% static 'vehiculo_registrado/js/list.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'vehiculo_registrado/css/detalle.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <script>var vrPermisos = {cambiarEstado: {{ puede_cambiar_estado|yesno:'true,false' }}, verPolizas: {{ puede_ver_polizas|yesno:'true,false' }}};</script>
+    <script src="{% static 'vehiculo_registrado/js/list.js' %}?v=9"></script>
+{% endblock %}
+
+{% block ayuda %}
+    El registro de cada vehículo con su propietario actual. La <b>etapa</b> dice en qué va (cotizando, esperando decisión, con póliza, por renovar…).
+    Con <b>+</b> se abre la ficha completa: resumen, póliza vigente y sus cuotas, la última cotización y el seguimiento año por año.
+{% endblock %}
+
+{% block content_list %}
+    {{ ficha|json_script:"vrFicha" }}
+    <div class="filtros-etapa" id="filtrosEtapa" role="group" aria-label="Filtrar por etapa">
+        <button type="button" class="btn btn-sm rounded-pill btn-primary" data-etapa="todas">Todos <span class="badge rounded-pill">0</span></button>
+        {% for valor, nombre in etapas %}
+            <button type="button" class="btn btn-sm rounded-pill btn-outline-secondary" data-etapa="{{ valor }}">{{ nombre }} <span class="badge rounded-pill">0</span></button>
+        {% endfor %}
+    </div>
+    {% if puede_cambiar_estado %}
+    <div class="modal fade" id="modalEstado" tabindex="-1" aria-labelledby="modalEstadoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalEstadoLabel"><i class="fa-solid fa-car-burst"></i> Estado de <b id="estadoPlaca"></b></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-bold" for="estadoNuevo">Nuevo estado</label>
+                    <select class="form-select mb-3" id="estadoNuevo">
+                        {% for valor, nombre in estados %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}
+                    </select>
+                    <div class="row g-2">
+                        <div class="col-5"><label class="form-label fw-bold" for="estadoFecha">Desde</label><input type="date" class="form-control" id="estadoFecha"></div>
+                        <div class="col-7"><label class="form-label fw-bold" for="estadoNota">Nota</label><input type="text" class="form-control" id="estadoNota" maxlength="300" placeholder="Ej. lo vendió a un tercero"></div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">Mientras no esté activo, la placa no se puede cotizar: al intentarlo se muestra este estado y se pide reactivarla.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="btnGuardarEstado"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 {% endblock %}
 
 {% block columns %}
     <th class="no-sort" style="width:42px;"></th>
     <th>Placa</th>
     <th>Propietario actual</th>
+    <th>Etapa</th>
     <th>Marca</th>
     <th>Línea / clase</th>
     <th>Versión</th>

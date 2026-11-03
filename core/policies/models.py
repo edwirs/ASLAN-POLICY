@@ -1,15 +1,26 @@
 from datetime import date
+from zoneinfo import ZoneInfo
 
 from django.db import models
 from django.forms import model_to_dict
+from django.utils import timezone
 
 from core.policies.choices import ERROR_BOT_TIPO
 from core.policies.choices import ESTADO_BOT
+from core.policies.choices import ESTADO_COMISION
+from core.policies.choices import ESTADO_CORREO
 from core.policies.choices import ESTADO_COTIZACION
+from core.policies.choices import ESTADO_POLIZA
+from core.policies.choices import MOTIVO_NO_COMPRO
+from core.policies.choices import ESTADO_VEHICULO
 from core.policies.choices import MEDIO_PAGO
+from core.policies.choices import ORIGEN_POLIZA
+from core.policies.choices import SEGURIDAD_SMTP
 from core.policies.choices import SERVICIO_VEHICULO
 from core.policies.choices import TIPO_ASESOR
 from core.policies.choices import TIPO_CUENTA
+from core.policies.choices import TIPO_EVENTO_VEHICULO
+from core.policies.choices import TIPO_SEGURO_PLANTILLA
 from core.policies.fields import EncryptedCharField
 from core.pos.models import Client
 from core.pos.models import DocumentType
@@ -206,15 +217,39 @@ class Vehiculo(models.Model):
     combustible = models.CharField(max_length=40, null=True, blank=True, verbose_name='Tipo de combustible')
     valor_accesorios = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Valor accesorios')
 
+    # Seguimiento: vendido, siniestrado… Distinto de «activo» = no se puede cotizar hasta que alguien lo actualice.
+    estado = models.CharField(max_length=15, choices=ESTADO_VEHICULO, default='activo', verbose_name='Estado del vehículo')
+    estado_fecha = models.DateField(null=True, blank=True, verbose_name='Fecha del estado')
+    estado_nota = models.CharField(max_length=300, blank=True, default='', verbose_name='Nota del estado')
+
+    # «No compró»: cierra la última cotización sin póliza. Solo cuenta si es posterior a la última cotización.
+    no_compro_fecha = models.DateField(null=True, blank=True, verbose_name='No compró (fecha)')
+    no_compro_motivo = models.CharField(max_length=20, choices=MOTIVO_NO_COMPRO, blank=True, default='', verbose_name='Motivo por el que no compró')
+    no_compro_nota = models.CharField(max_length=300, blank=True, default='', verbose_name='Nota de por qué no compró')
+
     is_active = models.BooleanField(default=True, verbose_name='Estado')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
 
     def __str__(self):
         return f'{self.placa} - {self.tomador.get_full_name()}'
 
+    @property
+    def bloqueado_para_cotizar(self):
+        return self.estado != 'activo'
+
+    def estado_json(self):
+        return {
+            'id': self.estado,
+            'name': self.get_estado_display(),
+            'fecha': self.estado_fecha.strftime('%Y-%m-%d') if self.estado_fecha else None,
+            'nota': self.estado_nota,
+            'bloqueado': self.bloqueado_para_cotizar,
+        }
+
     def toJSON(self):
-        item = model_to_dict(self, exclude=['tomador', 'zona_circulacion', 'created_at'])
+        item = model_to_dict(self, exclude=['tomador', 'zona_circulacion', 'created_at', 'estado', 'estado_fecha', 'estado_nota', 'no_compro_fecha'])
         item['tomador'] = self.tomador.toJSON()
+        item['estado'] = self.estado_json()
         item['zona_circulacion'] = str(self.zona_circulacion)
         item['servicio'] = {'id': self.servicio, 'name': self.get_servicio_display()} if self.servicio else None
         item['valor_accesorios'] = float(self.valor_accesorios)
@@ -237,7 +272,20 @@ class Vehiculo(models.Model):
             ('view_comparativo', 'Ver el comparativo de aseguradoras de un vehículo'),
             ('add_valor_externo', 'Registrar valores de aseguradoras sin bot'),
             ('use_asistente', 'Usar el asistente Aslani'),
+            ('change_vehiculo_estado', 'Cambiar el estado de un vehículo (vendido, siniestrado…)'),
         )
+
+
+def _ruta_cotizacion_manual(instancia, nombre):
+    """Nombre aleatorio: la cotización lleva datos personales y no debe poder adivinarse su dirección."""
+    import uuid
+    return f'cotizaciones_manuales/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.pdf'
+
+
+def _ruta_pdf_portal(instancia, nombre):
+    """PDF que descarga el bot del portal: nombre aleatorio, igual que las cotizaciones manuales."""
+    import uuid
+    return f'cotizaciones_portal/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.pdf'
 
 
 class ValorExterno(models.Model):
@@ -247,6 +295,8 @@ class ValorExterno(models.Model):
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='valores_externos', verbose_name='Vehículo')
     aseguradora = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, related_name='valores_externos', verbose_name='Aseguradora')
     valor = models.DecimalField(max_digits=14, decimal_places=0, verbose_name='Valor final')
+    # PDF de la cotización de la aseguradora: se adjunta al correo si este valor queda entre los dos más baratos.
+    documento = models.FileField(upload_to=_ruta_cotizacion_manual, null=True, blank=True, verbose_name='PDF de la cotización')
     asesor = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name='Registrado por')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
 
@@ -271,6 +321,9 @@ class Cotizacion(models.Model):
     aseguradora = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, related_name='cotizaciones', verbose_name='Aseguradora')
     aseguradora_actual = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, null=True, blank=True, related_name='+', verbose_name='Aseguradora actual')
     tipo_poliza = models.ForeignKey(TipoPoliza, on_delete=models.PROTECT, verbose_name='Tipo de póliza')
+    # Ciudad de circulación con la que se pidió ESTA cotización: el vehículo puede cambiar de ciudad al año siguiente.
+    zona_circulacion = models.ForeignKey(Municipio, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                         verbose_name='Zona de circulación al cotizar')
 
     fecha_vigencia_inicio = models.DateField(null=True, blank=True, verbose_name='Fecha inicio de vigencia')
     fecha_vigencia_fin = models.DateField(null=True, blank=True, verbose_name='Fecha fin de vigencia')
@@ -309,6 +362,11 @@ class Cotizacion(models.Model):
     paso_bot = models.CharField(max_length=120, null=True, blank=True, verbose_name='Paso del bot (en curso o donde falló)')
     accion_sugerida = models.TextField(null=True, blank=True, verbose_name='Qué debe hacer el asesor')
     detalle_tecnico = models.TextField(null=True, blank=True, verbose_name='Detalle técnico del error')
+    # PDF de la cotización que el bot descarga del portal. Se adjunta al correo si queda entre las 2 más baratas; si no,
+    # se borra a los 10 días (ver services/pdf_cotizaciones.py). Los que se enviaron al cliente se conservan.
+    pdf = models.FileField(upload_to=_ruta_pdf_portal, null=True, blank=True, verbose_name='PDF de la cotización (portal)')
+    pdf_descargado_en = models.DateTimeField(null=True, blank=True, verbose_name='PDF descargado el')
+    pdf_enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='PDF enviado al cliente el')
     documento_verificado = models.BooleanField(default=False, verbose_name='Documento verificado en aseguradora')
     fecha_nacimiento_coincide = models.BooleanField(null=True, blank=True, verbose_name='Fecha de nacimiento coincide')
     confirmacion_bot = models.BooleanField(
@@ -338,7 +396,8 @@ class Cotizacion(models.Model):
         return dias is not None and dias < 0
 
     def toJSON(self):
-        item = model_to_dict(self, exclude=['vehiculo', 'tomador', 'asesor', 'aseguradora', 'aseguradora_actual', 'tipo_poliza', 'created_at'])
+        item = model_to_dict(self, exclude=['vehiculo', 'tomador', 'asesor', 'aseguradora', 'aseguradora_actual', 'tipo_poliza', 'created_at', 'zona_circulacion'])
+        item['zona_circulacion'] = str(self.zona_circulacion) if self.zona_circulacion else None
         item['vehiculo'] = self.vehiculo.toJSON()
         # El tomador que se muestra es el de ESTA cotización, no necesariamente
         # el dueño actual del vehículo (puede haber cambiado desde entonces).
@@ -531,3 +590,277 @@ class AsistenteConsumo(models.Model):
         verbose_name_plural = 'Consumo de Aslani'
         ordering = ['-created_at']
         default_permissions = ()
+
+
+class HistorialVehiculo(models.Model):
+    """Trazabilidad de un vehículo: cada cambio de estado, de propietario o de ciudad de circulación (quién, cuándo, de qué a qué)."""
+    vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='historial', verbose_name='Vehículo')
+    tipo = models.CharField(max_length=12, choices=TIPO_EVENTO_VEHICULO, verbose_name='Qué cambió')
+    anterior = models.CharField(max_length=200, blank=True, default='', verbose_name='Antes')
+    nuevo = models.CharField(max_length=200, blank=True, default='', verbose_name='Después')
+    nota = models.CharField(max_length=300, blank=True, default='', verbose_name='Nota')
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Usuario')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    def toJSON(self):
+        return {
+            'tipo': self.tipo,
+            'tipo_display': self.get_tipo_display(),
+            'anterior': self.anterior,
+            'nuevo': self.nuevo,
+            'nota': self.nota,
+            'usuario': self.usuario.username if self.usuario else None,
+            'fecha': timezone.localtime(self.created_at, ZoneInfo('America/Bogota')).strftime('%Y-%m-%d %H:%M'),  # hora de Colombia
+        }
+
+    class Meta:
+        verbose_name = 'Historial del vehículo'
+        verbose_name_plural = 'Historial de vehículos'
+        ordering = ['-created_at', '-id']
+        default_permissions = ()
+
+
+class Poliza(models.Model):
+    """La póliza que el cliente ELIGIÓ y se generó (una fila del Excel de seguimiento). Viene de una cotización del sistema o
+    del histórico importado. Guarda el propietario, la ciudad y el asesor de ESE año: no cambian si el vehículo cambia después."""
+    vehiculo = models.ForeignKey(Vehiculo, on_delete=models.PROTECT, related_name='polizas', verbose_name='Vehículo')
+    tomador = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='polizas', verbose_name='Tomador')
+    asesor = models.ForeignKey(Asesor, on_delete=models.PROTECT, related_name='polizas', verbose_name='Asesor')
+    aseguradora = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, related_name='polizas', verbose_name='Aseguradora')
+    tipo_poliza = models.ForeignKey(TipoPoliza, on_delete=models.PROTECT, verbose_name='Tipo de póliza')
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='polizas',
+                                   verbose_name='Cotización de origen')
+    plan = models.CharField(max_length=80, blank=True, default='', verbose_name='Plan (extensión)')
+    numero_poliza = models.CharField(max_length=50, blank=True, default='', verbose_name='Número de póliza')
+    zona_circulacion = models.ForeignKey(Municipio, on_delete=models.PROTECT, related_name='+', verbose_name='Ciudad de circulación')
+
+    fecha_renovacion = models.DateField(verbose_name='Fecha de renovación (vencimiento)')
+    prima_total = models.DecimalField(max_digits=14, decimal_places=2, default=0, verbose_name='Prima total')
+    valor_sin_iva = models.DecimalField(max_digits=14, decimal_places=2, default=0, verbose_name='Valor sin IVA')
+    valor_comision = models.DecimalField(max_digits=14, decimal_places=2, default=0, verbose_name='Valor de comisión')
+    descuentos = models.DecimalField(max_digits=14, decimal_places=2, default=0, verbose_name='Descuentos')
+    fecha_descuento = models.DateField(null=True, blank=True, verbose_name='Fecha de descuento')
+
+    # La aseguradora financia; 1 = paga la totalidad, más de 1 = cuotas mensuales que empiezan en `fecha_pago`.
+    numero_cuotas = models.PositiveSmallIntegerField(default=1, verbose_name='Número de cuotas')
+    fecha_pago = models.DateField(verbose_name='Fecha de pago (máxima / primera cuota)')
+    estado = models.CharField(max_length=10, choices=ESTADO_POLIZA, default='generada', verbose_name='Estado')
+
+    fecha_pago_aseguradora = models.DateField(null=True, blank=True, verbose_name='Pago de aseguradora')
+    estado_comision = models.CharField(max_length=10, choices=ESTADO_COMISION, default='cartera', verbose_name='Estado de la comisión')
+    fecha_pago_cartera = models.DateField(null=True, blank=True, verbose_name='Fecha de pago de la comisión (cartera)')
+
+    observaciones = models.TextField(blank=True, default='', verbose_name='Observaciones')
+    origen = models.CharField(max_length=10, choices=ORIGEN_POLIZA, default='sistema', verbose_name='Origen')
+    datos_importados = models.JSONField(null=True, blank=True, verbose_name='Fila original del Excel')
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Registrada por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    def __str__(self):
+        return f'{self.vehiculo.placa} · {self.aseguradora} · vence {self.fecha_renovacion:%d/%m/%Y}'
+
+    @property
+    def forma_pago(self):
+        return 'Totalidad' if self.numero_cuotas <= 1 else f'{self.numero_cuotas} cuotas'
+
+    @property
+    def porcentaje_comision(self):
+        return round(float(self.valor_comision) * 100 / float(self.valor_sin_iva), 2) if self.valor_sin_iva else None
+
+    def dias_para_vencer(self):
+        return (self.fecha_renovacion - date.today()).days
+
+    def toJSON(self):
+        f = lambda d: d.strftime('%Y-%m-%d') if d else None
+        tomador = self.tomador
+        return {
+            'id': self.id,
+            'vehiculo_id': self.vehiculo_id,
+            'placa': self.vehiculo.placa,
+            'tomador': tomador.names,
+            'documento': f'{tomador.document_type.abbreviation if tomador.document_type else ""} {tomador.dni}'.strip(),
+            'celular': tomador.mobile,
+            'asesor': self.asesor.nombres,
+            'aseguradora': self.aseguradora.name,
+            'tipo_poliza': self.tipo_poliza.name,
+            'plan': self.plan,
+            'numero_poliza': self.numero_poliza,
+            'ciudad': str(self.zona_circulacion),
+            'fecha_renovacion': f(self.fecha_renovacion),
+            'dias_para_vencer': self.dias_para_vencer(),
+            'prima_total': float(self.prima_total),
+            'valor_sin_iva': float(self.valor_sin_iva),
+            'valor_comision': float(self.valor_comision),
+            'porcentaje_comision': self.porcentaje_comision,
+            'descuentos': float(self.descuentos),
+            'numero_cuotas': self.numero_cuotas,
+            'forma_pago': self.forma_pago,
+            'fecha_pago': f(self.fecha_pago),
+            'estado': {'id': self.estado, 'name': self.get_estado_display()},
+            'fecha_pago_aseguradora': f(self.fecha_pago_aseguradora),
+            'estado_comision': {'id': self.estado_comision, 'name': self.get_estado_comision_display()},
+            'fecha_pago_cartera': f(self.fecha_pago_cartera),
+            'origen': self.origen,
+        }
+
+    class Meta:
+        verbose_name = 'Póliza'
+        verbose_name_plural = 'Pólizas'
+        ordering = ['-fecha_renovacion', '-id']
+        default_permissions = ()
+        permissions = perms_for('policies.Poliza')
+
+
+class CuotaPoliza(models.Model):
+    """Una cuota mensual de una póliza financiada por la aseguradora. Solo es para hacer seguimiento y recordar al cliente:
+    el dinero va directo a la aseguradora. El valor es aproximado (prima / número de cuotas); se puede ajustar."""
+    poliza = models.ForeignKey(Poliza, on_delete=models.CASCADE, related_name='cuotas', verbose_name='Póliza')
+    numero = models.PositiveSmallIntegerField(verbose_name='Cuota')
+    fecha = models.DateField(verbose_name='Fecha de pago')
+    valor = models.DecimalField(max_digits=14, decimal_places=2, default=0, verbose_name='Valor aproximado')
+    pagada = models.BooleanField(default=False, verbose_name='Pagada')
+    fecha_pagada = models.DateField(null=True, blank=True, verbose_name='Marcada como pagada el')
+
+    def toJSON(self):
+        return {
+            'id': self.id,
+            'numero': self.numero,
+            'fecha': self.fecha.strftime('%Y-%m-%d'),
+            'valor': float(self.valor),
+            'pagada': self.pagada,
+            'fecha_pagada': self.fecha_pagada.strftime('%Y-%m-%d') if self.fecha_pagada else None,
+        }
+
+    class Meta:
+        verbose_name = 'Cuota de póliza'
+        verbose_name_plural = 'Cuotas de pólizas'
+        ordering = ['poliza', 'numero']
+        unique_together = ('poliza', 'numero')
+        default_permissions = ()
+
+
+class CuentaCorreo(models.Model):
+    """Cuenta de correo desde la que salen las cotizaciones (servidor SMTP). La contraseña se guarda cifrada y nunca
+    se expone en toJSON(). En Google Workspace (galiseguros.com) es una «contraseña de aplicación» de la cuenta."""
+    nombre = models.CharField(max_length=100, verbose_name='Nombre de la cuenta')
+    correo = models.EmailField(max_length=150, verbose_name='Correo que envía')
+    nombre_remitente = models.CharField(max_length=150, blank=True, default='', verbose_name='Nombre que ve el cliente')
+    servidor = models.CharField(max_length=150, default='smtp.gmail.com', verbose_name='Servidor SMTP')
+    puerto = models.PositiveIntegerField(default=587, verbose_name='Puerto')
+    seguridad = models.CharField(max_length=10, choices=SEGURIDAD_SMTP, default='tls', verbose_name='Seguridad')
+    usuario = models.CharField(max_length=150, blank=True, default='', verbose_name='Usuario (si es distinto del correo)')
+    clave = EncryptedCharField(max_length=500, blank=True, default='', verbose_name='Contraseña de aplicación')
+    probada_en = models.DateTimeField(null=True, blank=True, verbose_name='Última prueba de conexión')
+    prueba_ok = models.BooleanField(null=True, blank=True, verbose_name='La última prueba funcionó')
+    prueba_mensaje = models.CharField(max_length=300, blank=True, default='', verbose_name='Resultado de la última prueba')
+    is_active = models.BooleanField(default=True, verbose_name='Activa')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
+
+    def __str__(self):
+        return f'{self.nombre} <{self.correo}>'
+
+    @property
+    def remitente(self):
+        return f'{self.nombre_remitente} <{self.correo}>' if self.nombre_remitente else self.correo
+
+    def toJSON(self):
+        item = model_to_dict(self, exclude=['clave', 'probada_en', 'created_at'])
+        item['tiene_clave'] = bool(self.clave)
+        item['seguridad_display'] = self.get_seguridad_display()
+        item['probada_en'] = timezone.localtime(self.probada_en, ZoneInfo('America/Bogota')).strftime('%Y-%m-%d %H:%M') if self.probada_en else None
+        return item
+
+    class Meta:
+        verbose_name = 'Cuenta de correo'
+        verbose_name_plural = 'Cuentas de correo'
+        ordering = ['nombre']
+        default_permissions = ()
+        permissions = perms_for('policies.CuentaCorreo')
+
+
+class PlantillaCorreo(models.Model):
+    """Plantilla del correo con el que se envía la cotización al cliente. El asunto, los destinatarios y el cuerpo
+    llevan variables ({cliente}, {placa}…) y bloques ({datos_vehiculo}, {comparativo}, {promocion}, {firma}) que se
+    llenan al armar el correo (ver core.policies.services.correo)."""
+    nombre = models.CharField(max_length=100, verbose_name='Nombre de la plantilla')
+    tipo_seguro = models.CharField(max_length=20, choices=TIPO_SEGURO_PLANTILLA, default='autos', verbose_name='Tipo de seguro')
+    cuenta = models.ForeignKey(CuentaCorreo, on_delete=models.PROTECT, null=True, blank=True, related_name='plantillas',
+                               verbose_name='Cuenta desde la que sale el correo')
+    para = models.CharField(max_length=300, default='{correo_cliente}', verbose_name='Para')
+    cc = models.CharField(max_length=500, blank=True, default='', verbose_name='Con copia (CC)')
+    asunto = models.CharField(max_length=300, verbose_name='Asunto')
+    cuerpo = models.TextField(verbose_name='Cuerpo del correo')
+    promocion_activa = models.BooleanField(default=True, verbose_name='Incluir la promoción en el correo')
+    promocion_texto = models.CharField(max_length=300, blank=True, default='', verbose_name='Texto de la promoción')
+    promocion_imagen = models.ImageField(upload_to='plantillas/promociones/%Y/%m', null=True, blank=True, verbose_name='Imagen de la promoción')
+    promocion_aseguradora = models.ForeignKey(Aseguradora, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                              verbose_name='Mostrar la promoción solo si esta aseguradora está en el comparativo')
+    vigencia_cotizacion_dias = models.PositiveSmallIntegerField(default=15, verbose_name='Días de vigencia de las cotizaciones')
+    adjuntar_pdf = models.BooleanField(default=True, verbose_name='Adjuntar el PDF del comparativo')
+    predeterminada = models.BooleanField(default=False, verbose_name='Predeterminada para su tipo de seguro')
+    is_active = models.BooleanField(default=True, verbose_name='Activa')
+    actualizada_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Actualizada por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    def __str__(self):
+        return self.nombre
+
+    def toJSON(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'tipo_seguro': self.get_tipo_seguro_display(),
+            'cuenta': str(self.cuenta) if self.cuenta else None,
+            'asunto': self.asunto,
+            'predeterminada': self.predeterminada,
+            'is_active': self.is_active,
+            'actualizada_por': (self.actualizada_por.names or self.actualizada_por.username) if self.actualizada_por else None,
+            'updated_at': timezone.localtime(self.updated_at, ZoneInfo('America/Bogota')).strftime('%Y-%m-%d %H:%M'),
+        }
+
+    class Meta:
+        verbose_name = 'Plantilla de correo'
+        verbose_name_plural = 'Plantillas de correo'
+        ordering = ['tipo_seguro', '-predeterminada', 'nombre']
+        default_permissions = ()
+        permissions = perms_for('policies.PlantillaCorreo')
+
+
+class FirmaCorreo(models.Model):
+    """Firma (imagen) que cada usuario pone al final de los correos que envía."""
+    usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='firma_correo', verbose_name='Usuario')
+    imagen = models.ImageField(upload_to='firmas/%Y/%m', verbose_name='Imagen de la firma')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    def __str__(self):
+        return f'Firma de {self.usuario}'
+
+    class Meta:
+        verbose_name = 'Firma de correo'
+        verbose_name_plural = 'Firmas de correo'
+        default_permissions = ()
+        permissions = perms_for('policies.FirmaCorreo')
+
+
+class CorreoEnviado(models.Model):
+    """Registro de cada correo de cotización que se intentó enviar (enviado o con error)."""
+    vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='correos', verbose_name='Vehículo')
+    plantilla = models.ForeignKey(PlantillaCorreo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Plantilla')
+    remitente = models.CharField(max_length=200, verbose_name='De')
+    para = models.CharField(max_length=500, verbose_name='Para')
+    cc = models.CharField(max_length=500, blank=True, default='', verbose_name='CC')
+    asunto = models.CharField(max_length=300, verbose_name='Asunto')
+    adjunto = models.CharField(max_length=150, blank=True, default='', verbose_name='Adjunto')
+    estado = models.CharField(max_length=10, choices=ESTADO_CORREO, default='enviado', verbose_name='Estado')
+    error = models.TextField(blank=True, default='', verbose_name='Error')
+    enviado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Enviado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Correo enviado'
+        verbose_name_plural = 'Correos enviados'
+        ordering = ['-created_at', '-id']
+        default_permissions = ()
+        permissions = perms_for('policies.CorreoEnviado')

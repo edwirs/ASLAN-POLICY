@@ -1,0 +1,75 @@
+{% extends 'form.html' %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-envelope-open-text"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{% if cuenta %}{{ cuenta.nombre }}{% else %}Nueva cuenta{% endif %}</li>
+{% endblock %}
+
+{% block form_fields %}
+    <div class="alert alert-light border small">
+        <b><i class="fa-brands fa-google"></i> Google Workspace (galiseguros.com):</b> servidor <code>smtp.gmail.com</code>, puerto <code>587</code>, STARTTLS.
+        La contraseña es una <b>contraseña de aplicación</b> de 16 letras: en la cuenta de Google de ese correo › Seguridad ›
+        Verificación en dos pasos (debe estar activa) › Contraseñas de aplicaciones › crear una llamada «ASLAN».
+        <br><b><i class="fa-brands fa-microsoft"></i> Office 365:</b> servidor <code>smtp.office365.com</code>, puerto <code>587</code>, STARTTLS.
+    </div>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.nombre ayuda='Para reconocerla al elegirla en la plantilla.' %}
+        {% include 'asesor/_campo.html' with campo=form.correo %}
+        {% include 'asesor/_campo.html' with campo=form.nombre_remitente ayuda='Lo que ve el cliente como remitente. Vacío = solo el correo.' %}
+        {% include 'asesor/_campo.html' with campo=form.usuario ayuda='Casi siempre es el mismo correo: déjelo vacío.' %}
+        {% include 'asesor/_campo.html' with campo=form.servidor col='col-md-5' %}
+        {% include 'asesor/_campo.html' with campo=form.puerto col='col-md-2' %}
+        {% include 'asesor/_campo.html' with campo=form.seguridad col='col-md-5' %}
+        <div class="col-md-6 mb-3">
+            <label for="{{ form.clave.id_for_label }}" class="form-label fw-bold">{{ form.clave.label }}{% if not cuenta.clave %} <span class="text-danger">*</span>{% endif %}:</label>
+            {{ form.clave }}
+            <small class="text-muted">{% if cuenta.clave %}Ya hay una contraseña guardada (cifrada). Déjela vacía para conservarla.{% else %}Se guarda cifrada y nunca se vuelve a mostrar.{% endif %}</small>
+        </div>
+    </div>
+    <div class="form-check form-switch">
+        {{ form.is_active }}
+        <label class="form-check-label fw-bold" for="{{ form.is_active.id_for_label }}">Cuenta activa</label>
+    </div>
+{% endblock %}
+
+{% block buttons %}
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar cuenta</button>
+    <button type="button" class="btn btn-outline-secondary" id="btnProbar"><i class="fa-solid fa-plug"></i> Probar conexión</button>
+    <a href="{{ list_url }}#cuentas" class="btn btn-danger"><i class="fas fa-times"></i> Cancelar</a>
+{% endblock %}
+
+{% block content_form_before %}
+    <script type="application/javascript">
+        $(function () {
+            function enviar(accion, ok) {
+                var fd = new FormData(document.getElementById('frmForm'));
+                fd.set('action', accion);
+                $.LoadingOverlay('show');
+                $.ajax({url: window.location.pathname, type: 'POST', headers: {'X-CSRFToken': csrftoken}, data: fd,
+                    processData: false, contentType: false, dataType: 'json'})
+                    .done(function (r) {
+                        if (r.error) {
+                            message_error(typeof r.error === 'object' ? Object.keys(r.error).map(function (c) {
+                                return ($('label[for="id_' + c + '"]').first().text().replace(/[*:]/g, '').trim() || c) + ': ' + r.error[c].join(' ');
+                            }).join('\n') : r.error);
+                            return;
+                        }
+                        ok(r);
+                    })
+                    .fail(function (xhr) { message_error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo completar la acción.'); })
+                    .always(function () { $.LoadingOverlay('hide'); });
+            }
+            $('#frmForm').off('submit').on('submit', function (e) {
+                e.preventDefault();
+                enviar('guardar', function (r) { window.location.href = r.url; });
+            });
+            $('#btnProbar').on('click', function () {
+                enviar('probar', function (r) {
+                    Swal.fire({icon: r.ok ? 'success' : 'error', title: r.ok ? 'La cuenta funciona' : 'La cuenta no funciona', text: r.mensaje});
+                });
+            });
+        });
+    </script>
+{% endblock %}

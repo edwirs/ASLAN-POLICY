@@ -6,11 +6,12 @@
     <title>Comparativo {{ vehiculo.placa }}</title>
     <link rel="stylesheet" href="{% static 'lib/fontawesome-6.1.1/css/all.min.css' %}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,600,700,800&display=fallback">
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=6">
     <link rel="stylesheet" href="{% static 'comparativo/css/imprimir.css' %}?v=6">
 </head>
 <body class="cmp-imprimir-body">
 
+{% if not para_pdf %}{# El PDF que va adjunto al correo lo genera el servidor: sin barra ni diálogo de impresión #}
 <div class="cmp-barra-herramientas cmp-no-imprimir">
     <div class="cmp-barra-texto">
         <b>Vista de impresión</b>
@@ -21,6 +22,7 @@
         <button type="button" class="cmp-btn" onclick="window.close()"><i class="fa-solid fa-xmark"></i> Cerrar</button>
     </div>
 </div>
+{% endif %}
 
 <div class="cmp-marca-agua" aria-hidden="true">COTIZACIÓN</div>
 <div class="cmp-leyenda-lateral" aria-hidden="true">PDF de cotización generado por el sistema de información ASLAN MultiAgente de Seguros · {{ generado_en|date:"d/m/Y H:i" }} · {{ generado_por }} · Ref. {{ documento_ref }}</div>
@@ -90,11 +92,13 @@
     </table>
 </main>
 
+{% if not para_pdf %}
 <script>
     // Abre el diálogo de impresión al cargar (las fuentes y los íconos ya están listos).
     window.addEventListener('load', function () {
         setTimeout(function () { window.print(); }, 400);
     });
 </script>
+{% endif %}
 </body>
 </html>

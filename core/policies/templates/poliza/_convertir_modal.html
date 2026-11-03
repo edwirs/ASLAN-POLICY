@@ -1,0 +1,23 @@
+{# «El cliente eligió esta»: convierte la solicitud cotizada en póliza. Lo usan Solicitudes registradas y el Comparativo. #}
+{% load static %}
+<link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=3">
+<script src="{% static 'poliza/js/convertir.js' %}?v=2"></script>
+<div class="modal fade" id="modalConvertir" tabindex="-1" aria-labelledby="modalConvertirLabel" aria-hidden="true"
+     data-url="{% url 'poliza_convertir' %}" data-polizas-url="{% url 'poliza_list' %}">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalConvertirLabel"><i class="fa-solid fa-file-signature"></i> Convertir en póliza <b id="cvPlaca"></b></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="cvCuerpo">
+                <div class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> Cargando opciones…</div>
+            </div>
+            <div class="modal-footer" id="cvPie">
+                <span class="me-auto small text-muted" id="cvResumen"></span>
+                <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary rounded-pill" id="cvConvertir" disabled><i class="fa-solid fa-check"></i> Convertir en póliza</button>
+            </div>
+        </div>
+    </div>
+</div>

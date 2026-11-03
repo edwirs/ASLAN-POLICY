@@ -2,12 +2,12 @@
 
 /* Botón «Aslani» de la barra superior: pastilla con borde azul. */
 .asist-nav {
-    display: inline-flex; align-items: center; gap: 7px; font-weight: 600;
-    border: 1.5px solid var(--aslan-blue, #2ab1ee); border-radius: 999px; padding: 3px 14px 3px 9px !important; margin: 0 6px;
+    display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .86rem;
+    border: 1.5px solid var(--aslan-blue, #2ab1ee); border-radius: 999px; padding: 2px 11px 2px 7px !important; margin: 0 6px;
     transition: background .15s, box-shadow .15s;
 }
 .asist-nav:hover, .asist-nav.activo { background: rgba(42, 177, 238, .12); box-shadow: 0 0 0 3px rgba(42, 177, 238, .15); }
-.asist-nav-img { height: 24px; width: auto; display: block; transition: transform .2s; }
+.asist-nav-img { height: 20px; width: auto; display: block; transition: transform .2s; }
 .asist-nav:hover .asist-nav-img { transform: rotate(-6deg) scale(1.08); }
 @media (max-width: 575px) { .asist-nav-texto { display: none; } .asist-nav { padding: 3px 9px !important; } }
 @media (prefers-reduced-motion: reduce) { .asist-nav:hover .asist-nav-img { transform: none; } }

@@ -49,6 +49,25 @@ def normalizar_texto(texto):
     return ''.join(c for c in sin_tildes if unicodedata.category(c) != 'Mn').lower().strip()
 
 
+def sin_signos(texto):
+    """Minúsculas, sin tildes ni puntuación: «Bogotá, D.c.», «BOGOTA D.C.» y «Bogota- D.c.» quedan iguales."""
+    return re.sub(r'[^a-z0-9]+', ' ', normalizar_texto(texto)).strip()
+
+
+def nombre_para_portal(nombre):
+    """Cómo escribir un municipio o departamento en el buscador de un portal: sin lo que va después de la coma ni el
+    «D.C.» («Bogotá, D.c.» → «Bogotá», «Bogota- D.c.» → «Bogota»). Los portales listan Bogotá de muchas formas
+    («Bogotá - Cundinamarca», «BOGOTA D.C.»…) y ninguna lleva la coma con la que está en nuestra tabla de municipios."""
+    corto = (nombre or '').split(',')[0]
+    corto = re.sub(r'[\s-]*d\.?\s*c\.?\s*$', '', corto, flags=re.IGNORECASE).strip(' -')
+    return corto or (nombre or '').strip()
+
+
+def es_bogota(municipio):
+    """Bogotá D.C. (código DANE 11001). Algunos portales la ubican en Cundinamarca."""
+    return (getattr(municipio, 'codigo', '') or '').startswith('11')
+
+
 PASO_LOGIN = 'Inicio de sesión'
 
 
@@ -152,6 +171,14 @@ def _limpiar_alerta(texto):
 
 # Fragmentos (sin tildes ni mayúsculas) de avisos de portal que significan «este vehículo ya está asegurado».
 AVISOS_NO_COTIZABLE = ('ya contar con este vehiculo asegurado', 'poliza vigente')
+# Los mismos avisos y el de La Equidad («Actualmente el vehículo se encuentra asegurado con la compañía»): el vehículo está
+# asegurado HOY con esa aseguradora. El comparativo y el correo la muestran como la aseguradora actual.
+AVISOS_ASEGURADO_ACTUAL = AVISOS_NO_COTIZABLE + ('asegurado con la compania',)
+
+
+def es_aseguradora_actual(mensaje):
+    normal = normalizar_texto(mensaje or '')
+    return any(aviso in normal for aviso in AVISOS_ASEGURADO_ACTUAL)
 
 
 # Frases (sin tildes ni mayúsculas) con que los portales avisan que la contraseña venció o debe cambiarse. No se
@@ -362,6 +389,127 @@ class RegistroErrorMixin:
                 self.ultima_pantalla = 'Formulario de cambio de contraseña visible. ' + self.ultima_pantalla
         except Exception:
             pass
+
+    # Palabras que delatan cómo se guarda la cotización o se saca el PDF en la pantalla de resultado.
+    PALABRAS_DOCUMENTOS = ('guardar', 'grabar', 'pdf', 'imprimir', 'descargar', 'caratula', 'documento', 'enviar',
+                           'correo', 'resumen', 'slip', 'propuesta', 'exportar')
+
+    def _mapear_documentos(self, page):
+        """Tras cotizar con éxito y ANTES de cerrar sesión: guarda una foto de cada pestaña y la lista de botones y
+        enlaces visibles (también dentro de iframes) en media/bot_debug/mapeo/. No hace clic en nada. Sirve para mapear
+        en cada portal cómo se guarda la cotización y se descarga su PDF. Nunca guarda valores de campos (claves)."""
+        from django.conf import settings
+        if page is None or not getattr(settings, 'BOTS_MAPEAR_DOCUMENTOS', False):
+            return
+        try:
+            import json
+            import os
+            carpeta = os.path.join(settings.MEDIA_ROOT, 'bot_debug', 'mapeo')
+            os.makedirs(carpeta, exist_ok=True)
+            nombre = re.sub(r'[^a-z0-9]+', '_', normalizar_texto(self.cotizacion.aseguradora.name)).strip('_')
+            base = os.path.join(carpeta, f'{nombre}_{self.cotizacion.pk}_{timezone.now():%Y%m%d_%H%M%S}')
+            resultado = []
+            for i, pestana in enumerate(page.context.pages):
+                try:
+                    pestana.screenshot(path=f'{base}_pestana{i}.png', full_page=True, timeout=15000)
+                except Exception:
+                    logger.warning('Mapeo de documentos: no se pudo tomar la foto de la pestaña %s.', i, exc_info=True)
+                for marco in pestana.frames:
+                    try:
+                        elementos = marco.evaluate(
+                            """() => [...document.querySelectorAll('button, a, [role=button], [onclick],'
+                                + ' input[type=button], input[type=submit], input[type=image]')]
+                                .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+                                .slice(0, 400)
+                                .map(e => ({
+                                    etiqueta: e.tagName.toLowerCase(),
+                                    texto: ((e.tagName === 'INPUT' ? e.value : e.innerText) || '').trim().slice(0, 120),
+                                    titulo: (e.title || e.getAttribute('aria-label') || e.getAttribute('alt') || '').slice(0, 120),
+                                    id: e.id || '', clase: (e.className && e.className.baseVal === undefined ? e.className : '').slice(0, 120),
+                                    href: (e.getAttribute('href') || '').slice(0, 300),
+                                    onclick: (e.getAttribute('onclick') || '').slice(0, 300),
+                                    destino: e.getAttribute('target') || '', descarga: e.hasAttribute('download'),
+                                }))""")
+                    except Exception:
+                        continue
+                    for el in elementos:
+                        busqueda = normalizar_texto(' '.join(str(v) for v in el.values()))
+                        el['pista'] = any(p in busqueda for p in self.PALABRAS_DOCUMENTOS)
+                    resultado.append({'pestana': i, 'url': marco.url, 'elementos': elementos})
+            with open(f'{base}.json', 'w', encoding='utf-8') as f:
+                json.dump({'aseguradora': self.cotizacion.aseguradora.name, 'cotizacion': self.cotizacion.pk,
+                           'marcos': resultado}, f, ensure_ascii=False, indent=1)
+            logger.info('Mapeo de documentos guardado en %s.*', base)
+        except Exception:
+            logger.warning('No se pudo guardar el mapeo de documentos.', exc_info=True)
+
+    def _descargar_pdf(self, page, clic, espera=60):
+        """Pulsa (con `clic()`) el botón del portal que descarga el PDF de la cotización y lo guarda en
+        `Cotizacion.pdf`. Atrapa la descarga venga de esta pestaña o de una nueva; si el portal abre el PDF en una
+        pestaña en vez de descargarlo, lo pide por su dirección. Nunca lanza: si no hay PDF, la cotización sigue
+        completada con su valor y el asesor puede subirlo a mano al armar el correo. Devuelve True si lo guardó."""
+        descargas, contexto, escuchadas = [], page.context, []
+
+        def guardar(descarga):
+            descargas.append(descarga)
+
+        def escuchar(pestana):
+            pestana.on('download', guardar)
+            escuchadas.append(pestana)
+        try:
+            antes = list(contexto.pages)
+            for pestana in antes:
+                escuchar(pestana)
+            contexto.on('page', escuchar)
+            try:
+                clic()
+                limite = time.time() + espera
+                while not descargas and time.time() < limite:
+                    page.wait_for_timeout(500)  # también deja que Playwright procese los eventos (descarga, pestaña nueva)
+                    if not descargas and time.time() > limite - espera + 8:
+                        nuevas = [p for p in contexto.pages if p not in antes and p.url not in ('', 'about:blank')]
+                        if nuevas:
+                            break
+            finally:
+                contexto.remove_listener('page', escuchar)
+                for pestana in escuchadas:
+                    try:
+                        pestana.remove_listener('download', guardar)
+                    except Exception:
+                        pass
+            datos = None
+            if descargas:
+                with open(descargas[0].path(), 'rb') as archivo:
+                    datos = archivo.read()
+            else:
+                for nueva in [p for p in contexto.pages if p not in antes]:
+                    try:
+                        respuesta = contexto.request.get(nueva.url, timeout=espera * 1000)
+                        if respuesta.ok and respuesta.body()[:5] == b'%PDF-':
+                            datos = respuesta.body()
+                    finally:
+                        nueva.close()
+            if not datos or datos[:5] != b'%PDF-':
+                logger.warning('%s: el portal no entregó el PDF de la cotización #%s.', self.cotizacion.aseguradora.name, self.cotizacion.pk)
+                return False
+            self._guardar_pdf(datos)
+            return True
+        except Exception:
+            logger.warning('%s: no se pudo descargar el PDF de la cotización #%s.', self.cotizacion.aseguradora.name,
+                           self.cotizacion.pk, exc_info=True)
+            return False
+
+    def _guardar_pdf(self, datos):
+        from django.core.files.base import ContentFile
+        from core.policies.services import pdf_cotizaciones  # import local: evita ciclo al cargar el módulo
+        with schema_context(self.schema_name):
+            self.cotizacion.pdf.save('cotizacion.pdf', ContentFile(datos), save=False)
+            self.cotizacion.pdf_descargado_en = timezone.now()
+            self.cotizacion.save(update_fields=['pdf', 'pdf_descargado_en'])
+            try:
+                pdf_cotizaciones.limpiar_vencidos()  # aprovecha para borrar los PDF viejos que no se usaron
+            except Exception:
+                logger.warning('No se pudieron limpiar los PDF vencidos.', exc_info=True)
 
     def _esperar_al_asesor(self, tipo, mensaje, timeout=300, listo=None, intervalo=1.0):
         """Pausa el bot (sin cerrar el navegador) hasta que una persona haga lo que el bot no puede: ver

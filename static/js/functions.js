@@ -205,18 +205,7 @@ function validate_text_box(args) {
 }
 
 function loading(args) {
-    if (!args.hasOwnProperty('fontawesome')) {
-        args.fontawesome = 'fa-solid fa-circle-notch fa-spin';
-    }
-    if (!args.hasOwnProperty('text')) {
-        args.fontawesome = 'Cargando...';
-    }
-    $.LoadingOverlay("show", {
-        image: "",
-        fontawesome: args.fontawesome,
-        custom: $("<div>", {
-            "class": "loading",
-            "text": args.text
-        })
-    });
+    // El lobo de ASLAN lo pone la configuración global (static/js/cargando.js); aquí solo va el texto.
+    var texto = args && args.text;
+    $.LoadingOverlay("show", {text: (!texto || texto === '...') ? 'Procesando…' : texto});
 }

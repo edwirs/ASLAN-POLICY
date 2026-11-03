@@ -188,6 +188,22 @@ class EquidadBot(RegistroErrorMixin):
         # orden en el DOM, así que el «Continuar» del paso actual es siempre el último visible.
         return page.locator('button:visible', has_text=re.compile(r'^\s*Continuar\s*$', re.I)).last
 
+    def _descargar_cotizacion(self, page):
+        """PDF de la cotización: cada tarjeta de plan tiene su «Descargar»; se usa el del Plan Full (el del comparativo)."""
+        self._paso('PDF de la cotización')
+        try:
+            tarjetas = page.locator('mat-card').filter(has=page.locator('.titulo-plan'))
+            nombres = [t.lower() for t in tarjetas.locator('.titulo-plan').all_inner_texts()]
+            indice = next(i for i, n in enumerate(nombres) if PLAN_PRINCIPAL in n)
+            boton = tarjetas.nth(indice).get_by_role('button', name=re.compile(r'^\s*Descargar\s*$', re.I)).first
+            if not boton.count():  # el botón no está dentro de la tarjeta: van en el mismo orden que las tarjetas
+                boton = page.get_by_role('button', name=re.compile(r'^\s*Descargar\s*$', re.I)).nth(indice)
+            boton.scroll_into_view_if_needed(timeout=10000)
+        except Exception:
+            logger.warning('La Equidad: no se encontró «Descargar» del Plan Full (cotización #%s).', self.cotizacion.pk, exc_info=True)
+            return
+        self._descargar_pdf(page, lambda: boton.click(timeout=15000))
+
     def _cerrar_sesion(self, page):
         """Cierra sesión SIEMPRE, sin lanzar excepción: cierra avisos abiertos, menú de
         usuario > Cerrar sesión > Aceptar (el portal pide confirmar)."""
@@ -239,6 +255,8 @@ class EquidadBot(RegistroErrorMixin):
                     self._descuento(page)
                     self._paso('Cobertura (planes)')
                     self._capturar_planes(page)
+                    self._mapear_documentos(page)
+                    self._descargar_cotizacion(page)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:

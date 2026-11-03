@@ -82,6 +82,8 @@
 .cmp-chip-bot { background: var(--cmp-accent-soft); border-color: transparent; color: var(--cmp-accent); }
 .cmp-chip-manual { background: rgba(217, 119, 6, 0.12); border-color: transparent; color: var(--cmp-gold); }
 .cmp-chip-gris b { color: var(--cmp-text); font-weight: 600; }
+.cmp-chip-actual { background: var(--cmp-accent-soft); border-color: transparent; color: var(--cmp-accent); }
+.cmp-chip-actual b { color: inherit; font-weight: 700; }
 
 /* ---------- Ranking (tabla compacta) ---------- */
 .cmp-rank-tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }

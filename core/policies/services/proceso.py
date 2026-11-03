@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.urls import reverse
 from django.utils import timezone
 
-from core.policies.models import Aseguradora, Cotizacion
+from core.policies.models import Aseguradora, Cotizacion, ValorExterno
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.bots.base import ACCION_POR_TIPO
 
@@ -40,7 +40,7 @@ def _aseguradoras_activas():
 
 
 # Plan cuyo valor se muestra resaltado como la prima de la aseguradora (la de las demás es «Premium»).
-PLAN_DESTACADO = {'La Equidad Seguros': 'Plan Full', 'Qualitas': 'Amplia', 'AXA Colpatria': 'Plus', 'Seguros Mundial': 'Pago de contado'}
+PLAN_DESTACADO = {'La Equidad Seguros': 'Plan Full', 'Qualitas': 'Amplia', 'AXA Colpatria': 'Plus', 'Seguros Mundial': 'Pago de contado', 'Mapfre': 'Super Trebol 117'}
 
 
 def datos_usados(c):
@@ -57,6 +57,36 @@ def datos_usados(c):
     if v.valor_comercial:
         datos.append(('Valor comercial', f'${int(v.valor_comercial):,}'.replace(',', '.')))
     return [{'etiqueta': e, 'valor': val} for e, val in datos]
+
+
+def a_mano(c):
+    """Para cotizar a mano una aseguradora con bot que no trajo valor (p. ej. Seguros del Estado rechaza al navegador del
+    bot): el enlace al portal, los datos para copiar y el valor manual que ya se haya registrado después del intento."""
+    credencial = c.aseguradora.credenciales.filter(is_active=True).order_by('-id').first()
+    v, t = c.vehiculo, c.tomador
+    zona = v.zona_circulacion
+    datos = [
+        ('Placa', v.placa),
+        ('Documento', t.dni),
+        ('Nombre', t.names),
+        ('Nacimiento', t.birthdate.strftime('%d/%m/%Y')),
+        ('Ciudad', zona.nombre if zona else ''),
+        ('Departamento', zona.departamento.nombre if zona else ''),
+        ('Modelo', str(v.modelo or '')),
+        ('Código Fasecolda', v.codigo_fasecolda or ''),
+        ('Celular', t.mobile or ''),
+        ('Otro celular', t.phone or ''),
+        ('Correo', t.email or ''),
+    ]
+    manual = (ValorExterno.objects.filter(vehiculo=v, aseguradora=c.aseguradora, created_at__gt=c.created_at)
+              .select_related('asesor').order_by('-id').first())
+    return {
+        'aseguradora_id': c.aseguradora_id,
+        'portal_url': credencial.portal_url if credencial else None,
+        'datos': [{'etiqueta': e, 'valor': val} for e, val in datos if val],
+        'valor': {'valor': float(manual.valor), 'fecha': timezone.localtime(manual.created_at).strftime('%d/%m/%Y %H:%M'),
+                  'por': manual.asesor.names or manual.asesor.username} if manual else None,
+    }
 
 
 def serializar_cotizacion(c):
@@ -108,6 +138,7 @@ def serializar_cotizacion(c):
         'intento': Cotizacion.objects.filter(vehiculo=c.vehiculo, aseguradora=c.aseguradora, pk__lte=c.pk).count(),
         'iniciada': (c.ejecutado_en or c.created_at).strftime('%d/%m/%Y %H:%M'),
         'datos': datos_usados(c),
+        'a_mano': a_mano(c) if es_error and c.aseguradora.name in BOTS_DISPONIBLES else None,
     }
 
 

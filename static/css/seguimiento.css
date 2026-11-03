@@ -1,0 +1,82 @@
+/* Seguimiento de clientes: etiquetas de «etapa» (se usan en Solicitudes, Vehículos, Pólizas, el panel y el buscador)
+   y el buscador global de la barra superior. */
+
+/* ---------- Etapa ---------- */
+.etapa {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+    font-size: 12px; font-weight: 700; line-height: 1.5; border: 1px solid transparent;
+}
+.etapa i { font-size: 11px; }
+.etapa-gris { background: #eef1f4; color: #4b5563; border-color: #dfe3e8; }
+.etapa-azul { background: #e0f2fe; color: #0369a1; }
+.etapa-ambar { background: #fff3cd; color: #8a6100; }
+.etapa-verde { background: #dcfce7; color: #15803d; }
+.etapa-naranja { background: #ffedd5; color: #c2410c; }
+.etapa-rojo { background: #fde2e1; color: #b42318; }
+.etapa-oscuro { background: #374151; color: #fff; }
+.etapa-detalle { display: block; margin-top: 3px; font-size: 12px; color: #6b7280; white-space: normal; }
+.dark-mode .etapa-gris { background: #3a4047; color: #ced4da; border-color: #4b545c; }
+.dark-mode .etapa-azul { background: rgba(14, 165, 233, .2); color: #7dd3fc; }
+.dark-mode .etapa-ambar { background: rgba(255, 193, 7, .2); color: #ffd666; }
+.dark-mode .etapa-verde { background: rgba(34, 197, 94, .2); color: #86efac; }
+.dark-mode .etapa-naranja { background: rgba(249, 115, 22, .22); color: #fdba74; }
+.dark-mode .etapa-rojo { background: rgba(220, 53, 69, .22); color: #ff8a8a; }
+.dark-mode .etapa-oscuro { background: #e5e7eb; color: #111827; }
+.dark-mode .etapa-detalle { color: #adb5bd; }
+
+/* Botones de filtro por etapa / estado (encima de las tablas) */
+.filtros-etapa { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.filtros-etapa .btn { display: inline-flex; align-items: center; gap: 6px; }
+.filtros-etapa .btn .badge { font-size: 11px; }
+.filtros-etapa .btn:not(.btn-primary) .badge { background: #e5e7eb; color: #374151; }
+.filtros-etapa .btn.vacio { opacity: .55; }
+.dark-mode .filtros-etapa .btn:not(.btn-primary) .badge { background: #4b545c; color: #f1f3f5; }
+
+/* ---------- Buscador global (barra superior) ---------- */
+.buscador-global { position: relative; display: flex; align-items: center; margin-left: 6px; }
+.bg-caja {
+    display: flex; align-items: center; gap: 8px; width: clamp(220px, 32vw, 430px); height: 36px; padding: 0 10px 0 13px;
+    border: 1px solid #e2e8f0; border-radius: 999px; background: #f8fafc; transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.bg-caja:focus-within { border-color: #f28b41; box-shadow: 0 0 0 .2rem rgba(242, 139, 65, .16); background: #fff; }
+.bg-caja > i { color: #94a3b8; font-size: 13px; }
+.bg-caja input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 14px; color: #1f2937; }
+.bg-caja input::-webkit-search-cancel-button { cursor: pointer; }
+.bg-caja kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid #e2e8f0; background: #fff; color: #94a3b8; font-size: 11px; box-shadow: none; }
+.bg-resultados {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 1060; width: min(560px, calc(100vw - 24px)); max-height: 70vh; overflow-y: auto;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 18px 40px rgba(15, 23, 42, .18); padding: 6px;
+}
+.bg-item { display: block; padding: 10px 12px; border-radius: 10px; color: #1f2937; text-decoration: none; cursor: pointer; }
+.bg-item + .bg-item { border-top: 1px solid #f1f5f9; }
+.bg-item:hover, .bg-item.activo { background: #fff7f0; }
+.bg-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bg-placa { font-weight: 800; letter-spacing: .06em; font-size: 15px; padding: 1px 8px; border: 2px solid #1f2937; border-radius: 6px; }
+.bg-vehiculo { font-size: 13px; color: #475569; margin-left: 8px; }
+.bg-cliente { margin-top: 5px; font-size: 13px; color: #334155; }
+.bg-cliente small { color: #6b7280; }
+.bg-enlaces { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.bg-enlaces a {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    border: 1px solid #e2e8f0; color: #334155; text-decoration: none; background: #fff;
+}
+.bg-enlaces a:hover { border-color: #f28b41; color: #c2410c; }
+.bg-vacio { padding: 14px; text-align: center; color: #6b7280; font-size: 13px; }
+.dark-mode .bg-caja { background: #3a4047; border-color: #4b545c; }
+.dark-mode .bg-caja:focus-within { background: #343a40; }
+.dark-mode .bg-caja input { color: #f1f3f5; }
+.dark-mode .bg-caja kbd { background: #343a40; border-color: #4b545c; }
+.dark-mode .bg-resultados { background: #343a40; border-color: #4b545c; }
+.dark-mode .bg-item { color: #f1f3f5; }
+.dark-mode .bg-item + .bg-item { border-top-color: #4b545c; }
+.dark-mode .bg-item:hover, .dark-mode .bg-item.activo { background: #3f474e; }
+.dark-mode .bg-placa { border-color: #f1f3f5; }
+.dark-mode .bg-vehiculo, .dark-mode .bg-cliente { color: #ced4da; }
+.dark-mode .bg-enlaces a { background: #3a4047; border-color: #4b545c; color: #f1f3f5; }
+@media (max-width: 767.98px) {
+    .bg-caja { width: 46px; padding: 0; justify-content: center; }
+    .bg-caja input, .bg-caja kbd { display: none; }
+    .buscador-global.abierto .bg-caja { position: fixed; left: 12px; right: 12px; top: 10px; width: auto; z-index: 1061; padding: 0 12px; justify-content: flex-start; }
+    .buscador-global.abierto .bg-caja input { display: block; }
+    .buscador-global.abierto .bg-resultados { position: fixed; top: 54px; left: 12px; width: auto; right: 12px; }
+}

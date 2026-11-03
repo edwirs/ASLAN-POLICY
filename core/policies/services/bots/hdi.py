@@ -41,10 +41,13 @@ from core.policies.services.bots.base import (  # noqa: E402
     RegistroErrorMixin,
     _accent_insensitive_pattern,
     dividir_nombre,
+    es_bogota,
     escribir_verificado,
     exigir_clave_al_dia,
+    nombre_para_portal,
     normalizar_texto,
     parse_money,
+    sin_signos,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,6 +117,18 @@ class HdiBot(RegistroErrorMixin):
         except Exception:
             logger.exception('No se pudo capturar el diagnóstico de HDI tras la falla')
 
+    def _descargar_cotizacion(self, page):
+        """PDF de la cotización: enlace «Generar cotización en PDF» de la pantalla de paquetes. No se pulsa «Guardar y salir»."""
+        self._paso('PDF de la cotización')
+        try:
+            enlace = page.get_by_text(re.compile(r'Generar cotizaci[oó]n en PDF', re.I)).first
+            enlace.wait_for(state='visible', timeout=30000)
+            enlace.scroll_into_view_if_needed()
+        except Exception:
+            logger.warning('HDI: no apareció «Generar cotización en PDF» (cotización #%s).', self.cotizacion.pk, exc_info=True)
+            return
+        self._descargar_pdf(page, lambda: enlace.click(timeout=15000))
+
     def _cerrar_sesion(self, cotizador, home):
         """Cierra sesión SIEMPRE, sin lanzar excepción. Cerrar desde el
         cotizador cierra también la oficina en línea; se intenta además en
@@ -164,6 +179,8 @@ class HdiBot(RegistroErrorMixin):
                     self._info_personal(cotizador)
                     self._paso('Cotización (paquetes)')
                     self._capturar_cotizacion(cotizador)
+                    self._mapear_documentos(cotizador)
+                    self._descargar_cotizacion(cotizador)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:
@@ -466,23 +483,26 @@ class HdiBot(RegistroErrorMixin):
         if not campo.is_enabled() or campo.input_value():
             return
         municipio = self.vehiculo.zona_circulacion
+        # Se escribe sin «, D.c.» (el portal no encuentra «Bogotá, D.c.») y se compara sin tildes ni puntuación.
+        termino = nombre_para_portal(municipio.nombre)
         campo.click()
-        campo.press_sequentially(municipio.nombre, delay=90)
+        campo.press_sequentially(termino, delay=90)
         cot.wait_for_timeout(2500)
-        depto_n, mun_n = normalizar_texto(municipio.departamento.nombre), normalizar_texto(municipio.nombre)
-        sugerencias = cot.locator('button').filter(has_text=_accent_insensitive_pattern(municipio.nombre[:5]))
+        mun_n = sin_signos(termino)
+        deptos = [sin_signos(nombre_para_portal(municipio.departamento.nombre))] + (['cundinamarca'] if es_bogota(municipio) else [])
+        sugerencias = cot.locator('button').filter(has_text=_accent_insensitive_pattern(termino[:5]))
         textos = [t.strip() for t in sugerencias.all_inner_texts()]
+        palabras = [sin_signos(t).split() for t in textos]
         elegido = None
-        for i, texto in enumerate(textos):
-            normal = normalizar_texto(texto)
-            if mun_n in normal and depto_n in normal:
+        # 1) el municipio y su departamento; 2) que empiece por el municipio; 3) que lo contenga como palabra.
+        for i, normal in enumerate(sin_signos(t) for t in textos):
+            if mun_n in normal and any(d in normal for d in deptos):
                 elegido = i
                 break
         if elegido is None:
-            for i, texto in enumerate(textos):
-                if mun_n in normalizar_texto(texto):
-                    elegido = i
-                    break
+            elegido = next((i for i, t in enumerate(textos) if sin_signos(t).startswith(mun_n)), None)
+        if elegido is None:
+            elegido = next((i for i, p in enumerate(palabras) if mun_n.split()[0] in p), None)
         if elegido is None:
             raise BotDatosError(
                 f'HDI no ofreció la ciudad «{municipio}» en «Ciudad de movilización» (sugerencias: {", ".join(textos) or "ninguna"}).',

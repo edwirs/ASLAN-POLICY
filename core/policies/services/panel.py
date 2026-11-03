@@ -199,3 +199,57 @@ def datos_panel(dias=PERIODO_POR_DEFECTO):
             'meses': serie_meses,
         },
     }
+
+
+DIAS_SIN_DECISION = 7
+
+
+def datos_seguimiento(dias=PERIODO_POR_DEFECTO):
+    """Indicadores de negocio del panel: renovaciones, cuotas, clientes sin decisión, conversión y comisiones pendientes."""
+    from django.db.models import Count, Q, Sum
+
+    from core.policies.models import CuotaPoliza, Poliza
+    from core.policies.services.etapas import etapas_por_vehiculo
+    from core.policies.services.polizas import DIAS_AVISO_RENOVACION
+
+    hoy = timezone.now().astimezone(TZ_NEGOCIO).date()
+    dias = normalizar_periodo(dias)
+    desde = hoy - timedelta(days=dias - 1)
+    activas = Poliza.objects.filter(estado='generada')
+
+    renovar = list(activas.filter(fecha_renovacion__gte=hoy, fecha_renovacion__lte=hoy + timedelta(days=DIAS_AVISO_RENOVACION))
+                   .select_related('vehiculo', 'tomador', 'aseguradora').order_by('fecha_renovacion'))
+    cuotas_vencidas = CuotaPoliza.objects.filter(poliza__estado='generada', pagada=False, fecha__lt=hoy)
+    cuotas_semana = list(CuotaPoliza.objects.filter(poliza__estado='generada', pagada=False, fecha__gte=hoy, fecha__lte=hoy + timedelta(days=7))
+                         .select_related('poliza__vehiculo', 'poliza__tomador', 'poliza__aseguradora').order_by('fecha'))
+
+    vehiculos = list(Vehiculo.objects.select_related('tomador'))
+    etapas = etapas_por_vehiculo(vehiculos, hoy=hoy)
+    esperando = [(v, etapas[v.pk]) for v in vehiculos if etapas[v.pk]['id'] == 'esperando']
+    esperando.sort(key=lambda x: -(x[1]['dias'] or 0))
+    viejos = [x for x in esperando if (x[1]['dias'] or 0) >= DIAS_SIN_DECISION]
+
+    # Conversión del período: de los vehículos cotizados, cuántos tomaron póliza (registrada en el sistema en el período).
+    cotizados = (Cotizacion.objects.filter(created_at__gte=_inicio_de_dia(desde)).values('vehiculo_id').distinct().count())
+    tomadas = Poliza.objects.filter(origen='sistema', created_at__gte=_inicio_de_dia(desde)).values('vehiculo_id').distinct().count()
+    no_compraron = Vehiculo.objects.filter(no_compro_fecha__gte=desde).count()
+
+    comision = activas.filter(estado_comision='cartera').aggregate(n=Count('id'), total=Sum('valor_comision'))
+    return {
+        'dias_aviso': DIAS_AVISO_RENOVACION,
+        'renovar': [{'poliza_id': p.pk, 'placa': p.vehiculo.placa, 'cliente': p.tomador.names, 'celular': p.tomador.mobile,
+                     'aseguradora': p.aseguradora.name, 'vence': p.fecha_renovacion, 'dias': (p.fecha_renovacion - hoy).days} for p in renovar],
+        'cuotas_vencidas': cuotas_vencidas.values('poliza_id').distinct().count(),
+        'cuotas_semana': [{'poliza_id': c.poliza_id, 'placa': c.poliza.vehiculo.placa, 'cliente': c.poliza.tomador.names,
+                           'celular': c.poliza.tomador.mobile, 'aseguradora': c.poliza.aseguradora.name, 'numero': c.numero,
+                           'total': c.poliza.numero_cuotas, 'fecha': c.fecha, 'valor': c.valor} for c in cuotas_semana],
+        'esperando': len(esperando),
+        'esperando_viejos': len(viejos),
+        'esperando_lista': [{'vehiculo_id': v.pk, 'placa': v.placa, 'cliente': v.tomador.names, 'celular': v.tomador.mobile,
+                             'dias': e['dias'], 'detalle': e['detalle']} for v, e in esperando[:8]],
+        'dias_sin_decision': DIAS_SIN_DECISION,
+        'cotizados': cotizados, 'tomadas': tomadas, 'no_compraron': no_compraron,
+        'conversion': round(tomadas * 100 / cotizados) if cotizados else None,
+        'comision_pendiente_n': comision['n'] or 0,
+        'comision_pendiente': comision['total'] or 0,
+    }

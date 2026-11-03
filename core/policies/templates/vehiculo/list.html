@@ -8,16 +8,58 @@
 {% endblock %}
 
 {% block assets_list %}
-    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}">
+    <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}?v=2">
     <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}">
-    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}"};</script>
-    <script src="{% static 'solicitud/js/proceso.js' %}?v=2"></script>
-    <script src="{% static 'comparativo/js/modales.js' %}"></script>
-    <script src="{% static 'vehiculo/js/list.js' %}"></script>
+    <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}", valorManual: "{% url 'vehiculo_comparativo_valores' 0 %}", puedeValorManual: {{ perms.policies.add_valor_externo|yesno:'true,false' }}};</script>
+    <script src="{% static 'solicitud/js/proceso.js' %}?v=3"></script>
+    <script src="{% static 'comparativo/js/modales.js' %}?v=2"></script>
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <script src="{% static 'vehiculo/js/list.js' %}?v=9"></script>
+{% endblock %}
+
+{% block ayuda %}
+    Cada fila es un vehículo cotizado. La <b>etapa</b> dice en qué va: <b>Esperando decisión</b> = ya tiene valores y falta saber qué eligió el
+    cliente. Si eligió, usa <i class="fa-solid fa-file-signature"></i> para convertirla en póliza; si no compró, usa
+    <i class="fa-solid fa-user-xmark"></i> y elige el motivo (la placa sigue activa y se puede volver a cotizar).
 {% endblock %}
 
 {% block content_list %}
-    <div id="vehiculoPermisos" data-comparar="{{ puede_comparar|yesno:'1,0' }}" data-registrar="{{ puede_registrar_valores|yesno:'1,0' }}" hidden></div>
+    <div class="filtros-etapa" id="filtrosEtapa" role="group" aria-label="Filtrar por etapa">
+        <button type="button" class="btn btn-sm rounded-pill btn-primary" data-etapa="todas">Todas <span class="badge rounded-pill">0</span></button>
+        {% for valor, nombre in etapas %}
+            <button type="button" class="btn btn-sm rounded-pill btn-outline-secondary" data-etapa="{{ valor }}">{{ nombre }} <span class="badge rounded-pill">0</span></button>
+        {% endfor %}
+    </div>
+    {% if puede_registrar_poliza %}
+    <div class="modal fade" id="modalNoCompro" tabindex="-1" aria-labelledby="modalNoComproLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNoComproLabel"><i class="fa-solid fa-user-xmark"></i> El cliente no compró · <b id="noComproPlaca"></b></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-bold" for="noComproMotivo">¿Por qué no compró?</label>
+                    <select class="form-select mb-3" id="noComproMotivo">
+                        <option value="">Elige el motivo…</option>
+                        {% for valor, nombre in motivos_no_compro %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}
+                    </select>
+                    <label class="form-label fw-bold" for="noComproNota">Nota <small class="text-muted fw-normal">(opcional)</small></label>
+                    <input type="text" class="form-control" id="noComproNota" maxlength="300" placeholder="Ej. le salió más barato en su banco">
+                    <p class="text-muted small mt-3 mb-0">La placa sigue activa: si el cliente vuelve, se cotiza normalmente. Si vendió el carro o lo perdió,
+                        márcalo en <b>Vehículos registrados</b>.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="btnGuardarNoCompro"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div id="vehiculoPermisos" data-comparar="{{ puede_comparar|yesno:'1,0' }}" data-registrar="{{ puede_registrar_valores|yesno:'1,0' }}" data-poliza="{{ puede_registrar_poliza|yesno:'1,0' }}" hidden></div>
+    {% if puede_registrar_poliza %}{% include 'poliza/_convertir_modal.html' %}{% endif %}
     {% if puede_comparar %}{% include 'comparativo/_modales.html' %}{% endif %}
     <!-- MODAL: ESTADO DE LA SOLICITUD CON CADA ASEGURADORA -->
     <div class="modal fade" id="modalProceso" tabindex="-1" aria-labelledby="modalProcesoLabel" aria-hidden="true"
@@ -30,7 +72,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="proceso-sub">Tomador: <b id="procesoTomador"></b>. Se actualiza solo mientras alguna aseguradora siga cotizando.</div>
+                    <div class="proceso-sub">Cliente: <b id="procesoTomador"></b>. Se actualiza solo mientras alguna aseguradora siga cotizando.</div>
                     <div id="procesoContenido" class="pc-lista"></div>
                 </div>
             </div>
@@ -40,11 +82,10 @@
 
 {% block columns %}
     <th>Placa</th>
-    <th>Tomador</th>
-    <th>Cédula</th>
+    <th>Cliente</th>
     <th>Ciudad</th>
-    <th>Correo</th>
-    <th>Registrado</th>
-    <th>Estado por aseguradora</th>
+    <th>Etapa</th>
+    <th>Última cotización</th>
+    <th>Resultado por aseguradora</th>
     <th>Acciones</th>
 {% endblock %}

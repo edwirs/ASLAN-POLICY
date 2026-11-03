@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <style>
+        /* En el celular (Gmail, Apple Mail…) el ranking deja solo aseguradora y valor; el resto va en el PDF. */
+        @media only screen and (max-width: 480px) {
+            .solo-ancho { display: none !important; }
+        }
+    </style>
+</head>
+<body style="margin:0;padding:0;background:#ffffff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#ffffff;">
+    <tr>
+        <td style="padding:16px 12px;">
+            <div style="width:100%;font-family:{{ fuente }};font-size:14px;line-height:1.55;color:{{ color }};">
+                {{ cuerpo|safe }}
+            </div>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

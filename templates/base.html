@@ -75,6 +75,8 @@
 
   <!-- jquery-loading-overlay -->
   <script src="{% static 'lib/jquery-loading-overlay-2.1.7/js/loadingoverlay.min.js' %}"></script>
+  <script src="{% static 'js/cargando.js' %}?v=1" data-lobo="{% static 'img/aslan_lobo_cargando.png' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/cargando.css' %}?v=3">
 
   <!-- ADMIN LTE -->
   <!-- Google Font: Source Sans Pro -->
@@ -92,7 +94,7 @@
   <!-- Tema oscuro (ajustes de los componentes propios) -->
   <link
     rel="stylesheet"
-    href="{% static 'css/dark-mode.css' %}"
+    href="{% static 'css/dark-mode.css' %}?v=3"
   ></link>
 
   <!-- Color de marca (azul del logo de ASLAN): botones primarios y línea de las tarjetas -->
@@ -104,13 +106,19 @@
   <!-- Asistente de consultas (chat flotante) -->
   <link
     rel="stylesheet"
-    href="{% static 'css/asistente.css' %}?v=6"
+    href="{% static 'css/asistente.css' %}?v=7"
   ></link>
 
   <!-- Botón de ayuda de los módulos -->
   <link
     rel="stylesheet"
     href="{% static 'css/ayuda.css' %}?v=2"
+  ></link>
+
+  <!-- Etapas de seguimiento y buscador global -->
+  <link
+    rel="stylesheet"
+    href="{% static 'css/seguimiento.css' %}?v=1"
   ></link>
 
   <!-- Tablas (DataTables): ancho completo y estilo global -->
@@ -154,6 +162,19 @@
           class="nav-link"
         >Inicio</a>
       </li>
+
+      {% if perms.policies.view_vehiculo or perms.policies.view_vehiculo_registrado or perms.policies.view_poliza %}
+      <!-- Buscador global: placa, cédula, cliente o Nº de póliza (static/js/buscador.js) -->
+      <li class="nav-item buscador-global">
+        <label class="bg-caja mb-0" for="buscadorGlobal" title="Buscar (atajo: tecla /)">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="search" id="buscadorGlobal" placeholder="Buscar placa, cédula, cliente o Nº de póliza" autocomplete="off"
+                 data-url="{% url 'buscar_global' %}" aria-label="Buscar placa, cédula, cliente o número de póliza">
+          <kbd>/</kbd>
+        </label>
+        <div class="bg-resultados" id="buscadorResultados" hidden></div>
+      </li>
+      {% endif %}
 
       <!--{% if perms.pos.view_sale %}
         <li class="nav-item">
@@ -421,9 +442,10 @@
   <script src="{% static 'lib/bootstrap-daterangepicker-3.1/js/moment-with-locales.js' %}"></script>
   <!-- utils -->
   <script src="{% static 'js/main.js' %}"></script>
-  <script src="{% static 'js/functions.js' %}"></script>
+  <script src="{% static 'js/functions.js' %}?v=2"></script>
   <script src="{% static 'js/theme.js' %}"></script>
   <script src="{% static 'js/notificaciones.js' %}?v=3"></script>
+  <script src="{% static 'js/buscador.js' %}?v=1"></script>
   <script>
     (function () {
       var clave = 'aslan-anuncios-cerrados', cerrados = [];

@@ -140,6 +140,7 @@ $(function () {
 
         if (selectedText.includes('NIT')) {
             dvInputWrapper.show();
+            $('#row-propietario-empresa').show();
             commercialNameContainer.show();
             personTypeContainer.show();
             taxRespContainer.show();
@@ -151,6 +152,8 @@ $(function () {
             }
         } else {
             dvInputWrapper.hide();
+            $('#row-propietario-empresa').hide();
+            $('input[name="propietario_documento"], input[name="propietario_nombre"]').val('');
             commercialNameContainer.hide();
             personTypeContainer.hide();
             taxRespContainer.hide();
@@ -168,6 +171,17 @@ $(function () {
     }
 
     evaluateDocumentType();
+
+    // Otro celular y otro correo: solo se ven si el cliente tiene más datos de contacto. Al apagarlo se borran.
+    function evaluarMasContacto() {
+        var activo = $('#chkMasContacto').is(':checked');
+        $('#row-mas-contacto').toggle(activo);
+        if (!activo) {
+            $('input[name="phone"], input[name="email_secundario"]').val('');
+        }
+    }
+    $('#chkMasContacto').on('change', evaluarMasContacto);
+    evaluarMasContacto();
 
     selectDocType.on('change', function () {
         evaluateDocumentType();

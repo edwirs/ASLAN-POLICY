@@ -210,8 +210,101 @@ var ProcesoCotizacion = (function () {
             html += '<button type="button" class="btn btn-sm pc-reintentar" data-id="' + c.id + '">' +
                 '<i class="fa-solid fa-rotate-right"></i> Reenviar a ' + esc(c.aseguradora) + '</button>';
         }
+        html += bloqueAMano(c);
         return html;
     }
+
+    // ---- Cotizar a mano: el bot no trajo valor; el asesor cotiza en el portal (en su navegador) y registra la prima ----
+    var aMano = {modal: null, c: null};
+
+    function puedeAMano() {
+        var urls = window.PROCESO_URLS || {};
+        return !!(urls.valorManual && urls.puedeValorManual);
+    }
+
+    function bloqueAMano(c) {
+        if (!c.a_mano || !puedeAMano()) { return ''; }
+        aMano[c.id] = c;
+        var html = '<div class="pc-a-mano">';
+        if (c.a_mano.valor) {
+            html += '<div class="pc-a-mano-valor"><i class="fa-solid fa-hand"></i> Cotizada a mano: <b>' + dinero(c.a_mano.valor.valor) + '</b>' +
+                ' <small>' + esc(c.a_mano.valor.fecha) + ' · ' + esc(c.a_mano.valor.por) + '</small></div>';
+        }
+        html += '<button type="button" class="btn btn-sm btn-outline-primary pc-abrir-a-mano" data-id="' + c.id + '">' +
+            '<i class="fa-solid fa-hand-pointer"></i> ' + (c.a_mano.valor ? 'Corregir valor a mano' : 'Cotizar a mano en el portal') + '</button></div>';
+        return html;
+    }
+
+    function construirModalAMano() {
+        if (document.getElementById('modalAMano')) { return; }
+        $('body').append(
+            '<div class="modal fade" id="modalAMano" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">' +
+            '<div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-hand-pointer"></i> Cotizar a mano <span class="pc-am-titulo"></span></h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>' +
+            '<div class="modal-body">' +
+            '<div class="pc-am-paso"><span class="pc-am-num">1</span><div><b>Abre el portal de <span class="pc-am-aseg"></span></b> en tu navegador e inicia sesión.' +
+            '<div class="mt-2"><a class="btn btn-sm btn-primary pc-am-portal" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir el portal</a></div></div></div>' +
+            '<div class="pc-am-paso"><span class="pc-am-num">2</span><div class="w-100"><b>Cotiza con estos datos</b> <small class="text-muted">(clic en un dato para copiarlo)</small>' +
+            '<div class="pc-am-datos"></div></div></div>' +
+            '<div class="pc-am-paso"><span class="pc-am-num">3</span><div class="w-100"><b>Escribe la prima total que te dio el portal</b>' +
+            '<div class="input-group mt-2 pc-am-valor"><span class="input-group-text">$</span><input type="text" inputmode="numeric" autocomplete="off" class="form-control" placeholder="Ej: 1.300.000"></div>' +
+            '<small class="text-muted">Entra al comparativo, al correo y al PDF como valor «Cotizado a mano».</small></div></div>' +
+            '</div>' +
+            '<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>' +
+            '<button type="button" class="btn btn-success pc-am-guardar"><i class="fa-solid fa-check"></i> Registrar valor</button></div>' +
+            '</div></div></div>');
+        var $m = $('#modalAMano');
+        aMano.modal = new bootstrap.Modal($m[0]);
+        $m.on('input', '.pc-am-valor input', function () {
+            var d = this.value.replace(/\D/g, '');
+            this.value = d ? d.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+        });
+        $m.on('click', '.pc-am-dato', function () {
+            var $d = $(this), texto = $d.find('b').text();
+            var hecho = function () { $d.addClass('copiado'); setTimeout(function () { $d.removeClass('copiado'); }, 1200); };
+            if (navigator.clipboard) { navigator.clipboard.writeText(texto).then(hecho); } else { hecho(); }
+        });
+        $m.on('click', '.pc-am-guardar', guardarAMano);
+        $m.on('keydown', '.pc-am-valor input', function (e) { if (e.key === 'Enter') { guardarAMano(); } });
+    }
+
+    function abrirAMano(c) {
+        construirModalAMano();
+        aMano.c = c;
+        var $m = $('#modalAMano');
+        $m.find('.pc-am-titulo').text('· ' + c.aseguradora + ' (' + c.placa + ')');
+        $m.find('.pc-am-aseg').text(c.aseguradora);
+        $m.find('.pc-am-portal').attr('href', c.a_mano.portal_url || '#').toggleClass('disabled', !c.a_mano.portal_url);
+        $m.find('.pc-am-datos').html(c.a_mano.datos.map(function (d) {
+            return '<button type="button" class="pc-am-dato" title="Copiar"><span>' + esc(d.etiqueta) + '</span><b>' + esc(d.valor) + '</b>' +
+                '<i class="fa-regular fa-copy"></i></button>';
+        }).join(''));
+        $m.find('.pc-am-valor input').val(c.a_mano.valor ? String(c.a_mano.valor.valor).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '');
+        aMano.modal.show();
+    }
+
+    function guardarAMano() {
+        var c = aMano.c, $m = $('#modalAMano');
+        var valor = $m.find('.pc-am-valor input').val().replace(/\D/g, '');
+        if (!valor || parseInt(valor, 10) <= 0) { toastr.error('Escribe la prima total que te dio el portal.'); return; }
+        var $b = $m.find('.pc-am-guardar').prop('disabled', true);
+        $.ajax({
+            url: window.PROCESO_URLS.valorManual.replace('/0/', '/' + c.vehiculo_id + '/'), type: 'POST', dataType: 'json',
+            headers: {'X-CSRFToken': csrftoken}, data: {valores: JSON.stringify([{aseguradora: c.a_mano.aseguradora_id, valor: valor}])}
+        }).done(function (r) {
+            if (r.error) { toastr.error(r.error); return; }
+            aMano.modal.hide();
+            toastr.success('Valor de ' + c.aseguradora + ' registrado: ya está en el comparativo.');
+            $(document).trigger('valorManual:guardado', [c]);
+        }).fail(function (xhr) {
+            toastr.error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo registrar el valor.');
+        }).always(function () { $b.prop('disabled', false); });
+    }
+
+    $(document).on('click', '.pc-abrir-a-mano', function () {
+        var c = aMano[$(this).data('id')];
+        if (c) { abrirAMano(c); }
+    });
 
     var ETIQUETA_AVISO = {no_cotizable: 'No cotiza', saturado: 'Portal saturado', clave_vencida: 'Cambiar contraseña'};
     var ETIQUETA = {completado: 'Completada', error: 'Con error', cancelado: 'Cancelada'};

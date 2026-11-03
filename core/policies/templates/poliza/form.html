@@ -1,0 +1,219 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-file-shield"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{% if action == 'add' %}Registrar{% else %}{{ vehiculo.placa }}{% endif %}</li>
+{% endblock %}
+
+{% block assets_form %}
+    <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+    <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap4.min.css' %}">
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=3">
+{% endblock %}
+
+{% block form_fields %}
+{% if not vehiculo %}
+    {# Registro a mano: primero se elige el vehículo (la página se recarga con sus datos). #}
+    <h5 class="fw-bold mb-2"><i class="fa-solid fa-car"></i> ¿De qué vehículo es la póliza?</h5>
+    <p class="text-muted small">Si el cliente eligió una de las cotizaciones, es más rápido hacerlo desde el <b>comparativo</b> (botón «Elegir»): llega todo lleno.</p>
+    <div class="row"><div class="col-md-6">
+        <select class="form-select select2" id="elegirVehiculo" style="width: 100%">
+            <option value="">Busca la placa…</option>
+            {% for v in vehiculos %}<option value="{{ v.pk }}">{{ v.placa }} · {{ v.tomador.names }}</option>{% endfor %}
+        </select>
+    </div></div>
+{% else %}
+    <input type="hidden" name="vehiculo" value="{{ vehiculo.pk }}">
+    {% if cotizacion %}<input type="hidden" name="cotizacion" value="{{ cotizacion.pk }}">{% endif %}
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <div class="pz-tarjeta">
+                <h6><i class="fa-solid fa-car"></i> Vehículo <span class="pz-placa ms-1">{{ vehiculo.placa }}</span></h6>
+                <dl>
+                    <div><dt>Marca / línea</dt><dd>{{ vehiculo.marca|default:"—" }} {{ vehiculo.referencia|default:"" }}</dd></div>
+                    <div><dt>Modelo</dt><dd>{{ vehiculo.modelo|default:"—" }}</dd></div>
+                    <div><dt>Estado</dt><dd>{{ vehiculo.get_estado_display }}</dd></div>
+                    <div><dt>Cotización de origen</dt><dd>{% if cotizacion %}#{{ cotizacion.pk }} · {{ cotizacion.aseguradora }} ({{ cotizacion.created_at|date:"d/m/Y" }}){% else %}Registro manual{% endif %}</dd></div>
+                </dl>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="pz-tarjeta">
+                <h6><i class="fa-solid fa-user"></i> Tomador {% if action == 'add' %}<small class="text-muted fw-normal">(propietario actual)</small>{% else %}<small class="text-muted fw-normal">(propietario cuando se generó)</small>{% endif %}</h6>
+                <dl>
+                    <div class="pz-ancho"><dt>Nombre</dt><dd>{{ tomador.names }}</dd></div>
+                    <div><dt>Documento</dt><dd>{{ tomador.document_type.abbreviation }} {{ tomador.dni }}</dd></div>
+                    <div><dt>Celular</dt><dd>{{ tomador.mobile|default:"—" }}{% if tomador.phone %} · {{ tomador.phone }}{% endif %}</dd></div>
+                    <div><dt>Correo</dt><dd>{{ tomador.email|default:"—" }}{% if tomador.email_secundario %} · {{ tomador.email_secundario }}{% endif %}</dd></div>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    {% if polizas_previas %}
+        <div class="alert alert-info py-2 small"><i class="fa-solid fa-clock-rotate-left"></i> Pólizas anteriores de esta placa:
+            {% for p in polizas_previas %}<b>{{ p.fecha_renovacion|date:"Y" }}</b> {{ p.aseguradora }} ({{ p.zona_circulacion.nombre }}){% if not forloop.last %} · {% endif %}{% endfor %}
+        </div>
+    {% endif %}
+
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-shield"></i> Póliza</h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.aseguradora col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.tipo_poliza col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.plan col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.asesor col='col-md-4' ayuda='Quién trabajó esta póliza.' %}
+        {% include 'asesor/_campo.html' with campo=form.zona_circulacion col='col-md-4' ayuda='La de este año (puede cambiar al año siguiente).' %}
+        {% include 'asesor/_campo.html' with campo=form.numero_poliza col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_renovacion col='col-md-4' ayuda='Vencimiento de la póliza: 30 días antes se avisa para renovar.' %}
+        {% if form.estado %}{% include 'asesor/_campo.html' with campo=form.estado col='col-md-4' %}{% endif %}
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-sack-dollar"></i> Valores</h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.prima_total col='col-md-3' %}
+        {% include 'asesor/_campo.html' with campo=form.valor_sin_iva col='col-md-3' %}
+        <div class="col-md-3 mb-3">
+            <label for="{{ form.valor_comision.id_for_label }}" class="form-label fw-bold">{{ form.valor_comision.label }}:</label>
+            {{ form.valor_comision }}
+            <small class="text-muted">Equivale al <span class="pz-porcentaje" id="pctComision">—</span> del valor sin IVA.</small>
+        </div>
+        {% include 'asesor/_campo.html' with campo=form.descuentos col='col-md-3' ayuda='Los que se aplicaron en el portal de la aseguradora.' %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_descuento col='col-md-3' %}
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-1"><i class="fa-solid fa-calendar-days"></i> Pago del cliente</h5>
+    <p class="text-muted small mb-3">La aseguradora financia y recibe el dinero: aquí solo guardamos las fechas para el seguimiento y los recordatorios.</p>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.numero_cuotas col='col-md-4' %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_pago col='col-md-4' ayuda='Fecha máxima de pago o de la primera cuota. Las siguientes son mensuales.' %}
+    </div>
+    <div class="row">
+        <div class="col-lg-8">
+            <table class="table table-sm pz-cuotas mb-1" id="tablaCuotas">
+                <thead><tr><th>Cuota</th><th>Fecha</th><th class="text-end">Valor aprox.</th>{% if cuotas %}<th class="text-center">Pagada</th>{% endif %}</tr></thead>
+                <tbody>
+                {% for c in cuotas %}
+                    <tr class="{% if not c.pagada and c.fecha < hoy %}pz-atrasada{% endif %}">
+                        <td>{% if cuotas|length == 1 %}Pago total{% else %}{{ c.numero }}{% endif %}</td>
+                        <td>{{ c.fecha|date:"d/m/Y" }}</td>
+                        <td class="text-end">${{ c.valor|floatformat:"0g" }}</td>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-inline-block"><input class="form-check-input pz-cuota" type="checkbox" data-id="{{ c.pk }}" {% if c.pagada %}checked{% endif %}
+                                   title="{% if c.fecha_pagada %}Marcada el {{ c.fecha_pagada|date:'d/m/Y' }}{% else %}Marcar como pagada{% endif %}"></div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <small class="text-muted" id="notaCuotas">{% if cuotas %}Si cambias la forma de pago, la fecha o la prima, las cuotas se recalculan al guardar (las ya marcadas como pagadas se conservan).{% else %}Vista previa: se guardan al registrar la póliza.{% endif %}</small>
+        </div>
+    </div>
+
+    <hr>
+    <h5 class="fw-bold mb-3"><i class="fa-solid fa-hand-holding-dollar"></i> Comisión (cartera)</h5>
+    <div class="row">
+        {% include 'asesor/_campo.html' with campo=form.estado_comision col='col-md-4' ayuda='OK: la aseguradora ya dio fecha de pago de la comisión.' %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_pago_cartera col='col-md-4' ayuda='Cuándo la aseguradora paga la comisión.' %}
+        {% include 'asesor/_campo.html' with campo=form.fecha_pago_aseguradora col='col-md-4' ayuda='Por ahora se escribe a mano; más adelante se calculará según la aseguradora.' %}
+        {% include 'asesor/_campo.html' with campo=form.observaciones col='col-12' %}
+    </div>
+    {% if object %}<p class="text-muted small mb-0">Registrada {% if object.creado_por %}por {{ object.creado_por.username }} {% endif %}el {{ object.created_at|date:"d/m/Y H:i" }}{% if object.origen == 'importada' %} · importada del histórico{% endif %}.</p>{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block buttons %}
+    {% if vehiculo %}
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> {% if action == 'add' %}Registrar póliza{% else %}Guardar cambios{% endif %}</button>
+    {% endif %}
+    <a href="{{ list_url }}" class="btn btn-danger"><i class="fas fa-times"></i> Cancelar</a>
+{% endblock %}
+
+{% block content_form_before %}
+    <script type="application/javascript">
+        $(function () {
+            toastr.options = {closeButton: true, progressBar: true, positionClass: 'toast-top-right', timeOut: '3000'};
+            $('.select2').select2({theme: 'bootstrap4', language: 'es', placeholder: 'Seleccione…', width: '100%'});
+            $('#elegirVehiculo').on('change', function () {
+                if (this.value) { location.href = '?vehiculo=' + this.value; }
+            });
+
+            var digitos = function (v) { return String(v || '').replace(/\D/g, ''); };
+            var miles = function (v) { var d = digitos(v); return d ? Number(d).toLocaleString('es-CO') : ''; };
+            var numero = function (sel) { return Number(digitos($(sel).val())) || 0; };
+            $('.dinero').each(function () { this.value = miles(this.value); }).on('input', function () { this.value = miles(this.value); });
+
+            function porcentaje() {
+                var sinIva = numero('#id_valor_sin_iva'), comision = numero('#id_valor_comision');
+                $('#pctComision').text(sinIva && comision ? (comision * 100 / sinIva).toLocaleString('es-CO', {maximumFractionDigits: 2}) + ' %' : '—');
+            }
+            $('#id_valor_sin_iva, #id_valor_comision').on('input', porcentaje);
+            porcentaje();
+
+            // Vista previa de las cuotas (mensuales desde la primera fecha). En una póliza ya guardada solo se muestra si algo cambió.
+            function sumarMeses(fecha, n) {
+                var p = fecha.split('-').map(Number), m = p[1] - 1 + n, anio = p[0] + Math.floor(m / 12), mes = m % 12;
+                var ultimo = new Date(anio, mes + 1, 0).getDate();
+                return new Date(anio, mes, Math.min(p[2], ultimo));
+            }
+            var tablaOriginal = $('#tablaCuotas tbody').html(), tieneGuardadas = {{ cuotas|length|default:0 }} > 0;
+            var inicial = [$('#id_numero_cuotas').val(), $('#id_fecha_pago').val(), digitos($('#id_prima_total').val())].join('|');
+            function previsualizar() {
+                var n = Number($('#id_numero_cuotas').val()) || 1, primera = $('#id_fecha_pago').val(), prima = numero('#id_prima_total');
+                var actual = [n, primera, prima].join('|');
+                if (tieneGuardadas && actual === inicial) {
+                    $('#tablaCuotas tbody').html(tablaOriginal);
+                    $('#tablaCuotas thead th:last').show();
+                    return;
+                }
+                if (!primera) {
+                    $('#tablaCuotas tbody').html('<tr><td colspan="4" class="text-muted">Escribe la fecha de pago para ver las cuotas.</td></tr>');
+                    return;
+                }
+                if (tieneGuardadas) { $('#tablaCuotas thead th:last').hide(); }
+                var filas = '';
+                for (var i = 0; i < n; i++) {
+                    filas += '<tr><td>' + (n === 1 ? 'Pago total' : (i + 1)) + '</td><td>' + sumarMeses(primera, i).toLocaleDateString('es-CO') +
+                        '</td><td class="text-end">$' + Math.round(prima / n).toLocaleString('es-CO') + '</td></tr>';
+                }
+                $('#tablaCuotas tbody').html(filas);
+            }
+            $('#id_numero_cuotas, #id_fecha_pago, #id_prima_total').on('change input', previsualizar);
+            if (!tieneGuardadas) { previsualizar(); }
+
+            // Marcar una cuota como pagada (solo seguimiento).
+            $('#tablaCuotas').on('change', '.pz-cuota', function () {
+                var $c = $(this);
+                $.ajax({url: pathname, type: 'POST', dataType: 'json', headers: {'X-CSRFToken': csrftoken},
+                        data: {action: 'cuota', id: $c.data('id'), pagada: $c.is(':checked')}})
+                    .done(function (r) {
+                        if (r.error) { $c.prop('checked', !$c.is(':checked')); return message_error(r.error); }
+                        toastr.success(r.pagada ? 'Cuota marcada como pagada' : 'Cuota marcada como pendiente');
+                        $c.closest('tr').removeClass('pz-atrasada');
+                    })
+                    .fail(function () { $c.prop('checked', !$c.is(':checked')); message_error('No se pudo actualizar la cuota'); });
+            });
+
+            $('#frmForm').on('submit', function (e) {
+                e.preventDefault();
+                submit_with_formdata({
+                    'params': new FormData(this),
+                    'form': this,
+                    'content': {% if action == 'add' %}'¿Registrar la póliza que eligió el cliente?'{% else %}'¿Guardar los cambios de esta póliza?'{% endif %},
+                    'success': function (r) {
+                        location.href = {% if action == 'add' %}r.url{% else %}'{{ list_url }}'{% endif %};
+                    }
+                });
+            });
+        });
+    </script>
+{% endblock %}

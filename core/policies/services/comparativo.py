@@ -4,17 +4,24 @@ Por cada aseguradora cuenta UN solo valor:
   - con bot: la prima que siempre se resalta (`Cotizacion.prima_total`: Premium en HDI, Plan Full en La Equidad,
     Plus en AXA…) de su cotización completada más reciente;
   - sin bot (Bolívar, Allianz, Sura…): el valor final que entregó un tercero y se registró a mano
-    (`ValorExterno`) más reciente.
+    (`ValorExterno`) más reciente;
+  - con bot que no pudo cotizar (p. ej. Seguros del Estado rechaza al navegador del bot): el valor que el asesor
+    cotizó a mano en el portal y registró. Si hay valor del bot y valor manual, cuenta el más reciente.
 El resultado va ordenado de menor a mayor valor.
 """
 from decimal import Decimal
 
-from core.policies.models import Aseguradora, CoberturaAseguradora, Cotizacion, ValorExterno
+from django.utils import timezone
+
+from core.policies.models import Aseguradora, CoberturaAseguradora, Cotizacion, Poliza, ValorExterno
 from core.policies.services.bots import BOTS_DISPONIBLES
+from core.policies.services.bots.base import es_aseguradora_actual
 from core.policies.services.coberturas import secciones_de
 from core.policies.services.proceso import PLAN_DESTACADO, ultimas_por_aseguradora
 
 ETIQUETA_MANUAL = 'Valor final'
+SIN_CONDICIONES = 'No cuenta con condiciones para cotización'
+ETIQUETA_A_MANO = 'Cotizado a mano'  # aseguradora con bot cuyo valor cotizó el asesor en el portal
 # Seguros del Estado guarda solo sus planes (no `prima_total`): el comparativo toma el Elite.
 PLAN_COMPARATIVO = {'Seguros del Estado': 'Elite'}
 # Ficha de coberturas (producto) que corresponde al plan cuyo valor se compara. Sin entrada: «General».
@@ -31,8 +38,18 @@ def aseguradoras_sin_bot():
     return [a for a in Aseguradora.objects.filter(is_active=True).order_by('name') if a.name not in BOTS_DISPONIBLES]
 
 
+def aseguradoras_valor_manual(vehiculo, filas=None):
+    """Aseguradoras a las que se les puede registrar (o reemplazar) un valor manual para este vehículo: las que no tienen
+    bot y las que tienen bot pero el comparativo no tiene un valor del bot (falló, no cotizó o se cotizó a mano)."""
+    filas = construir(vehiculo)['filas'] if filas is None else filas
+    del_bot = {f['aseguradora_id'] for f in filas if f['origen'] == 'bot'}
+    return [a for a in Aseguradora.objects.filter(is_active=True).order_by('name')
+            if a.name not in BOTS_DISPONIBLES or a.pk not in del_bot]
+
+
 def construir(vehiculo):
-    """{'filas': [...], 'sin_valor': [...]} del vehículo. Cada fila es un dict con aseguradora, etiqueta
+    """{'filas': [...], 'sin_valor': [...], 'actual': nombre|None} del vehículo. `actual` es la aseguradora con la que el
+    vehículo está asegurado hoy según el aviso de su portal (la que no cotiza porque ya tiene la póliza). Cada fila es un dict con aseguradora, etiqueta
     (qué valor es), valor, origen ('bot' o 'manual'), fecha y la diferencia con el más bajo."""
     activas = {a.pk: a for a in Aseguradora.objects.filter(is_active=True)}
     candidatas = {}
@@ -49,6 +66,8 @@ def construir(vehiculo):
         if c.aseguradora_id in activas and valor and valor > 0:
             candidatas[c.aseguradora_id] = {
                 'aseguradora': nombre,
+                'aseguradora_id': c.aseguradora_id,
+                'cotizacion_id': c.pk,
                 'etiqueta': etiqueta,
                 'valor': valor,
                 'origen': 'bot',
@@ -56,10 +75,14 @@ def construir(vehiculo):
             }
 
     for v in ValorExterno.objects.filter(vehiculo=vehiculo).select_related('aseguradora').order_by('id'):
-        if v.aseguradora_id in activas and v.aseguradora.name not in BOTS_DISPONIBLES:
+        previa = candidatas.get(v.aseguradora_id)
+        if v.aseguradora_id in activas and (previa is None or previa['origen'] == 'manual' or v.created_at > previa['fecha']):
             candidatas[v.aseguradora_id] = {
                 'aseguradora': v.aseguradora.name,
-                'etiqueta': ETIQUETA_MANUAL,
+                'aseguradora_id': v.aseguradora_id,
+                'cotizacion_id': None,
+                'valor_externo_id': v.pk,  # el que se muestra (el más reciente): es el que se corrige o elimina
+                'etiqueta': ETIQUETA_MANUAL if v.aseguradora.name not in BOTS_DISPONIBLES else ETIQUETA_A_MANO,
                 'valor': v.valor,
                 'origen': 'manual',
                 'fecha': v.created_at,
@@ -78,6 +101,10 @@ def construir(vehiculo):
 
     # Aseguradoras con bot que no aportan valor: se explica por qué (su última cotización).
     con_valor = {f['aseguradora'] for f in filas}
+    # Una póliza vigente registrada DESPUÉS del aviso de un portal manda: el aviso («ya tiene póliza vigente») era de
+    # antes de que el cliente se cambiara con nosotros.
+    poliza = (Poliza.objects.filter(vehiculo=vehiculo, estado='generada', fecha_renovacion__gte=timezone.localdate())
+              .select_related('aseguradora').order_by('-created_at').first())
     sin_valor = []
     ultimas = {c.aseguradora.name: c for c in ultimas_por_aseguradora(vehiculo)}
     nombres_activos = {a.name for a in activas.values()}
@@ -89,16 +116,21 @@ def construir(vehiculo):
             motivo = 'Sin cotizar'
         elif c.estado_bot in ('pendiente', 'en_proceso'):
             motivo = 'Cotizando…'
+        elif (c.estado_bot == 'error' and c.error_tipo == 'no_cotizable' and es_aseguradora_actual(c.mensaje_bot)
+              and not (poliza and poliza.created_at > c.created_at)):
+            motivo = 'Aseguradora actual del vehículo'
         elif c.estado_bot == 'error' and c.error_tipo == 'no_cotizable':
-            motivo = 'No cotiza este vehículo'
+            motivo = SIN_CONDICIONES
         elif c.estado_bot == 'error' and c.error_tipo == 'saturado':
             motivo = 'Portal saturado (reenviar más tarde)'
         elif c.estado_bot == 'error' and c.error_tipo == 'clave_vencida':
             motivo = 'Debe cambiar la contraseña del portal'
         else:
-            motivo = 'Sin resultado (falló la cotización)'
-        sin_valor.append({'aseguradora': nombre, 'motivo': motivo})
-    return {'filas': filas, 'sin_valor': sin_valor}
+            motivo = SIN_CONDICIONES
+        sin_valor.append({'aseguradora': nombre, 'motivo': motivo, 'actual': motivo == 'Aseguradora actual del vehículo'})
+    sin_valor.sort(key=lambda s: not s['actual'])  # la aseguradora actual, primero
+    actual = next((s['aseguradora'] for s in sin_valor if s['actual']), None) or (poliza.aseguradora.name if poliza else None)
+    return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual}
 
 
 def _tono(texto):

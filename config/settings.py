@@ -224,6 +224,10 @@ RESPALDOS_DIR = env('RESPALDOS_DIR', default=os.path.join(BASE_DIR, 'respaldos')
 RESPALDOS_RETENCION_DIAS = env.int('RESPALDOS_RETENCION_DIAS', default=14)
 PG_DUMP = env('PG_DUMP', default='')   # ruta de pg_dump si no es la que se detecta sola (debe ser de la MISMA versión que el servidor)
 
+# Bots: al terminar de cotizar con éxito, guardan una foto de la pantalla de resultado y la lista de botones/enlaces
+# (sin hacer clic en nada) en media/bot_debug/mapeo/, para mapear dónde se guarda la cotización y se descarga el PDF.
+BOTS_MAPEAR_DOCUMENTOS = env.bool('BOTS_MAPEAR_DOCUMENTOS', default=True)
+
 # Vencimiento: pasada la fecha «pagado hasta» hay estos días de gracia (con aviso) y luego se suspende el acceso.
 GRACIA_DIAS = env.int('GRACIA_DIAS', default=5)
 SUSPENDER_POR_VENCIMIENTO = env.bool('SUSPENDER_POR_VENCIMIENTO', default=True)

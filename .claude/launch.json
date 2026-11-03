@@ -4,7 +4,11 @@
     {
       "name": "aslan-policy-django",
       "runtimeExecutable": "./venv/bin/python",
-      "runtimeArgs": ["manage.py", "runserver", "0.0.0.0:8000"],
+      "runtimeArgs": [
+        "manage.py",
+        "runserver",
+        "0.0.0.0:8000"
+      ],
       "port": 8000,
       "url": "http://gali.localhost:8000"
     }

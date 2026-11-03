@@ -11,7 +11,20 @@
     <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
     <script>var puedeEditar = {% if perms.policies.change_aseguradora %}true{% else %}false{% endif %};</script>
-    <script src="{% static 'aseguradora/js/list.js' %}?v=3"></script>
+    <script src="{% static 'aseguradora/js/list.js' %}?v=6"></script>
+    <style>
+        /* Columna «Portal» compacta: el dominio en una pastilla de ancho fijo (la dirección completa en el tooltip). */
+        #data td.ase-col-portal, #data th:nth-child(2) { width: 230px; max-width: 230px; }
+        .ase-portal {
+            display: inline-flex; align-items: center; gap: 6px; max-width: 210px; padding: 3px 10px; border-radius: 999px;
+            background: rgba(8, 145, 178, .08); color: #0e7490; font-size: .82rem; text-decoration: none; white-space: nowrap;
+        }
+        .ase-portal span { overflow: hidden; text-overflow: ellipsis; }
+        .ase-portal i { font-size: .7rem; opacity: .75; flex: none; }
+        .ase-portal:hover { background: rgba(8, 145, 178, .16); color: #155e75; }
+        .ase-acciones { display: inline-flex; flex-wrap: nowrap; gap: 6px; }
+        .dark-mode .ase-portal { background: rgba(60, 198, 223, .14); color: #67d4e8; }
+    </style>
 {% endblock %}
 
 {% block ayuda %}

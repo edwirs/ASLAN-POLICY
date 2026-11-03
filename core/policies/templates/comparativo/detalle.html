@@ -4,8 +4,10 @@
 {% block body_class %}sidebar-collapse{% endblock %}
 
 {% block assets %}
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=5">
-    <script src="{% static 'comparativo/js/modales.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=6">
+    <script src="{% static 'comparativo/js/modales.js' %}?v=2"></script>
+    <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=3">
+    <script src="{% static 'comparativo/js/correo.js' %}?v=4"></script>
 {% endblock %}
 
 {% block breadcrumb_item %}
@@ -28,6 +30,20 @@
                 {% if vehiculo.modelo %}<span class="cmp-punto">·</span> {{ vehiculo.modelo }}{% endif %}
                 {% if vehiculo.servicio %}<span class="cmp-punto">·</span> {{ vehiculo.get_servicio_display }}{% endif %}
             </div>
+            {% if poliza_vigente and poliza_vigente.aseguradora.name == aseguradora_actual %}
+                <div class="mt-1"><span class="cmp-chip cmp-chip-ok"><i class="fa-solid fa-file-shield"></i> Póliza vigente: {{ poliza_vigente.aseguradora }} hasta {{ poliza_vigente.fecha_renovacion|date:"d/m/Y" }}</span></div>
+            {% else %}
+                {% if aseguradora_actual %}
+                    <div class="mt-1"><span class="cmp-chip cmp-chip-actual" title="Lo avisó el portal de la aseguradora al cotizar"><i class="fa-solid fa-shield-halved"></i> Actualmente asegurado con {{ aseguradora_actual }}</span></div>
+                {% endif %}
+                {% if poliza_vigente %}
+                    {# El portal avisó DESPUÉS que el vehículo está con otra aseguradora: la póliza registrada ya no sería la actual #}
+                    <div class="mt-1"><span class="cmp-chip cmp-chip-gris" title="Póliza registrada en Pólizas tomadas, anterior al aviso del portal"><i class="fa-solid fa-file-circle-question"></i> Póliza registrada: {{ poliza_vigente.aseguradora }} hasta {{ poliza_vigente.fecha_renovacion|date:"d/m/Y" }} (revísela)</span></div>
+                {% endif %}
+            {% endif %}
+            {% if vehiculo.bloqueado_para_cotizar %}
+                <div class="mt-1"><span class="cmp-chip cmp-chip-gris"><i class="fa-solid fa-triangle-exclamation"></i> {{ vehiculo.get_estado_display }}{% if vehiculo.estado_fecha %} desde {{ vehiculo.estado_fecha|date:"d/m/Y" }}{% endif %}</span></div>
+            {% endif %}
         </div>
         <div class="cmp-acciones cmp-no-imprimir">
             {% if puede_registrar_valores %}
@@ -62,8 +78,8 @@
                 <dl class="cmp-datos">
                     <div class="cmp-ancho"><dt>Nombre</dt><dd><b>{{ tomador.names }}</b></dd></div>
                     <div><dt>Documento</dt><dd>{{ tomador.document_type.abbreviation }} {{ tomador.dni }}</dd></div>
-                    <div><dt>Teléfono</dt><dd>{{ tomador.mobile|default:"—" }}</dd></div>
-                    <div><dt>Correo</dt><dd>{{ tomador.email|default:"—" }}</dd></div>
+                    <div><dt>Celular</dt><dd>{{ tomador.mobile|default:"—" }}{% if tomador.phone %} · {{ tomador.phone }}{% endif %}</dd></div>
+                    <div><dt>Correo</dt><dd>{{ tomador.email|default:"—" }}{% if tomador.email_secundario %} · {{ tomador.email_secundario }}{% endif %}</dd></div>
                     <div><dt>Ciudad</dt><dd>{% if tomador.municipality %}{{ tomador.municipality }}{% else %}—{% endif %}</dd></div>
                 </dl>
             </article>
@@ -111,6 +127,7 @@
                         <th class="text-end">Diferencia vs. el más bajo</th>
                         <th class="text-center">Origen</th>
                         <th>Actualizado</th>
+                        {% if puede_registrar_valores %}<th class="text-center">Acciones</th>{% endif %}
                     </tr>
                     </thead>
                     <tbody>
@@ -129,6 +146,17 @@
                                 {% else %}<span class="cmp-chip cmp-chip-manual"><i class="fa-solid fa-hand"></i> Manual</span>{% endif %}
                             </td>
                             <td class="cmp-fecha">{{ f.fecha|date:"d/m/Y H:i" }}</td>
+                            {% if puede_registrar_valores %}
+                                <td class="text-center text-nowrap">
+                                    {% if f.origen == 'manual' %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill cmp-valor-editar" data-id="{{ f.valor_externo_id }}"
+                                                data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor|floatformat:0 }}" data-bs-toggle="tooltip" title="Corregir el valor de {{ f.aseguradora }}"><i class="fa-solid fa-pen"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ f.valor_externo_id }}"
+                                                data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor_fmt }}" data-bs-toggle="tooltip" title="Eliminar el valor de {{ f.aseguradora }}"><i class="fa-solid fa-trash"></i></button>
+                                    {% else %}<span class="text-muted" title="Los valores del bot no se editan">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
                         </tr>
                     {% endfor %}
                     </tbody>
@@ -146,7 +174,11 @@
             <div class="cmp-sin-valor">
                 <span class="cmp-sin-valor-titulo"><i class="fa-solid fa-circle-info"></i> Sin valor para comparar</span>
                 {% for s in sin_valor %}
-                    <span class="cmp-chip cmp-chip-gris"><b>{{ s.aseguradora }}</b> · {{ s.motivo }}</span>
+                    {% if s.actual %}
+                        <span class="cmp-chip cmp-chip-actual" title="Su portal avisó que el vehículo ya está asegurado con ella"><i class="fa-solid fa-shield-halved"></i> <b>{{ s.aseguradora }}</b> · {{ s.motivo }}</span>
+                    {% else %}
+                        <span class="cmp-chip cmp-chip-gris"><b>{{ s.aseguradora }}</b> · {{ s.motivo }}</span>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% endif %}
@@ -166,7 +198,11 @@
                     <span class="cmp-switch-pista"></span>
                     <span>Solo diferencias</span>
                 </label>
-                <a href="{{ imprimir_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-pill" id="cmpImprimir"><i class="fa-solid fa-print"></i> Imprimir / guardar PDF</a>
+                {% if puede_enviar_correo %}
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill" id="cmpArmarCorreo"><i class="fa-solid fa-envelope"></i> Armar correo</button>
+                {% else %}
+                    <a href="{{ imprimir_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-pill" id="cmpImprimir"><i class="fa-solid fa-print"></i> Imprimir / guardar PDF</a>
+                {% endif %}
             </div>
         </div>
 
@@ -180,6 +216,7 @@
     {% endif %}
 
     {% include 'comparativo/_modales.html' %}
+    {% if puede_enviar_correo %}{% include 'comparativo/_correo_modal.html' %}{% endif %}
 </div>
 
 <script>
@@ -192,6 +229,39 @@
             var base = $(this).data('base') || $(this).attr('href');
             $(this).data('base', base);
             $(this).attr('href', base + ($('#cmpSoloDiferencias').is(':checked') ? '?solo_diferencias=1' : ''));
+        });
+        $('#cmpArmarCorreo').on('click', function () {
+            correoCotizacion.abrir({soloDiferencias: $('#cmpSoloDiferencias').is(':checked')});
+        });
+        // Valores manuales: corregir o eliminar (quedan en el historial del vehículo).
+        var urlValor = '{% url "vehiculo_comparativo_valor_manual" vehiculo.pk 0 %}';
+        function accionValor(id, datos) {
+            $.LoadingOverlay('show');
+            $.ajax({url: urlValor.replace(/\/0\/$/, '/' + id + '/'), type: 'POST', headers: {'X-CSRFToken': csrftoken}, data: datos, dataType: 'json'})
+                .done(function (r) { if (r.error) { message_error(r.error); return; } location.reload(); })
+                .fail(function (xhr) { $.LoadingOverlay('hide'); message_error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo guardar el cambio.'); });
+        }
+        function miles(texto) { var d = String(texto).replace(/\D/g, ''); return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; }
+        $('.cmp-valor-editar, .cmp-valor-eliminar').each(function () { bootstrap.Tooltip.getOrCreateInstance(this); });
+        $('.cmp-valor-editar').on('click', function () {
+            var $b = $(this);
+            bootstrap.Tooltip.getOrCreateInstance(this).hide();
+            Swal.fire({
+                title: 'Corregir valor de ' + $b.data('aseguradora'), input: 'text', inputValue: miles($b.data('valor')),
+                inputAttributes: {inputmode: 'numeric', autocomplete: 'off'}, inputLabel: 'Valor final (prima total)',
+                showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+                didOpen: function () { $(Swal.getInput()).on('input', function () { this.value = miles(this.value); }); },
+                inputValidator: function (v) { return parseInt(String(v).replace(/\D/g, ''), 10) > 0 ? null : 'Escriba un valor mayor que cero'; }
+            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'editar', valor: r.value}); } });
+        });
+        $('.cmp-valor-eliminar').on('click', function () {
+            var $b = $(this);
+            bootstrap.Tooltip.getOrCreateInstance(this).hide();
+            Swal.fire({
+                icon: 'warning', title: '¿Eliminar el valor de ' + $b.data('aseguradora') + '?',
+                html: 'Se quita <b>' + $b.data('valor') + '</b> del comparativo. Puede volver a agregarlo con «Agregar valores».',
+                showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
+            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'eliminar'}); } });
         });
         $('#cmpAgregarValores').on('click', function () {
             $('.cmp-placa').text('{{ vehiculo.placa|escapejs }}');

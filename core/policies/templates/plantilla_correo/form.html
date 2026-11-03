@@ -1,0 +1,158 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block body_class %}sidebar-collapse{% endblock %}
+
+{% block assets %}
+    <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=3">
+{% endblock %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item">
+        <a class="text-decoration-none text-muted" href="{{ list_url }}"><i class="fa-solid fa-envelope-open-text"></i> {{ module_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">{% if plantilla %}{{ plantilla.nombre }}{% else %}Nueva{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<div class="pc-page">
+<form id="frmPlantilla" enctype="multipart/form-data" autocomplete="off" data-editable="{{ editable|yesno:'1,0' }}">
+    {% csrf_token %}
+    <div class="row g-3">
+        <div class="col-xl-7">
+            <section class="pc-seccion">
+                <div class="pc-seccion-cabecera">
+                    <h2><i class="fa-solid fa-file-lines"></i> {{ title }}</h2>
+                    {% if not editable %}<span class="pc-chip"><i class="fa-solid fa-eye"></i> Solo lectura</span>{% endif %}
+                </div>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.nombre.id_for_label }}">{{ form.nombre.label }} <span class="text-danger">*</span></label>
+                        {{ form.nombre }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.tipo_seguro.id_for_label }}">{{ form.tipo_seguro.label }}</label>
+                        {{ form.tipo_seguro }}
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.cuenta.id_for_label }}">{{ form.cuenta.label }}</label>
+                        {{ form.cuenta }}
+                        <small class="text-muted">Las cuentas se configuran en el listado de plantillas › «Cuentas desde las que salen los correos».</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.para.id_for_label }}">{{ form.para.label }} <span class="text-danger">*</span></label>
+                        {{ form.para }}
+                        <small class="text-muted"><code>{correo_cliente}</code> = el correo registrado en la solicitud (y el otro correo, si el cliente lo tiene).</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.cc.id_for_label }}">{{ form.cc.label }}</label>
+                        {{ form.cc }}
+                        <small class="text-muted">Separe varios correos con coma.</small>
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.asunto.id_for_label }}">{{ form.asunto.label }} <span class="text-danger">*</span></label>
+                        {{ form.asunto }}
+                    </div>
+                </div>
+
+                <label class="form-label fw-bold mb-1">Cuerpo del correo <span class="text-danger">*</span></label>
+                {% if editable %}
+                <div class="pc-insertar">
+                    <span class="pc-insertar-titulo">Insertar dato:</span>
+                    {% for nombre, descripcion in variables %}<button type="button" class="pc-var" data-variable="{{ nombre }}" title="{{ descripcion }}">{{ descripcion }}</button>{% endfor %}
+                </div>
+                <div class="pc-insertar">
+                    <span class="pc-insertar-titulo">Insertar bloque:</span>
+                    {% for nombre, descripcion, icono in bloques %}<button type="button" class="pc-bloque-btn" data-bloque="{{ nombre }}"><i class="{{ icono }}"></i> {{ descripcion }}</button>{% endfor %}
+                </div>
+                <div class="pc-barra" role="toolbar" aria-label="Formato">
+                    <button type="button" data-cmd="bold" title="Negrita"><i class="fa-solid fa-bold"></i></button>
+                    <button type="button" data-cmd="italic" title="Cursiva"><i class="fa-solid fa-italic"></i></button>
+                    <button type="button" data-cmd="underline" title="Subrayado"><i class="fa-solid fa-underline"></i></button>
+                    <span class="pc-barra-sep"></span>
+                    <button type="button" data-cmd="insertUnorderedList" title="Lista"><i class="fa-solid fa-list-ul"></i></button>
+                    <button type="button" data-cmd="insertOrderedList" title="Lista numerada"><i class="fa-solid fa-list-ol"></i></button>
+                    <span class="pc-barra-sep"></span>
+                    <button type="button" data-cmd="justifyLeft" title="Alinear a la izquierda"><i class="fa-solid fa-align-left"></i></button>
+                    <button type="button" data-cmd="justifyCenter" title="Centrar"><i class="fa-solid fa-align-center"></i></button>
+                    <span class="pc-barra-sep"></span>
+                    <label class="pc-color" title="Color del texto"><i class="fa-solid fa-palette"></i><input type="color" id="pcColor" value="#12305f"></label>
+                    <button type="button" data-cmd="createLink" title="Enlace"><i class="fa-solid fa-link"></i></button>
+                    <button type="button" data-cmd="removeFormat" title="Quitar formato"><i class="fa-solid fa-text-slash"></i></button>
+                </div>
+                {% endif %}
+                <div class="pc-editor{% if not editable %} pc-editor-lectura{% endif %}" id="pcEditor" {% if editable %}contenteditable="true"{% endif %} spellcheck="true"></div>
+                {{ form.cuerpo }}
+                <small class="text-muted d-block mt-1">Los datos entre llaves, como <code>{cliente}</code>, se cambian por los del vehículo al armar el correo.
+                    Cada bloque (<code>{comparativo}</code>, <code>{firma}</code>…) va solo en su renglón.</small>
+            </section>
+
+            <section class="pc-seccion">
+                <div class="pc-seccion-cabecera"><h2><i class="fa-solid fa-bullhorn"></i> Promoción <small class="text-muted fw-normal">(bloque <code>{promocion}</code>)</small></h2></div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.promocion_texto.id_for_label }}">{{ form.promocion_texto.label }}</label>
+                        {{ form.promocion_texto }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.promocion_imagen.id_for_label }}">{{ form.promocion_imagen.label }}</label>
+                        {% if plantilla.promocion_imagen %}<img src="{{ plantilla.promocion_imagen.url }}" class="pc-promo-mini" alt="Promoción actual">{% endif %}
+                        {% if editable %}{{ form.promocion_imagen }}{% endif %}
+                        <small class="text-muted">Ej.: el logo de la aseguradora con la información de la promoción.</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.promocion_aseguradora.id_for_label }}">Mostrarla</label>
+                        {{ form.promocion_aseguradora }}
+                        <small class="text-muted">«Nunca» la quita del correo sin borrar el texto ni la imagen. Con una aseguradora, sale solo cuando esa aseguradora está en el comparativo.</small>
+                    </div>
+                </div>
+            </section>
+
+            <section class="pc-seccion">
+                <div class="pc-seccion-cabecera"><h2><i class="fa-solid fa-sliders"></i> Opciones</h2></div>
+                <div class="row align-items-end">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold" for="{{ form.vigencia_cotizacion_dias.id_for_label }}">{{ form.vigencia_cotizacion_dias.label }}</label>
+                        {{ form.vigencia_cotizacion_dias }}
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <div class="form-check form-switch">{{ form.adjuntar_pdf }}<label class="form-check-label" for="{{ form.adjuntar_pdf.id_for_label }}">{{ form.adjuntar_pdf.label }}</label></div>
+                        <div class="form-check form-switch">{{ form.predeterminada }}<label class="form-check-label" for="{{ form.predeterminada.id_for_label }}">{{ form.predeterminada.label }} <small class="text-muted">(la que se usa al armar el correo)</small></label></div>
+                        <div class="form-check form-switch">{{ form.is_active }}<label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label></div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="pc-acciones">
+                {% if editable %}<button type="submit" class="btn btn-primary rounded-pill"><i class="fa-solid fa-floppy-disk"></i> Guardar plantilla</button>{% endif %}
+                <a href="{{ list_url }}" class="btn btn-outline-secondary rounded-pill"><i class="fa-solid fa-arrow-left"></i> Volver</a>
+            </div>
+        </div>
+
+        <div class="col-xl-5">
+            <section class="pc-seccion pc-previa">
+                <div class="pc-seccion-cabecera">
+                    <h2><i class="fa-solid fa-eye"></i> Así lo verá el cliente</h2>
+                    <div class="input-group input-group-sm pc-previa-placa">
+                        <span class="input-group-text">Placa</span>
+                        <input type="text" class="form-control text-uppercase" id="pcPlaca" value="{{ ejemplo.placa|default:'' }}" maxlength="10" title="Vehículo de ejemplo para la vista previa">
+                        <button type="button" class="btn btn-outline-secondary" id="pcActualizar" title="Actualizar vista previa"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                </div>
+                <div class="pc-sobre">
+                    <div><span>De</span><b id="pvDe">—</b></div>
+                    <div><span>Para</span><b id="pvPara">—</b></div>
+                    <div><span>CC</span><b id="pvCc">—</b></div>
+                    <div><span>Asunto</span><b id="pvAsunto">—</b></div>
+                    <div id="pvAdjuntoFila"><span>Adjunto</span><b><i class="fa-solid fa-paperclip"></i> <span id="pvAdjunto"></span></b></div>
+                </div>
+                <div id="pvAvisos"></div>
+                <iframe id="pvMarco" class="pc-marco" title="Vista previa del correo" sandbox="allow-same-origin"></iframe>
+            </section>
+        </div>
+    </div>
+</form>
+</div>
+{{ cuerpo_inicial|json_script:"pcCuerpoInicial" }}
+<script src="{% static 'plantilla_correo/js/editor.js' %}?v=3"></script>
+{% endblock %}

@@ -251,6 +251,8 @@ class AxaColpatriaBot(RegistroErrorMixin):
                     self._color_servicio_zona(page)
                     self._paso('Cotización (tarjetas)')
                     self._capturar_tarjetas(page)
+                    self._mapear_documentos(page)
+                    self._descargar_cotizacion(page)
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:
@@ -690,6 +692,37 @@ class AxaColpatriaBot(RegistroErrorMixin):
                         'Niveles de asistencia: Ninguna, Esencial, VIP, Plus.')
             self.cotizacion.mensaje_bot = nota
             self.cotizacion.save()
+
+    def _descargar_cotizacion(self, page):
+        """PDF de la cotización: «CONTINUAR» bajo las tarjetas lleva al resumen y ahí está «DESCARGAR COTIZACIÓN». El resumen
+        también tiene un «CONTINUAR» (sigue hacia la emisión): ese NO se pulsa. Antes de descargar se compara el total del
+        resumen con la prima guardada, para no adjuntar el PDF de otra tarjeta u otro nivel de asistencia."""
+        self._paso('PDF de la cotización')
+        descargar = re.compile(r'DESCARGAR\s+COTIZACI', re.I)
+        try:
+            marco = self._marco(page)
+            marco.get_by_role('button', name=re.compile(r'^\s*CONTINUAR\s*$', re.I)).last.click(timeout=15000)
+            boton = None
+            for _ in range(60):  # el resumen puede cargar en el mismo iframe o en uno nuevo
+                page.wait_for_timeout(1000)
+                marco = self._marco(page) or marco
+                candidato = marco.get_by_role('button', name=descargar).first
+                if candidato.count() and candidato.is_visible():
+                    boton = candidato
+                    break
+            if boton is None:
+                raise BotPortalError('AXA no mostró «DESCARGAR COTIZACIÓN».')
+            texto = marco.evaluate('document.body.innerText') or ''
+            total = re.search(r'Total:?\s*\$\s*([\d.,]+)', texto)
+            prima = self.cotizacion.prima_total or 0
+            if total and prima and abs(_dinero(total.group(1)) - prima) > prima / 100:
+                logger.warning('AXA Colpatria: el resumen dice %s y la prima guardada es %s: no se descarga ese PDF (cotización #%s).',
+                               total.group(1), prima, self.cotizacion.pk)
+                return
+        except Exception:
+            logger.warning('AXA Colpatria: no se llegó a «DESCARGAR COTIZACIÓN» (cotización #%s).', self.cotizacion.pk, exc_info=True)
+            return
+        self._descargar_pdf(page, lambda: boton.click(timeout=15000))
 
     # ------------------------------------------------------------------
     # Cierre de sesión

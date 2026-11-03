@@ -42,7 +42,10 @@ var comparativoModales = {
     // Desde el listado: se conoce la solicitud por la fila donde se hizo clic.
     // `faltantes`: nombres de las aseguradoras sin bot que aún no tienen valor para esta placa. Si no falta ninguna
     // (o el usuario no puede registrar valores) no hay nada que preguntar: se abre el comparativo directamente.
-    abrirPregunta: function (id, placa, faltantes, puedeRegistrar) {
+    // `permitidas`: ids de las aseguradoras a las que se les puede registrar valor en esta solicitud (las sin bot y
+    // las con bot que no trajeron valor). En la página del comparativo la lista ya viene filtrada (null).
+    abrirPregunta: function (id, placa, faltantes, puedeRegistrar, permitidas) {
+        this.permitidas = permitidas || null;
         this.establecer(id, placa);
         if (!puedeRegistrar || !faltantes || !faltantes.length) {
             location.href = this.comparativoUrl;
@@ -77,6 +80,12 @@ var comparativoModales = {
 
     agregarFila: function () {
         var $fila = $(document.getElementById('cmpPlantilla').content.cloneNode(true));
+        var permitidas = this.permitidas;
+        if (permitidas) {
+            $fila.find('.cmp-aseguradora option').each(function () {
+                if (this.value && permitidas.indexOf(parseInt(this.value, 10)) === -1) { $(this).remove(); }
+            });
+        }
         $('#cmpFilas').append($fila);
     },
 
