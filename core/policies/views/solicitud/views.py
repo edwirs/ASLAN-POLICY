@@ -34,7 +34,7 @@ def aseguradoras_con_bot():
     nueva ya las lista). Las inactivas no aparecen: no se pueden elegir."""
     return [
         aseguradora for aseguradora in (
-            Aseguradora.objects.get_or_create(name=nombre)[0] for nombre in BOTS_DISPONIBLES
+            Aseguradora.objects.get_or_create(name=nombre, defaults={'is_active': False})[0] for nombre in BOTS_DISPONIBLES
         ) if aseguradora.is_active
     ]
 

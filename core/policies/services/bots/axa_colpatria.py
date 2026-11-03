@@ -53,7 +53,6 @@ URL_HOME_AUTENTICADO = 'https://sucursalenlinea.axacolpatria.co/group/site-sucur
 URL_AUTOS = 'https://sucursalenlinea.axacolpatria.co/group/site-sucursal-en-linea/herramientas/gestor-de-ventas/autos'
 URL_LOGOUT_AUTENTICACION = ('https://autenticacion.axacolpatria.co/v2/logout?client_id=4ZRArYjkYfXTt1oAYEiLaswiCuxhgH51'
                             '&returnTo=https%3A%2F%2Fsucursalenlinea.axacolpatria.co')
-PERFIL = 'Administrador'
 COLOR = 'NEGRO'
 SERVICIO = 'Particular'
 TIPO_VEHICULO_PARTICULAR = 'Familiar'
@@ -396,7 +395,7 @@ class AxaColpatriaBot(RegistroErrorMixin):
     def _perfil_administrador(self, page):
         selector = page.locator('#_ProfileSelector_profileSelection')
         selector.wait_for(timeout=45000)
-        selector.select_option(label=PERFIL)
+        selector.select_option(label=self.parametro('perfil'))
         page.locator('#_ProfileSelector_companySelection:visible').wait_for(timeout=20000)
         page.locator('[id*="ProfileSelector"]:visible', has_text=re.compile(r'^\s*INGRESAR\s*$', re.I)).first.click()
         for _ in range(270):

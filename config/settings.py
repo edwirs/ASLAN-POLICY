@@ -211,7 +211,7 @@ PASARELA_COMISION = env.float('PASARELA_COMISION', default=0.035)         # comi
 IVA = 0.19
 ASISTENTE_LIMITE_DIARIO = env.int('ASISTENTE_LIMITE_DIARIO', default=60)  # preguntas por usuario y día
 
-# Panel de la plataforma (solo ASLAN): vive en el dominio de la empresa interna «public» (ej. admin.aslantecnologia.online).
+# Panel de la plataforma (solo ASLAN): vive en el dominio de la empresa interna «public» (ej. admin.aslan-multiagente.com).
 # El acceso es de un único dueño: usuario + clave cifrada en .env.secrets (se genera con `manage.py plataforma_clave`).
 PUBLIC_SCHEMA_URLCONF = 'config.urls_public'
 PLATAFORMA_USUARIO = env('PLATAFORMA_USUARIO', default='')

@@ -25,6 +25,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 
 os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
 
+from core.policies.services.credenciales import lista
 from core.policies.services.bots.base import (  # noqa: E402
     PASO_LOGIN,
     BotAutenticacionError,
@@ -247,13 +248,11 @@ class MapfreBot(RegistroErrorMixin):
     # Cotización (Cotización Emisión › Autos cotización múltiple, mapeado el 2026-10-28 con DIU679)
     # ------------------------------------------------------------------
 
-    # Valores fijos que pidió Gali para todas las cotizaciones de Mapfre.
-    PRODUCTOS = ('SUPER TREBOL 117', 'SUPER TREBOL')
-    PRODUCTO_DESTACADO = 'Super Trebol 117'   # el que cuenta en el comparativo
-    OFICINA = 'RESTREPO'
-    OPCION_RCE = '(254)'                      # 4.000 Millones
-    DEDUCIBLE_CERO_PERDIDA_TOTAL = 'SI (S)'
-    DEDUCIBLE_PERDIDA_PARCIAL = '1.200.000'
+    # Oficina, productos, RCE y deducibles son opciones de cada empresa (Configuraciones › Aseguradoras › Mapfre):
+    # ver services/credenciales.PARAMETROS_POR_ASEGURADORA (los valores por defecto son los que pidió Gali).
+    @property
+    def PRODUCTO_DESTACADO(self):
+        return self.parametro('producto_destacado')
 
     def _marco(self, page):
         marco = page.frame(name='iFramePpal')
@@ -313,7 +312,7 @@ class MapfreBot(RegistroErrorMixin):
         marco.get_by_text(re.compile(r'Autos cotizaci.n m.ltiple', re.I)).first.wait_for(timeout=30000)
 
         # Productos: SUPER TREBOL 117 y SUPER TREBOL (casillas de PrimeFaces).
-        for producto in self.PRODUCTOS:
+        for producto in lista(self.parametro('productos')):
             fila = marco.locator('tr').filter(has=marco.get_by_text(re.compile(r'^\s*' + re.escape(producto) + r'\s*$')))
             caja = fila.first.locator('.ui-chkbox-box')
             if caja.get_attribute('aria-checked') != 'true':
@@ -339,7 +338,7 @@ class MapfreBot(RegistroErrorMixin):
             raise BotPortalError('Mapfre no trajo los datos del vehículo con la placa'
                                  + (f': «{mensajes[0]}»' if mensajes else '.'))
 
-        self._elegir(page, marco, 'COD_NIVEL3', self.OFICINA)
+        self._elegir(page, marco, 'COD_NIVEL3', self.parametro('oficina'))
         asegurado = marco.locator('[id="COD_DOCUM_ASEG"]')
         asegurado.click()
         asegurado.press_sequentially(self.tomador.dni, delay=50)
@@ -357,9 +356,9 @@ class MapfreBot(RegistroErrorMixin):
         municipio = self.vehiculo.zona_circulacion
         self._elegir(page, marco, 'COD_POSTAL_RADIC', f'({municipio.codigo})')
         self._esperar_portal(page, marco)
-        self._elegir(page, marco, 'NUM_OPCION_RC', self.OPCION_RCE)
-        self._elegir(page, marco, 'MCA_DEDCBLE_CERO_PERD_TOT', self.DEDUCIBLE_CERO_PERDIDA_TOTAL)
-        self._elegir(page, marco, 'MCA_DEDCBLE_UNICO_PERD_PAR', self.DEDUCIBLE_PERDIDA_PARCIAL)
+        self._elegir(page, marco, 'NUM_OPCION_RC', self.parametro('opcion_rce'))
+        self._elegir(page, marco, 'MCA_DEDCBLE_CERO_PERD_TOT', self.parametro('deducible_cero_perdida_total'))
+        self._elegir(page, marco, 'MCA_DEDCBLE_UNICO_PERD_PAR', self.parametro('deducible_perdida_parcial'))
         page.keyboard.press('Escape')
         self._capturar_vehiculo(marco)
 

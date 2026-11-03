@@ -23,10 +23,11 @@
                     <td><b>{{ d.e.name }}</b><br><small class="text-muted">NIT {{ d.e.nit }} · <code>{{ d.e.schema_name }}</code></small></td>
                     <td>{% for dom in d.dominios %}<span class="pl-chip{% if dom.is_primary %} principal{% endif %}">{{ dom.domain }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</td>
                     <td>
-                        {% if d.e.suspendida %}<span class="badge bg-dark">Suspendida</span>{% elif d.e.on_trial %}<span class="badge bg-info">En prueba</span>{% else %}<span class="badge bg-success">Cliente</span>{% endif %}
+                        {% if d.e.suspendida %}<span class="badge bg-dark">Suspendida</span>{% elif d.e.on_trial %}<span class="badge bg-info">En prueba{% if d.estado.nivel == 'ok' %} · {{ d.estado.dias }} d{% endif %}</span>{% else %}<span class="badge bg-success">Cliente</span>{% endif %}
                         {% if d.estado.nivel == 'gracia' or d.estado.nivel == 'vencida' %}<span class="badge bg-danger">Vencida</span>{% elif d.estado.nivel == 'por_vencer' %}<span class="badge bg-warning text-dark">Vence en {{ d.estado.dias }} d</span>{% endif %}
                         {% if d.e.plan %}<br><small class="text-muted">Plan {{ d.e.get_plan_display|lower }}</small>{% endif %}
                         {% if d.e.paid_until %}<br><small class="text-muted">pagado hasta {{ d.e.paid_until|date:"d/m/Y" }}</small>{% endif %}
+                        {% if d.accesos %}<br><small class="{% if d.accesos.pendientes %}text-warning{% else %}text-muted{% endif %}" title="{% if d.accesos.pendientes %}Faltan: {{ d.accesos.pendientes|join:', ' }}{% endif %}"><i class="fas fa-key"></i> accesos {{ d.accesos.listas }}/{{ d.accesos.total }}</small>{% endif %}
                     </td>
                     <td class="text-center">{{ d.usuarios|default_if_none:"—" }}</td>
                     <td style="min-width: 210px">

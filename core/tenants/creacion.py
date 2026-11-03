@@ -192,8 +192,10 @@ def _sembrar(schema, datos):
         Dashboard.objects.get_or_create(name='ASLAN MultiAgente de Seguros', defaults={'icon': 'fas fa-user-tie', 'author': 'ASLAN Tecnología'})
         for nombre, abreviatura, codigo in TIPOS_DOCUMENTO:
             DocumentType.objects.get_or_create(code=codigo, defaults={'name': nombre, 'abbreviation': abreviatura})
+        # Las aseguradoras con bot arrancan apagadas: se activan cuando la empresa pone sus datos de acceso
+        # (la URL del portal y lo común a cualquier intermediario ya vienen escritos en el formulario).
         for nombre in ASEGURADORAS_CON_BOT:
-            Aseguradora.objects.get_or_create(name=nombre)
+            Aseguradora.objects.get_or_create(name=nombre, defaults={'is_active': False})
         TipoPoliza.objects.get_or_create(code='todo-riesgo', defaults={'name': 'Todo Riesgo'})
         Company.objects.get_or_create(ruc=datos['nit'][:13], defaults={
             'name': datos['nombre'][:50], 'address': '', 'mobile': (datos['telefono'] or '')[:10], 'phone': '', 'email': datos['email'][:50],

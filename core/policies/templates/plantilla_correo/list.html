@@ -66,7 +66,7 @@
             <h2><i class="fa-solid fa-paper-plane"></i> Cuentas desde las que salen los correos</h2>
             {% if puede_cuentas %}<a href="{% url 'cuenta_correo_create' %}" class="btn btn-primary btn-sm rounded-pill"><i class="fa-solid fa-plus"></i> Nueva cuenta</a>{% endif %}
         </div>
-        <p class="pc-ayuda">Cada plantilla elige su cuenta. Para correos de Google Workspace (como galiseguros.com) se usa una
+        <p class="pc-ayuda">Cada plantilla elige su cuenta. Para correos de Google Workspace (Gmail con el dominio de la empresa) se usa una
             <b>contraseña de aplicación</b> de esa cuenta, no la contraseña normal.</p>
         <div class="table-responsive">
             <table class="table pc-tabla mb-0">
@@ -112,7 +112,7 @@
                 {% else %}<div class="pc-firma-vacia"><i class="fa-regular fa-image"></i><span>Todavía no has subido tu firma. Sin firma, el correo lleva tu nombre y los datos de la empresa en texto.</span></div>{% endif %}
             </div>
             <div class="pc-firma-ayuda">
-                <p class="pc-ayuda">Imagen horizontal con tu nombre, cargo, teléfono, correo y logos (como la firma de ejemplo de Gali Seguros).
+                <p class="pc-ayuda">Imagen horizontal con tu nombre, cargo, teléfono, correo y logos (como una firma de correo corporativa).
                     Se recomienda de <b>1200 px de ancho</b>; en el correo se ve a 600 px. PNG, JPG o WebP: se convierte a PNG para que se vea en Outlook.</p>
                 {% if puede_firma %}
                     <div class="d-flex flex-wrap gap-2">

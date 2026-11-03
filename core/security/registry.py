@@ -165,7 +165,7 @@ MENU = (
     )),
     Section('Pólizas', 'fa-solid fa-file-contract', (
         Item('policies', 'Pólizas tomadas', 'poliza_list', 'policies.view_poliza',
-             crud_q('policies', 'poliza'), icon='fa-solid fa-file-shield', modulo='cotizador'),
+             crud_q('policies', 'poliza'), icon='fa-solid fa-file-shield', modulo='cartera'),
     )),
     Section('Vehículos', 'fa-solid fa-car', (
         Item('vehicles', 'Vehículos registrados', 'vehiculo_registrado_list', 'policies.view_vehiculo_registrado',

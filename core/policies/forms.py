@@ -9,7 +9,7 @@ from core.policies.services.polizas import MAX_CUOTAS
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services import correo as servicio_correo
 from core.policies.services.coberturas import CAMPOS as CAMPOS_COBERTURA, SECCIONES as SECCIONES_COBERTURA
-from core.policies.services.credenciales import campos_de, obligatorios_de
+from core.policies.services.credenciales import INICIALES, PORTALES, campos_de, obligatorios_de, parametros_de
 from core.pos.models import DocumentType, Municipio
 from core.user.models import User
 
@@ -227,7 +227,8 @@ class AseguradoraCredencialForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.aseguradora = aseguradora
         self.es_nueva = aseguradora.pk is None
-        self.fields['aseguradora_activa'].initial = aseguradora.is_active if not self.es_nueva else True
+        # Aseguradora con bot aún sin datos de acceso (empresa nueva): se propone activarla al guardarlos.
+        self.fields['aseguradora_activa'].initial = (aseguradora.is_active or credencial is None) if not self.es_nueva else True
         permitidos = campos_de(aseguradora)
         obligatorios = obligatorios_de(aseguradora)
         for nombre in list(self.fields):
@@ -253,6 +254,20 @@ class AseguradoraCredencialForm(forms.ModelForm):
             for nombre in self.CAMPOS_ASEGURADORA:
                 del self.fields[nombre]
             self.fields['portal_url'].widget.attrs['autofocus'] = True
+        # Credencial nueva: URL del portal y campos comunes a cualquier intermediario ya escritos.
+        if credencial is None and not self.es_nueva:
+            iniciales = {'portal_url': PORTALES.get(aseguradora.name), **INICIALES.get(aseguradora.name, {})}
+            for nombre, valor in iniciales.items():
+                if nombre in self.fields and valor:
+                    self.fields[nombre].initial = valor
+        # Opciones de la empresa en el cotizador de este portal (oficina, productos…): van en `parametros`.
+        guardados = (credencial.parametros or {}) if credencial else {}
+        for p in parametros_de(aseguradora.name):
+            self.fields['param_' + p['clave']] = forms.CharField(
+                required=False, max_length=300, label=p['etiqueta'],
+                help_text=' '.join(x for x in (p.get('ayuda', ''), f'Si se deja vacío se usa: {p["defecto"]}.' if p.get('defecto') else '') if x),
+                initial=guardados.get(p['clave']) or p.get('defecto', ''),
+                widget=forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}))
         # Los datos de la aseguradora (si se piden) van antes que los de acceso.
         orden = [n for n in self.CAMPOS_ASEGURADORA if n in self.fields]
         self.order_fields(orden)
@@ -275,6 +290,9 @@ class AseguradoraCredencialForm(forms.ModelForm):
                 if nombre == 'password' and self.instance.pk and self.instance.password:
                     continue
                 self.add_error(nombre, 'Obligatorio para dejar la aseguradora activa.')
+            for p in parametros_de(self.aseguradora.name):
+                if p.get('obligatorio') and not (cleaned.get('param_' + p['clave']) or '').strip():
+                    self.add_error('param_' + p['clave'], 'Obligatorio para dejar la aseguradora activa.')
         return cleaned
 
     def save(self, commit=True):
@@ -286,13 +304,17 @@ class AseguradoraCredencialForm(forms.ModelForm):
             aseguradora.phone = self.cleaned_data.get('phone') or None
             aseguradora.email = self.cleaned_data.get('email') or None
         aseguradora.is_active = self.cleaned_data.get('aseguradora_activa', False)
-        datos_acceso = [n for n in self.fields if n not in ('aseguradora_activa', *self.CAMPOS_ASEGURADORA)]
+        datos_acceso = [n for n in self.fields if n not in ('aseguradora_activa', *self.CAMPOS_ASEGURADORA) and not n.startswith('param_')]
         if not self.instance.pk and not any(self.cleaned_data.get(n) for n in datos_acceso):
             # Aseguradora sin datos de acceso: solo se guarda ella.
             if commit:
                 aseguradora.save()
             return None
         credencial.is_active = True
+        parametros = dict(credencial.parametros or {})
+        for p in parametros_de(aseguradora.name):
+            parametros[p['clave']] = ' '.join((self.cleaned_data.get('param_' + p['clave']) or '').split())
+        credencial.parametros = parametros
         if self.instance.pk and not self.cleaned_data.get('password'):
             credencial.password = AseguradoraCredencial.objects.get(pk=self.instance.pk).password
         elif self.cleaned_data.get('password'):
@@ -619,9 +641,9 @@ class CuentaCorreoForm(forms.ModelForm):
         model = CuentaCorreo
         fields = ('nombre', 'correo', 'nombre_remitente', 'servidor', 'puerto', 'seguridad', 'usuario', 'clave', 'is_active')
         widgets = {
-            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Lilian - Gali Seguros'}),
-            'correo': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'correo@galiseguros.com'}),
-            'nombre_remitente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Gali Seguros'}),
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Ventas - Mi Agencia de Seguros'}),
+            'correo': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'cotizaciones@miagencia.com'}),
+            'nombre_remitente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Mi Agencia de Seguros'}),
             'servidor': forms.TextInput(attrs={'class': 'form-control'}),
             'puerto': forms.NumberInput(attrs={'class': 'form-control'}),
             'seguridad': forms.Select(attrs={'class': 'form-select'}),

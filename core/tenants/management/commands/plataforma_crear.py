@@ -17,7 +17,7 @@ class Command(BaseCommand):
         parser.add_argument('--dominio', action='append', help='Dominio extra para el panel (se puede repetir).')
 
     def handle(self, *args, **options):
-        base = env('BASE_DOMAIN', default='aslantecnologia.online')
+        base = env('BASE_DOMAIN', default='aslan-multiagente.com')
         dominios = [f'admin.{base}', 'admin.localhost', *(options['dominio'] or [])]
         Empresa = get_tenant_model()
         publica = Empresa.objects.filter(schema_name=get_public_schema_name()).first()

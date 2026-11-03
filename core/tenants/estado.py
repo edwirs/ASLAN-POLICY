@@ -23,12 +23,22 @@ def modulos_activos(empresa):
     return {m for m in MODULOS if getattr(empresa, f'modulo_{m}', False)}
 
 
+def modulo_activo(request, modulo):
+    """¿La empresa de esta petición tiene contratado el módulo? (si no se sabe la empresa, sí: no se oculta nada)."""
+    activos = modulos_activos(getattr(request, 'tenant', None))
+    return activos is None or modulo in activos
+
+
 def modulo_de_ruta(ruta):
-    """Módulo al que pertenece una URL de las empresas (None = libre). Aslani se controla aparte, con su propio plan."""
+    """Módulo al que pertenece una URL de las empresas (None = libre). Aslani se controla aparte, con su propio plan.
+    Cotizador: solicitudes, vehículos registrados, aseguradoras y plantillas de correo. Asesores: su módulo.
+    Cartera: pólizas tomadas (seguimiento de cuotas, renovaciones y comisiones)."""
     if ruta.startswith('/policies/asistente/'):
         return None
     if ruta.startswith('/policies/asesores/'):
         return 'asesores'
+    if ruta.startswith('/policies/polizas/'):
+        return 'cartera'
     if ruta.startswith('/policies/'):
         return 'cotizador'
     return None
@@ -53,6 +63,7 @@ def estado_suscripcion(empresa):
     if atrasados <= settings.GRACIA_DIAS or not settings.SUSPENDER_POR_VENCIMIENTO:
         restan = max(settings.GRACIA_DIAS - atrasados, 0)
         return {'nivel': 'gracia' if settings.SUSPENDER_POR_VENCIMIENTO else 'vencida', 'dias': dias, 'suspendida': False,
+                'atrasados': atrasados, 'gracia_restante': restan,
                 'mensaje': f'Tu suscripción venció el {hasta:%d/%m/%Y}. ' + (f'Tienes {restan} día(s) para renovarla antes de que se suspenda el acceso.' if settings.SUSPENDER_POR_VENCIMIENTO else 'Renuévala con ASLAN.')}
     return {'nivel': 'suspendida', 'dias': dias, 'suspendida': True,
             'mensaje': f'La suscripción venció el {hasta:%d/%m/%Y} y el período de gracia terminó.'}

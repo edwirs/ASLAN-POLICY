@@ -120,13 +120,27 @@
                     {% for v, n in e.PLANES %}<option value="{{ v }}" {% if e.plan == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
                 </select>
                 <label class="form-label fw-semibold" for="hasta">Pagado hasta</label>
-                <input class="form-control mb-3" id="hasta" name="pagado_hasta" type="date" value="{{ e.paid_until|date:'Y-m-d' }}">
+                <input class="form-control" id="hasta" name="pagado_hasta" type="date" value="{{ e.paid_until|date:'Y-m-d' }}">
+                <div class="form-text mb-3">
+                    {% if not e.paid_until %}Sin fecha: la empresa no vence.
+                    {% elif estado.dias > 0 %}Le quedan <b>{{ estado.dias }} día{{ estado.dias|pluralize }}</b> {% if e.on_trial %}de prueba{% else %}de suscripción pagada{% endif %}.
+                    {% elif estado.dias == 0 %}{% if e.on_trial %}La prueba{% else %}La suscripción{% endif %} <b>vence hoy</b>.
+                    {% elif estado.nivel == 'gracia' %}<span class="text-danger">Venció hace {{ estado.atrasados }} día{{ estado.atrasados|pluralize }}: le quedan <b>{{ estado.gracia_restante }} día{{ estado.gracia_restante|pluralize }} de gracia</b> antes de suspenderse.</span>
+                    {% else %}<span class="text-danger">Venció el {{ e.paid_until|date:"d/m/Y" }}.</span>{% endif %}
+                    Para dar más días, cambia esta fecha y guarda.
+                </div>
                 <label class="form-label fw-semibold" for="nota">Notas internas</label>
                 <textarea class="form-control mb-3" id="nota" name="nota" rows="2" placeholder="Solo las ves tú">{{ e.nota }}</textarea>
                 <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i> Guardar</button>
             </form>
             <hr>
             <small class="text-muted">Creada el {{ e.created_on|date:"d/m/Y" }} · {{ d.usuarios|default_if_none:"—" }} usuarios activos · {{ d.solicitudes|default_if_none:"—" }} solicitudes registradas.</small>
+            {% if d.accesos %}
+                <div class="mt-2 small">
+                    <i class="fas fa-key"></i> Accesos a aseguradoras configurados: <b>{{ d.accesos.listas }} de {{ d.accesos.total }}</b>
+                    {% if d.accesos.pendientes %}<br><span class="text-muted">Faltan: {{ d.accesos.pendientes|join:", " }}. La empresa los completa en Configuraciones › Aseguradoras.</span>{% endif %}
+                </div>
+            {% endif %}
         </section>
     </div>
 

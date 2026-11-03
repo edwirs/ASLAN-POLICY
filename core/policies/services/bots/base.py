@@ -355,6 +355,12 @@ class RegistroErrorMixin:
             self.vehiculo.modelo = modelo
         return modelo
 
+    def parametro(self, clave):
+        """Opción de la empresa para el cotizador de este portal (oficina, productos…): la que guardó en
+        Configuraciones › Aseguradoras o, si no la cambió, el valor por defecto."""
+        from core.policies.services.credenciales import parametro  # import local: evita ciclo al cargar el módulo
+        return parametro(getattr(self, 'credencial', None), self.cotizacion.aseguradora.name, clave)
+
     @property
     def placa_portal(self):
         """Placa que se escribe en el portal de la aseguradora: la real, o `PLACA_CERO_KM` si es 0 km."""

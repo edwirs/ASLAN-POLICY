@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.views import View
 
+from core.tenants.estado import modulo_activo
 from core.policies.models import Poliza, Vehiculo
 from core.policies.services.etapas import etapas_por_vehiculo
 
@@ -41,7 +42,7 @@ class BuscarView(LoginRequiredMixin, View):
 
         ver_solicitudes = user.has_perm('policies.view_vehiculo')
         ver_vehiculos = user.has_perm('policies.view_vehiculo_registrado')
-        ver_polizas = user.has_perm('policies.view_poliza')
+        ver_polizas = user.has_perm('policies.view_poliza') and modulo_activo(request, 'cartera')
         resultados = []
         for v in vehiculos:
             t = v.tomador

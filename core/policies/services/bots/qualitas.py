@@ -30,6 +30,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 # hilo), así que se usa la vía oficial de Django para este caso exacto.
 os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
 
+from core.policies.services.credenciales import lista
 from core.policies.services.bots.base import (
     PASO_LOGIN,
     BotAutenticacionError,
@@ -62,14 +63,6 @@ logger = logging.getLogger(__name__)
 MODALES_HOME = ('modalBonos',)
 MODALES_COTIZADOR = ('modalAvisoBonos', 'modalAcomCercano')
 
-AMPAROS_ACCESORIOS = (
-    'Pérdida de llaves',
-    'Gastos de transporte pérdida total',
-    'Gastos de transporte pérdida parcial',
-    'Llantas estalladas',
-    'Rotura de vidrios',
-    'Pequeños accesorios',
-)
 
 GENERO_LABEL = {'male': 'Masculino', 'female': 'Femenino'}
 
@@ -592,12 +585,17 @@ class QualitasBot(RegistroErrorMixin):
         """Asistencia en viaje = Plus, y los amparos accesorios fijos."""
         self._seleccionar_en_fila(page, 'Asistencia en Viaje', 'PLUS')
 
-        for amparo in AMPAROS_ACCESORIOS:
+        # Amparos accesorios: los que eligió la empresa (Configuraciones › Aseguradoras › Qualitas).
+        amparos = lista(self.parametro('amparos_accesorios'))
+        for amparo in amparos:
             check_option(page, amparo)
 
         # Campos que se despliegan al marcar ciertos amparos.
-        select_generic(page, 'Días', '15')
-        self._deducible_en_tarjeta(page, 'Rotura de vidrios', '5%')
+        normalizados = [normalizar_texto(a) for a in amparos]
+        if any('transporte' in a for a in normalizados):
+            select_generic(page, 'Días', '15')
+        if any('vidrios' in a for a in normalizados):
+            self._deducible_en_tarjeta(page, 'Rotura de vidrios', '5%')
 
     def _deducible_en_tarjeta(self, page, titulo_tarjeta, opcion_texto, timeout=10000):
         """Elige un valor en el deducible que se despliega dentro de la tarjeta del amparo accesorio

@@ -206,6 +206,7 @@ def _dato_empresa(e):
             d['cupo'] = asistente.cupo(None)
             d['usuarios'] = User.objects.filter(is_active=True).count()
             d['solicitudes'] = Vehiculo.objects.count()
+            d['accesos'] = accesos_aseguradoras()
     except Exception:
         logger.exception('No se pudo leer la empresa "%s"', e.schema_name)
     try:
@@ -223,6 +224,21 @@ def _dato_empresa(e):
         d['costo_estimado'] = _pesos(d['cupo']['usadas'] * settings.ASISTENTE_COSTO_PREGUNTA_COP)
         d['porcentaje'] = round(d['cupo']['usadas'] * 100 / d['cupo']['limite']) if d['cupo']['limite'] else 0
     return d
+
+
+def accesos_aseguradoras():
+    """De las aseguradoras con bot, cuáles ya tienen sus datos de acceso completos (dentro del schema de la empresa)."""
+    from core.policies.models import Aseguradora
+    from core.policies.services.bots import BOTS_DISPONIBLES
+    from core.policies.services.credenciales import faltantes
+
+    listas, pendientes = 0, []
+    for aseguradora in Aseguradora.objects.filter(name__in=list(BOTS_DISPONIBLES)).order_by('name'):
+        if faltantes(aseguradora):
+            pendientes.append(aseguradora.name)
+        else:
+            listas += 1
+    return {'listas': listas, 'total': len(BOTS_DISPONIBLES), 'pendientes': pendientes}
 
 
 def consumo_mes(schema):
@@ -358,7 +374,7 @@ def agregar_dominio(request, schema):
     e = _empresa_o_404(schema)
     dominio = request.POST.get('dominio', '').strip().lower()
     if not RE_DOMINIO.match(dominio):
-        return _volver(schema, error='Escribe solo el dominio, sin https:// ni rutas (ej. empresa.aslantecnologia.online).')
+        return _volver(schema, error='Escribe solo el dominio, sin https:// ni rutas (ej. empresa.aslan-multiagente.com).')
     if Domain.objects.filter(domain=dominio).exists():
         return _volver(schema, error=f'El dominio {dominio} ya está registrado.')
     Domain.objects.create(domain=dominio, tenant=e, is_primary=False)

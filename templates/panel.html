@@ -32,12 +32,12 @@
         <h2 class="pn-seccion"><i class="fas fa-user-check"></i> Seguimiento de clientes</h2>
         <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-5 g-3 mb-3">
             <div class="col">
-                <a class="pn-seg {% if sg.renovar %}naranja{% endif %}" {% if perms.policies.view_poliza %}href="{% url 'poliza_list' %}?filtro=por_renovar"{% endif %}>
+                <a class="pn-seg {% if sg.renovar %}naranja{% endif %}" {% if perms.policies.view_poliza and cartera_activa %}href="{% url 'poliza_list' %}?filtro=por_renovar"{% endif %}>
                     <i class="fas fa-bell"></i><b>{{ sg.renovar|length }}</b><span>Pólizas por renovar</span><small>vencen en los próximos {{ sg.dias_aviso }} días</small>
                 </a>
             </div>
             <div class="col">
-                <a class="pn-seg {% if sg.cuotas_vencidas %}rojo{% endif %}" {% if perms.policies.view_poliza %}href="{% url 'poliza_list' %}?filtro=cuotas"{% endif %}>
+                <a class="pn-seg {% if sg.cuotas_vencidas %}rojo{% endif %}" {% if perms.policies.view_poliza and cartera_activa %}href="{% url 'poliza_list' %}?filtro=cuotas"{% endif %}>
                     <i class="fas fa-calendar-xmark"></i><b>{{ sg.cuotas_vencidas }}</b><span>Pólizas con cuotas atrasadas</span><small>{{ sg.cuotas_semana|length }} cuota{{ sg.cuotas_semana|length|pluralize }} vence{{ sg.cuotas_semana|length|pluralize:",n" }} esta semana</small>
                 </a>
             </div>
@@ -53,7 +53,7 @@
                 </div>
             </div>
             <div class="col">
-                <a class="pn-seg azul" {% if perms.policies.view_poliza %}href="{% url 'poliza_list' %}?filtro=cartera"{% endif %}>
+                <a class="pn-seg azul" {% if perms.policies.view_poliza and cartera_activa %}href="{% url 'poliza_list' %}?filtro=cartera"{% endif %}>
                     <i class="fas fa-sack-dollar"></i><b>$<span class="pn-dinero" data-v="{{ sg.comision_pendiente|floatformat:0 }}">{{ sg.comision_pendiente|floatformat:0 }}</span></b>
                     <span>Comisiones pendientes</span><small>{{ sg.comision_pendiente_n }} póliza{{ sg.comision_pendiente_n|pluralize:",s" }} sin fecha de pago de la aseguradora</small>
                 </a>
@@ -66,7 +66,7 @@
                     <div class="pn-card-titulo"><i class="fas fa-bell"></i> Renovaciones próximas <small>{{ sg.dias_aviso }} días</small></div>
                     <div class="pn-lista">
                         {% for r in sg.renovar|slice:":8" %}
-                            <a class="pn-lista-item" {% if perms.policies.view_poliza %}href="{% url 'poliza_update' r.poliza_id %}"{% endif %}>
+                            <a class="pn-lista-item" {% if perms.policies.view_poliza and cartera_activa %}href="{% url 'poliza_update' r.poliza_id %}"{% endif %}>
                                 <span><b class="pn-placa">{{ r.placa }}</b> {{ r.cliente }}<small>{{ r.aseguradora }}{% if r.celular %} · {{ r.celular }}{% endif %}</small></span>
                                 <span class="etapa {% if r.dias <= 7 %}etapa-rojo{% else %}etapa-naranja{% endif %}">{% if r.dias == 0 %}hoy{% else %}{{ r.dias }} d{% endif %}</span>
                             </a>
@@ -81,7 +81,7 @@
                     <div class="pn-card-titulo"><i class="fas fa-calendar-day"></i> Cuotas de esta semana <small>para recordarle al cliente</small></div>
                     <div class="pn-lista">
                         {% for c in sg.cuotas_semana|slice:":8" %}
-                            <a class="pn-lista-item" {% if perms.policies.view_poliza %}href="{% url 'poliza_update' c.poliza_id %}"{% endif %}>
+                            <a class="pn-lista-item" {% if perms.policies.view_poliza and cartera_activa %}href="{% url 'poliza_update' c.poliza_id %}"{% endif %}>
                                 <span><b class="pn-placa">{{ c.placa }}</b> {{ c.cliente }}<small>Cuota {{ c.numero }} de {{ c.total }} · {{ c.aseguradora }}{% if c.celular %} · {{ c.celular }}{% endif %}</small></span>
                                 <span class="text-end"><b>{{ c.fecha|date:"d/m" }}</b><small>$<span class="pn-dinero" data-v="{{ c.valor|floatformat:0 }}">{{ c.valor|floatformat:0 }}</span></small></span>
                             </a>

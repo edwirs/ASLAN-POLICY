@@ -81,6 +81,9 @@ class AseguradoraCredencial(models.Model):
     sucursal = models.CharField(max_length=150, null=True, blank=True, verbose_name='Sucursal (cotizador)')
     correo_contacto = models.CharField(max_length=100, null=True, blank=True, verbose_name='Correo de contacto (cotizador)')
     telefono_contacto = models.CharField(max_length=20, null=True, blank=True, verbose_name='Teléfono de contacto (cotizador)')
+    # Opciones propias de la empresa en el cotizador de este portal (oficina, productos, RCE…): ver
+    # services/credenciales.PARAMETROS_POR_ASEGURADORA, que dice cuáles tiene cada aseguradora y su valor por defecto.
+    parametros = models.JSONField(default=dict, blank=True, verbose_name='Opciones del cotizador')
 
     # La aseguradora exigió cambiar la contraseña en su portal. Mientras esté marcada, los bots no intentan entrar
     # (cada intento fallido acerca la cuenta al bloqueo); se limpia sola al guardar una contraseña nueva.
@@ -742,7 +745,7 @@ class CuotaPoliza(models.Model):
 
 class CuentaCorreo(models.Model):
     """Cuenta de correo desde la que salen las cotizaciones (servidor SMTP). La contraseña se guarda cifrada y nunca
-    se expone en toJSON(). En Google Workspace (galiseguros.com) es una «contraseña de aplicación» de la cuenta."""
+    se expone en toJSON(). En Google Workspace es una «contraseña de aplicación» de la cuenta."""
     nombre = models.CharField(max_length=100, verbose_name='Nombre de la cuenta')
     correo = models.EmailField(max_length=150, verbose_name='Correo que envía')
     nombre_remitente = models.CharField(max_length=150, blank=True, default='', verbose_name='Nombre que ve el cliente')

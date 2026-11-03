@@ -74,13 +74,15 @@ def estado_empresa(request):
     user = getattr(request, 'user', None)
     if user is None or not user.is_authenticated:
         return {}
-    from core.tenants.estado import anuncios_para, estado_suscripcion
+    from core.tenants.estado import anuncios_para, estado_suscripcion, modulo_activo
 
     empresa = getattr(request, 'tenant', None)
     try:
         estado = estado_suscripcion(empresa) if empresa is not None else None
         return {'aviso_suscripcion': estado if estado and estado['nivel'] in ('por_vencer', 'gracia') else None,
-                'anuncios_plataforma': anuncios_para(empresa)}
+                'anuncios_plataforma': anuncios_para(empresa),
+                # Pólizas tomadas es del módulo Cartera: sin él, los enlaces a pólizas no se muestran.
+                'cartera_activa': modulo_activo(request, 'cartera')}
     except Exception:  # un fallo aquí nunca debe tumbar una pantalla de la empresa
         logger.debug('No se pudo leer el estado de la empresa.', exc_info=True)
         return {}

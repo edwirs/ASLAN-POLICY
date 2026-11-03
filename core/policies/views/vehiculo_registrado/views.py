@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 from django.views.decorators.gzip import gzip_page
 
+from core.tenants.estado import modulo_activo
 from core.policies.choices import ESTADO_VEHICULO
 from core.policies.models import Vehiculo
 from core.policies.services.etapas import ETAPAS, etapa_de, etapas_por_vehiculo
@@ -160,11 +161,11 @@ class VehiculoRegistradoListView(StrictPermissionMixin, TemplateView):
         context['estados'] = [e for e in ESTADO_VEHICULO if e[0] != 'activo']
         context['puede_cambiar_estado'] = self.request.user.has_perm('policies.change_vehiculo_estado')
         user = self.request.user
-        context['puede_ver_polizas'] = user.has_perm('policies.view_poliza')
+        context['puede_ver_polizas'] = user.has_perm('policies.view_poliza') and modulo_activo(self.request, 'cartera')
         context['etapas'] = [(e[0], e[1]) for e in ETAPAS]
         context['ficha'] = {
             'cotizar': reverse('solicitud_cotizacion_create') if user.has_perm('policies.add_vehiculo') else '',
             'solicitudes': reverse('vehiculo_list') if user.has_perm('policies.view_vehiculo') else '',
-            'polizas': reverse('poliza_list') if user.has_perm('policies.view_poliza') else '',
+            'polizas': reverse('poliza_list') if context['puede_ver_polizas'] else '',
         }
         return context

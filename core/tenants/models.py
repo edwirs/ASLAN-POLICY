@@ -97,9 +97,8 @@ class AccesoPlataforma(models.Model):
 @receiver(post_save, sender=Client)
 def create_default_domain(sender, instance, created, **kwargs):
     if created:
-        # Asume que el dominio será 'schema_name.critera.online'
-        # Puedes cambiar 'critera.online' por tu dominio principal
-        BASE_DOMAIN = env("BASE_DOMAIN", default="aslantecnologia.online")
+        # El dominio de la empresa será «schema.BASE_DOMAIN» (BASE_DOMAIN en .env.local, ej. aslan-multiagente.com)
+        BASE_DOMAIN = env("BASE_DOMAIN", default="aslan-multiagente.com")
         # Un nombre de host no admite «_» (Django lo rechaza y la empresa no abriría): el guion bajo del esquema pasa a guion.
         domain_name = f"{instance.schema_name.replace('_', '-')}.{BASE_DOMAIN}"
         

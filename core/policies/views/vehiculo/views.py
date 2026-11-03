@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 from django.views.decorators.gzip import gzip_page
 
+from core.tenants.estado import modulo_activo
 from core.policies.choices import MOTIVO_NO_COMPRO
 from core.policies.models import Aseguradora, ValorExterno, Vehiculo
 from core.policies.services.bots import BOTS_DISPONIBLES
@@ -120,7 +121,7 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
         user = self.request.user
         context['puede_comparar'] = user.has_perm('policies.view_comparativo')
         context['puede_registrar_valores'] = user.has_perm('policies.add_valor_externo')
-        context['puede_registrar_poliza'] = user.has_perm('policies.add_poliza')
+        context['puede_registrar_poliza'] = user.has_perm('policies.add_poliza') and modulo_activo(self.request, 'cartera')
         context['aseguradoras_manual'] = [(a, a.name in BOTS_DISPONIBLES) for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
         context['guardar_url_plantilla'] = reverse('vehiculo_comparativo_valores', args=[0])
         context['comparativo_url_plantilla'] = reverse('vehiculo_comparativo', args=[0])

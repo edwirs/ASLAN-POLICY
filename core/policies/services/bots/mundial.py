@@ -70,9 +70,6 @@ DOCUMENTOS = {
 }
 
 # Datos fijos que el negocio pide para TODAS las cotizaciones (la credencial puede traer los suyos).
-DIRECCION_RESIDENCIA = 'cll 6 20 33'
-CELULAR_POR_DEFECTO = '3227354638'
-CORREO_POR_DEFECTO = 'lilianmq@galiseguros.com'
 
 MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -550,10 +547,14 @@ class MundialBot(RegistroErrorMixin):
         self._elegir_fecha(page, self.tomador.birthdate)
         municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
-        self._escribir(page.locator('#direccionPropietario'), DIRECCION_RESIDENCIA)
-        self._escribir(page.locator('#celularPropietario'), self.credencial.telefono_contacto or CELULAR_POR_DEFECTO,
-                       comparar='digitos')
-        self._escribir(page.locator('#correoPropietario'), self.credencial.correo_contacto or CORREO_POR_DEFECTO)
+        # Dirección, celular y correo de contacto: los de la empresa (Configuraciones › Aseguradoras › Seguros Mundial).
+        contacto = (self.parametro('direccion'), self.credencial.telefono_contacto, self.credencial.correo_contacto)
+        if not all(contacto):
+            raise BotDatosError('Faltan la dirección, el celular o el correo de contacto de la empresa para Seguros Mundial.',
+                                accion='Complételos en Configuraciones › Aseguradoras › Seguros Mundial y reenvíe la solicitud.')
+        self._escribir(page.locator('#direccionPropietario'), contacto[0])
+        self._escribir(page.locator('#celularPropietario'), contacto[1], comparar='digitos')
+        self._escribir(page.locator('#correoPropietario'), contacto[2])
 
         # Autorizaciones: se marca el círculo de la izquierda (no el texto: tiene enlaces que abren documentos).
         for etiqueta in ('condiciones', 'comunicaciones'):
