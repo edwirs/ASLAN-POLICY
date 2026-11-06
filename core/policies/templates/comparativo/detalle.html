@@ -5,7 +5,7 @@
 
 {% block assets %}
     <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=6">
-    <script src="{% static 'comparativo/js/modales.js' %}?v=2"></script>
+    <script src="{% static 'comparativo/js/modales.js' %}?v=4"></script>
     <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=3">
     <script src="{% static 'comparativo/js/correo.js' %}?v=4"></script>
 {% endblock %}
@@ -71,6 +71,18 @@
                     <div><dt>Código Fasecolda</dt><dd>{{ vehiculo.codigo_fasecolda|default:"—" }}</dd></div>
                     <div><dt>Valor comercial</dt><dd>{{ valor_comercial_fmt|default:"—" }}</dd></div>
                     <div><dt>Zona de circulación</dt><dd>{{ vehiculo.zona_circulacion }}</dd></div>
+                    <div class="cmp-ancho"><dt>SOAT obligatorio</dt><dd>
+                        {% if soat %}
+                            {{ soat.valor_fmt|default:"Sin valor" }}
+                            {% if soat.dias_texto %}<span class="cmp-punto">·</span>
+                                <span class="{% if soat.vencido %}text-danger{% elif soat.dias <= 30 %}text-warning{% else %}text-success{% endif %} fw-semibold">{% if soat.dias > 0 %}{{ soat.dias_texto }} de vigencia{% else %}{{ soat.dias_texto }}{% endif %}</span>
+                                <small class="text-muted">(vence {{ soat.vence_fmt }})</small>
+                            {% endif %}
+                        {% else %}<span class="text-muted">Sin registrar</span>{% endif %}
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-2 align-baseline" id="cmpEditarSoat"
+                                data-placa="{{ vehiculo.placa }}" data-valor="{{ vehiculo.soat_valor|default_if_none:''|stringformat:'s' }}"
+                                data-vence="{{ vehiculo.soat_vencimiento|date:'Y-m-d' }}"><i class="fa-solid fa-pen"></i> {% if soat %}Editar{% else %}Agregar{% endif %}</button>
+                    </dd></div>
                 </dl>
             </article>
             <article class="cmp-ficha">
@@ -263,8 +275,13 @@
                 showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
             }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'eliminar'}); } });
         });
+        $('#cmpEditarSoat').on('click', function () {
+            var $b = $(this);
+            comparativoModales.abrirSoat($b.data('placa'), String($b.data('valor') || ''), $b.data('vence') || '');
+        });
         $('#cmpAgregarValores').on('click', function () {
             $('.cmp-placa').text('{{ vehiculo.placa|escapejs }}');
+            comparativoModales.faltantes = {{ pendientes_valor_json|safe }};
             comparativoModales.abrirValores();
         });
     });

@@ -1,7 +1,38 @@
 {# Modales del comparativo (las usan el listado de solicitudes y la página del comparativo). #}
 {% load static %}
-<!-- MODAL 1: ¿DESEA AGREGAR VALORES DE ASEGURADORAS? -->
-<div class="modal fade" id="modalPregunta" tabindex="-1" aria-labelledby="modalPreguntaLabel" aria-hidden="true">
+<!-- MODAL 1: COMPARATIVO — SOAT DEL VEHÍCULO Y ¿DESEA AGREGAR VALORES DE ASEGURADORAS? -->
+<style>
+    #modalPregunta .modal-content { border: 0; border-radius: 16px; overflow: hidden; }
+    #modalPregunta .modal-header { border: 0; padding: 18px 22px 6px; }
+    #modalPregunta .modal-body { padding: 8px 22px 18px; }
+    #modalPregunta .modal-footer { border: 0; padding: 0 22px 20px; gap: 8px; }
+    .cmp-soat { border: 1px solid rgba(14, 116, 144, .22); background: linear-gradient(180deg, rgba(14, 116, 144, .06), rgba(14, 116, 144, .02));
+        border-radius: 14px; padding: 14px 16px; }
+    .cmp-soat-titulo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .cmp-soat-icono { width: 36px; height: 36px; border-radius: 10px; background: #0e7490; color: #fff; display: inline-flex;
+        align-items: center; justify-content: center; flex: none; }
+    .cmp-soat-titulo b { display: block; font-size: 1rem; }
+    .cmp-soat-titulo small { color: #64748b; }
+    .cmp-soat label { font-size: .8rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    .cmp-soat-dias { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 4px 12px; border-radius: 999px;
+        font-size: .85rem; font-weight: 600; }
+    .cmp-soat-dias.ok { background: rgba(22, 163, 74, .12); color: #15803d; }
+    .cmp-soat-dias.pronto { background: rgba(217, 119, 6, .14); color: #b45309; }
+    .cmp-soat-dias.vencido { background: rgba(220, 38, 38, .12); color: #b91c1c; }
+    .cmp-pregunta-valores { margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(100, 116, 139, .35); }
+    .cmp-pendientes { margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(217, 119, 6, .08);
+        border: 1px solid rgba(217, 119, 6, .25); font-size: .85rem; }
+    .cmp-pendientes.listo { background: rgba(22, 163, 74, .08); border-color: rgba(22, 163, 74, .25); color: #15803d; }
+    .cmp-pendientes b { margin-right: 6px; }
+    .cmp-pend-chip { display: inline-flex; align-items: center; gap: 4px; margin: 3px 4px 0 0; padding: 2px 10px; border-radius: 999px;
+        border: 1px solid rgba(217, 119, 6, .45); background: #fff; color: #92400e; font-size: .8rem; cursor: pointer; }
+    .cmp-pend-chip:hover { background: #fef3c7; }
+    .dark-mode .cmp-pend-chip { background: transparent; color: #fbbf24; }
+    .dark-mode .cmp-soat { background: rgba(60, 198, 223, .07); border-color: rgba(60, 198, 223, .25); }
+    .dark-mode .cmp-soat label, .dark-mode .cmp-soat-titulo small { color: #cbd5e1; }
+</style>
+<div class="modal fade" id="modalPregunta" tabindex="-1" aria-labelledby="modalPreguntaLabel" aria-hidden="true"
+     data-soat-url="{{ soat_url|default:'' }}" data-soat-url-plantilla="{{ soat_url_plantilla|default:'' }}">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -9,13 +40,36 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-1 fs-5">¿Desea agregar valores de aseguradoras?</p>
-                <p class="text-muted mb-1">Sirve para las aseguradoras sin bot (por ejemplo Bolívar, Allianz o Sura), donde una persona externa nos informa solo el valor final, y para las que el bot no pudo cotizar y se cotizaron a mano en su portal.</p>
-                <p class="mb-0 fw-semibold" id="cmpFaltantes"></p>
+                <section class="cmp-soat">
+                    <div class="cmp-soat-titulo">
+                        <span class="cmp-soat-icono"><i class="fa-solid fa-shield-heart"></i></span>
+                        <div><b>SOAT obligatorio</b><small>Sale en el PDF y en el correo, junto a los datos del vehículo. Opcional.</small></div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="cmpSoatValor">Valor del SOAT obligatorio</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="text" inputmode="numeric" autocomplete="off" class="form-control" id="cmpSoatValor" placeholder="Ej. 1.050.000">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label for="cmpSoatFecha">Fecha de vencimiento del SOAT</label>
+                            <input type="date" class="form-control" id="cmpSoatFecha">
+                        </div>
+                    </div>
+                    <div class="cmp-soat-dias" id="cmpSoatDias" hidden></div>
+                </section>
+                <section class="cmp-pregunta-valores" id="cmpSeccionValores">
+                    <p class="mb-1 fw-semibold">¿Desea agregar valores de aseguradoras?</p>
+                    <p class="text-muted small mb-1">Sirve para las aseguradoras sin bot (por ejemplo Bolívar, Allianz o Sura), donde una persona externa nos informa solo el valor final, y para las que el bot no pudo cotizar y se cotizaron a mano en su portal.</p>
+                    <p class="mb-0 small fw-semibold" id="cmpFaltantes"></p>
+                </section>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary rounded-pill" id="cmpNoAgregar"><i class="fa-solid fa-xmark"></i> No, ver comparativo</button>
-                <button type="button" class="btn btn-primary rounded-pill" id="cmpSiAgregar"><i class="fa-solid fa-check"></i> Sí, agregar</button>
+                <button type="button" class="btn btn-light rounded-pill me-auto" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-primary rounded-pill" id="cmpSiAgregar"><i class="fa-solid fa-plus"></i> Agregar valores</button>
+                <button type="button" class="btn btn-primary rounded-pill" id="cmpNoAgregar"><i class="fa-solid fa-arrow-right"></i> <span>Ver comparativo</span></button>
             </div>
         </div>
     </div>
@@ -34,6 +88,7 @@
             <div class="modal-body">
                 {% if aseguradoras_manual %}
                     <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
+                    <div class="cmp-pendientes" id="cmpPendientes" hidden></div>
                     <div id="cmpFilas"></div>
                     <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-2" id="cmpOtra"><i class="fa-solid fa-plus"></i> Agregar otra</button>
                     <template id="cmpPlantilla">

@@ -9,12 +9,12 @@ from django.views.decorators.gzip import gzip_page
 
 from core.tenants.estado import modulo_activo
 from core.policies.choices import MOTIVO_NO_COMPRO
-from core.policies.models import Aseguradora, ValorExterno, Vehiculo
+from core.policies.models import Aseguradora, Cotizacion, ValorExterno, Vehiculo
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.comparativo import aseguradoras_sin_bot
 from core.policies.services.etapas import ETAPAS, etapa_de, etapas_por_vehiculo
 from core.policies.services.polizas import registrar_evento
-from core.policies.services.proceso import resumen_por_vehiculo
+from core.policies.services.proceso import EN_CURSO, resumen_por_vehiculo
 from core.security.mixins import GroupPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -33,6 +33,8 @@ def _fila(vehiculo):
         'es_cero_km': vehiculo.es_cero_km,
         'zona_circulacion': str(vehiculo.zona_circulacion),
         'created_at': vehiculo.created_at.strftime('%Y-%m-%d %H:%M'),
+        'soat_valor': int(vehiculo.soat_valor) if vehiculo.soat_valor is not None else None,
+        'soat_vencimiento': vehiculo.soat_vencimiento.strftime('%Y-%m-%d') if vehiculo.soat_vencimiento else None,
         'tomador': {
             'names': tomador.names,
             'dni': tomador.dni,
@@ -61,9 +63,13 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
                 # vehículos la respuesta completa de toJSON() pesaba varios MB.
                 vehiculos = list(Vehiculo.objects.select_related('tomador__document_type', 'zona_circulacion__departamento'))
                 resumenes = resumen_por_vehiculo(vehiculos)
-                # Aseguradoras sin bot a las que todavía no se les registró valor, por vehículo: si no falta
-                # ninguna, «Realizar comparativo» va directo al comparativo sin preguntar.
+                # Aseguradoras sin ningún valor (ni del bot ni a mano), por vehículo: la modal del comparativo las
+                # ofrece para registrarlas (sin bot que nadie informó, y con bot que falló o no se cotizó).
                 sin_bot = aseguradoras_sin_bot()
+                activas = list(Aseguradora.objects.filter(is_active=True).order_by('name'))
+                # Cualquier cotización completada cuenta como valor del bot (el comparativo usa la más reciente que lo trajo).
+                con_valor_bot = set(Cotizacion.objects.filter(vehiculo__in=vehiculos, estado_bot='completado')
+                                    .values_list('vehiculo_id', 'aseguradora_id').distinct())
                 con_bot = {a.name: a.pk for a in Aseguradora.objects.filter(is_active=True, name__in=list(BOTS_DISPONIBLES))}
                 registradas = {}
                 for vehiculo_id, aseguradora_id in (ValorExterno.objects.filter(vehiculo__in=vehiculos)
@@ -76,9 +82,13 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
                     item['ultima_cotizacion'] = etapas[vehiculo.pk]['ultima_cotizacion']
                     item['tiene_valor_externo'] = bool(registradas.get(vehiculo.pk))
                     item['proceso'] = resumenes[vehiculo.pk]
-                    item['externas_faltantes'] = [a.name for a in sin_bot if a.pk not in registradas.get(vehiculo.pk, set())]
                     # A qué aseguradoras se les puede registrar valor a mano: sin bot, o con bot que no trajo valor.
                     completadas = {d['aseguradora'] for d in resumenes[vehiculo.pk]['detalle'] if d['estado_bot'] == 'completado'}
+                    trabajando = {d['aseguradora'] for d in resumenes[vehiculo.pk]['detalle'] if d['estado_bot'] in EN_CURSO}
+                    manuales = registradas.get(vehiculo.pk, set())
+                    item['externas_faltantes'] = [
+                        {'id': a.pk, 'nombre': a.name} for a in activas
+                        if a.pk not in manuales and (vehiculo.pk, a.pk) not in con_valor_bot and a.name not in trabajando]
                     item['valor_manual_ids'] = [a.pk for a in sin_bot] + [pk for nombre, pk in con_bot.items() if nombre not in completadas]
                     data.append(item)
             elif action in ('no_compro', 'deshacer_no_compro'):
@@ -125,6 +135,7 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
         context['aseguradoras_manual'] = [(a, a.name in BOTS_DISPONIBLES) for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
         context['guardar_url_plantilla'] = reverse('vehiculo_comparativo_valores', args=[0])
         context['comparativo_url_plantilla'] = reverse('vehiculo_comparativo', args=[0])
+        context['soat_url_plantilla'] = reverse('vehiculo_comparativo_soat', args=[0])
         context['etapas'] = [(e[0], e[1]) for e in ETAPAS]
         context['motivos_no_compro'] = MOTIVO_NO_COMPRO
         return context

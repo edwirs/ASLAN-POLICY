@@ -16,20 +16,45 @@ var comparativoModales = {
         self.pregunta = elPregunta ? new bootstrap.Modal(elPregunta) : null;
         self.guardarUrl = $m2.data('guardar-url');
         self.comparativoUrl = $m2.data('comparativo-url');
+        self.soatUrl = $('#modalPregunta').data('soat-url');
 
+        // Primero se guarda el SOAT (si cambió) y luego se sigue: al comparativo, o a registrar valores.
         $('#cmpNoAgregar').on('click', function () {
-            location.href = self.comparativoUrl;
+            var $b = $(this).prop('disabled', true);
+            self.guardarSoat().done(function () {
+                if (self.soloSoat) { location.reload(); } else { location.href = self.comparativoUrl; }
+            }).fail(function () { $b.prop('disabled', false); });
         });
         $('#cmpSiAgregar').on('click', function () {
-            self.pregunta.hide();
-            self.abrirValores();
+            var $b = $(this).prop('disabled', true);
+            self.guardarSoat().done(function () {
+                $b.prop('disabled', false);
+                self.pregunta.hide();
+                self.abrirValores();
+            }).fail(function () { $b.prop('disabled', false); });
         });
-        $('#cmpOtra').on('click', function () { self.agregarFila(); });
+        $('#cmpSoatValor').on('input', function () {
+            var digitos = this.value.replace(/\D/g, '');
+            this.value = digitos ? digitos.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+        });
+        $('#cmpSoatFecha').on('input change', function () { self.pintarDias(); });
+        $('#cmpOtra').on('click', function () { self.agregarFila(true); });
         $('#cmpFilas').on('click', '.cmp-quitar', function () {
             $(this).closest('.cmp-fila').remove();
             if (!$('#cmpFilas .cmp-fila').length) {
-                self.agregarFila();
+                self.agregarFila(true);
             }
+            self.refrescar();
+        });
+        $('#cmpFilas').on('change', '.cmp-aseguradora', function () { self.refrescar(); });
+        // Clic en una pendiente: la pone en una fila vacía (o en una nueva) y lleva el cursor a su valor.
+        $('#cmpPendientes').on('click', '.cmp-pend-chip', function () {
+            var id = String($(this).data('id'));
+            var $vacia = $('#cmpFilas .cmp-aseguradora').filter(function () { return !this.value; }).first();
+            if (!$vacia.length) { self.agregarFila(false); $vacia = $('#cmpFilas .cmp-aseguradora').last(); }
+            $vacia.val(id);
+            self.refrescar();
+            $vacia.closest('.cmp-fila').find('.cmp-valor').trigger('focus');
         });
         // Miles con punto mientras se escribe: 1234567 → 1.234.567
         $('#cmpFilas').on('input', '.cmp-valor', function () {
@@ -40,45 +65,93 @@ var comparativoModales = {
     },
 
     // Desde el listado: se conoce la solicitud por la fila donde se hizo clic.
-    // `faltantes`: nombres de las aseguradoras sin bot que aún no tienen valor para esta placa. Si no falta ninguna
-    // (o el usuario no puede registrar valores) no hay nada que preguntar: se abre el comparativo directamente.
+    // `faltantes`: [{id, nombre}] de las aseguradoras sin ningún valor para esta placa (ni del bot ni a mano). Si no
+    // falta ninguna (o el usuario no puede registrar valores) la pregunta de valores no aparece.
     // `permitidas`: ids de las aseguradoras a las que se les puede registrar valor en esta solicitud (las sin bot y
     // las con bot que no trajeron valor). En la página del comparativo la lista ya viene filtrada (null).
-    abrirPregunta: function (id, placa, faltantes, puedeRegistrar, permitidas) {
+    // Siempre se abre: arriba el SOAT del vehículo; abajo, solo si faltan aseguradoras sin bot, la pregunta de valores.
+    abrirPregunta: function (id, placa, faltantes, puedeRegistrar, permitidas, soatValor, soatVencimiento) {
         this.permitidas = permitidas || null;
+        this.soloSoat = false;
         this.establecer(id, placa);
-        if (!puedeRegistrar || !faltantes || !faltantes.length) {
-            location.href = this.comparativoUrl;
-            return;
-        }
-        this.faltantes = faltantes;
-        $('#cmpFaltantes').text('Faltan los valores de: ' + faltantes.join(', ') + '.');
+        var preguntar = !!(puedeRegistrar && faltantes && faltantes.length);
+        this.faltantes = preguntar ? faltantes : [];
+        $('#cmpFaltantes').text(preguntar ? 'Sin valor todavía: ' + faltantes.map(function (f) { return f.nombre; }).join(', ') + '.' : '');
+        $('#cmpSeccionValores').prop('hidden', !preguntar);
+        $('#cmpSiAgregar').prop('hidden', !preguntar);
+        $('#cmpNoAgregar span').text('Ver comparativo');
+        this.cargarSoat(soatValor, soatVencimiento);
         this.pregunta.show();
+    },
+
+    // Desde la página del comparativo: solo el SOAT; al guardar se recarga para verlo en la ficha.
+    abrirSoat: function (placa, soatValor, soatVencimiento) {
+        this.soloSoat = true;
+        $('.cmp-placa').text(placa || '');
+        $('#cmpSeccionValores, #cmpSiAgregar').prop('hidden', true);
+        $('#cmpNoAgregar span').text('Guardar');
+        this.cargarSoat(soatValor, soatVencimiento);
+        this.pregunta.show();
+    },
+
+    cargarSoat: function (valor, vencimiento) {
+        var texto = valor ? String(valor).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+        $('#cmpSoatValor').val(texto);
+        $('#cmpSoatFecha').val(vencimiento || '');
+        this.soatInicial = texto + '|' + (vencimiento || '');
+        this.pintarDias();
+    },
+
+    // Días que le quedan al SOAT desde hoy, mientras se escribe la fecha.
+    pintarDias: function () {
+        var $d = $('#cmpSoatDias'), fecha = $('#cmpSoatFecha').val();
+        if (!fecha) { $d.prop('hidden', true); return; }
+        var p = fecha.split('-'), hoy = new Date();
+        var vence = new Date(+p[0], +p[1] - 1, +p[2]);
+        var base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        var dias = Math.round((vence - base) / 86400000);
+        var clase = dias < 0 ? 'vencido' : dias <= 30 ? 'pronto' : 'ok';
+        var texto = dias < 0 ? 'SOAT vencido hace ' + (-dias) + (dias === -1 ? ' día' : ' días')
+            : dias === 0 ? 'El SOAT vence hoy' : 'Le quedan ' + dias + (dias === 1 ? ' día' : ' días') + ' de vigencia';
+        $d.attr('class', 'cmp-soat-dias ' + clase).html('<i class="fa-regular fa-calendar-check"></i> ' + texto).prop('hidden', false);
+    },
+
+    guardarSoat: function () {
+        var valor = $('#cmpSoatValor').val(), fecha = $('#cmpSoatFecha').val();
+        var listo = $.Deferred();
+        if (valor + '|' + fecha === this.soatInicial || !this.soatUrl) {
+            return listo.resolve().promise();
+        }
+        $.ajax({
+            url: this.soatUrl, type: 'POST', headers: {'X-CSRFToken': csrftoken}, dataType: 'json',
+            data: {soat_valor: valor.replace(/\D/g, ''), soat_vencimiento: fecha}
+        }).done(function () { listo.resolve(); }).fail(function (xhr) {
+            toastr.error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo guardar el SOAT. Intenta nuevamente.');
+            listo.reject();
+        });
+        return listo.promise();
     },
 
     establecer: function (id, placa) {
         var $m2 = $('#modalValores');
         this.guardarUrl = $m2.data('guardar-url-plantilla') ? $m2.data('guardar-url-plantilla').replace('/0/', '/' + id + '/') : this.guardarUrl;
         this.comparativoUrl = $m2.data('comparativo-url-plantilla') ? $m2.data('comparativo-url-plantilla').replace('/0/', '/' + id + '/') : this.comparativoUrl;
+        var $m1 = $('#modalPregunta');
+        this.soatUrl = $m1.data('soat-url-plantilla') ? $m1.data('soat-url-plantilla').replace('/0/', '/' + id + '/') : $m1.data('soat-url');
         $('.cmp-placa').text(placa || '');
     },
 
+    // `faltantes`: [{id, nombre}] de las aseguradoras sin ningún valor (sin bot que nadie informó y con bot que falló).
     abrirValores: function () {
         $('#cmpFilas').empty();
         if ($('#cmpPlantilla').length) {
-            this.agregarFila();
-            // Se deja elegida la primera aseguradora que aún no tiene valor.
-            var $primera = $('#cmpFilas .cmp-aseguradora').first();
-            var faltante = (this.faltantes || [])[0];
-            if (faltante) {
-                var opcion = $primera.find('option').filter(function () { return $(this).text() === faltante; }).val();
-                if (opcion) { $primera.val(opcion); }
-            }
+            this.agregarFila(true);   // ya con la primera pendiente elegida
         }
+        this.refrescar();
         this.valores.show();
     },
 
-    agregarFila: function () {
+    agregarFila: function (elegirPendiente) {
         var $fila = $(document.getElementById('cmpPlantilla').content.cloneNode(true));
         var permitidas = this.permitidas;
         if (permitidas) {
@@ -87,6 +160,47 @@ var comparativoModales = {
             });
         }
         $('#cmpFilas').append($fila);
+        if (elegirPendiente) {
+            var siguiente = this.pendientes()[0];
+            var $select = $('#cmpFilas .cmp-aseguradora').last();
+            if (siguiente && $select.find('option[value="' + siguiente.id + '"]').length) { $select.val(String(siguiente.id)); }
+        }
+        this.refrescar();
+    },
+
+    elegidas: function () {
+        return $('#cmpFilas .cmp-aseguradora').map(function () { return this.value; }).get().filter(Boolean);
+    },
+
+    // Las que todavía no tienen valor y no están elegidas en ninguna fila.
+    pendientes: function () {
+        var elegidas = this.elegidas();
+        return (this.faltantes || []).filter(function (f) { return elegidas.indexOf(String(f.id)) === -1; });
+    },
+
+    // Una aseguradora elegida en una fila no aparece en las listas de las otras; y se actualiza la línea de pendientes.
+    refrescar: function () {
+        var $selects = $('#cmpFilas .cmp-aseguradora');
+        $selects.each(function () {
+            var propia = this.value;
+            var otras = $selects.not(this).map(function () { return this.value; }).get().filter(Boolean);
+            $(this).find('option').each(function () {
+                var ocultar = !!this.value && this.value !== propia && otras.indexOf(this.value) !== -1;
+                this.hidden = ocultar;
+                this.disabled = ocultar;
+            });
+        });
+        var $caja = $('#cmpPendientes');
+        if (!(this.faltantes || []).length) { $caja.prop('hidden', true); return; }
+        var pendientes = this.pendientes();
+        if (!pendientes.length) {
+            $caja.attr('class', 'cmp-pendientes listo').html('<i class="fa-solid fa-circle-check"></i> Ya están todas las aseguradoras que faltaban.').prop('hidden', false);
+            return;
+        }
+        var chips = pendientes.map(function (f) {
+            return '<span class="cmp-pend-chip" role="button" data-id="' + f.id + '"><i class="fa-solid fa-plus"></i> ' + $('<div>').text(f.nombre).html() + '</span>';
+        }).join('');
+        $caja.attr('class', 'cmp-pendientes').html('<b><i class="fa-solid fa-hourglass-half"></i> Pendientes por agregar valor:</b>' + chips).prop('hidden', false);
     },
 
     guardar: function ($boton) {

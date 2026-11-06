@@ -33,6 +33,23 @@ def dinero(valor):
     return '$' + f'{int(valor):,}'.replace(',', '.')
 
 
+def soat(vehiculo, hoy=None):
+    """Valor del SOAT y días que le quedan de vigencia (desde hoy hasta el vencimiento), listos para mostrar. None si
+    no se registró ninguno de los dos."""
+    if vehiculo.soat_valor is None and vehiculo.soat_vencimiento is None:
+        return None
+    hoy = hoy or timezone.localdate()
+    datos = {'valor_fmt': dinero(vehiculo.soat_valor) if vehiculo.soat_valor else '', 'vence_fmt': '', 'dias': None,
+             'dias_texto': '', 'vencido': False}
+    if vehiculo.soat_vencimiento:
+        dias = (vehiculo.soat_vencimiento - hoy).days
+        datos['vence_fmt'] = vehiculo.soat_vencimiento.strftime('%d/%m/%Y')
+        datos['dias'] = dias
+        datos['vencido'] = dias < 0
+        datos['dias_texto'] = ('Vencido' if dias < 0 else 'Vence hoy' if dias == 0 else '1 día' if dias == 1 else f'{dias} días')
+    return datos
+
+
 def aseguradoras_sin_bot():
     """Aseguradoras activas que no tienen bot: se les registra el valor a mano."""
     return [a for a in Aseguradora.objects.filter(is_active=True).order_by('name') if a.name not in BOTS_DISPONIBLES]
@@ -45,6 +62,18 @@ def aseguradoras_valor_manual(vehiculo, filas=None):
     del_bot = {f['aseguradora_id'] for f in filas if f['origen'] == 'bot'}
     return [a for a in Aseguradora.objects.filter(is_active=True).order_by('name')
             if a.name not in BOTS_DISPONIBLES or a.pk not in del_bot]
+
+
+def pendientes_de_valor(vehiculo, filas=None):
+    """Aseguradoras activas que no tienen NINGÚN valor en el comparativo (ni del bot ni registrado a mano): las sin bot
+    que nadie ha informado y las con bot que fallaron o no se cotizaron (p. ej. un bot que no respondió y se olvidó
+    cotizar a mano). No incluye las que tienen el bot trabajando todavía. [{'id', 'nombre'}] en orden alfabético."""
+    from core.policies.services.proceso import EN_CURSO  # import local: evita ciclo al cargar el módulo
+    filas = construir(vehiculo)['filas'] if filas is None else filas
+    con_valor = {f['aseguradora_id'] for f in filas}
+    trabajando = {c.aseguradora_id for c in ultimas_por_aseguradora(vehiculo) if c.estado_bot in EN_CURSO}
+    return [{'id': a.pk, 'nombre': a.name} for a in Aseguradora.objects.filter(is_active=True).order_by('name')
+            if a.pk not in con_valor and a.pk not in trabajando]
 
 
 def construir(vehiculo):

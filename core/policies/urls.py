@@ -27,7 +27,7 @@ from core.policies.views.asistente.views import (
 from core.policies.views.asesor.views import AsesorCreateView, AsesorListView, AsesorUpdateView
 from core.policies.views.agente.views import AgenteOficinaView
 from core.policies.views.buscar import BuscarView
-from core.policies.views.comparativo.views import (ComparativoCorreoView, ComparativoImprimirView, ComparativoPdfView,
+from core.policies.views.comparativo.views import (ComparativoCorreoView, ComparativoImprimirView, ComparativoPdfView, ComparativoSoatView,
                                                    ComparativoValoresView, ComparativoValorManualView, ComparativoView)
 from core.policies.views.plantilla_correo.views import CuentaCorreoFormView, PlantillaCorreoFormView, PlantillaCorreoListView
 from core.policies.views.poliza.views import PolizaConvertirView, PolizaCreateView, PolizaListView, PolizaUpdateView
@@ -70,6 +70,7 @@ urlpatterns = [
     path('vehiculos/<int:pk>/comparativo/valores/', ComparativoValoresView.as_view(), name='vehiculo_comparativo_valores'),
     path('vehiculos/<int:pk>/comparativo/valores/<int:valor_id>/', ComparativoValorManualView.as_view(),
          name='vehiculo_comparativo_valor_manual'),
+    path('vehiculos/<int:pk>/comparativo/soat/', ComparativoSoatView.as_view(), name='vehiculo_comparativo_soat'),
     path('vehiculos/<int:pk>/comparativo/pdf/', ComparativoPdfView.as_view(), name='vehiculo_comparativo_pdf'),
     path('vehiculos/<int:pk>/comparativo/correo/', ComparativoCorreoView.as_view(), name='vehiculo_comparativo_correo'),
     path('plantillas-correo/', PlantillaCorreoListView.as_view(), name='plantilla_correo_list'),

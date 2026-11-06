@@ -1,5 +1,6 @@
 import hashlib
 import json
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -15,7 +16,7 @@ from core.policies.services import correo
 from core.policies.services.polizas import registrar_evento
 from core.pos.models import Company
 from core.policies.services.bots import BOTS_DISPONIBLES
-from core.policies.services.comparativo import aseguradoras_valor_manual, construir, dinero, indicadores, resumen_cliente
+from core.policies.services.comparativo import aseguradoras_valor_manual, construir, dinero, indicadores, pendientes_de_valor, resumen_cliente, soat
 from core.security.mixins import StrictPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -56,6 +57,9 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'puede_enviar_correo': self.request.user.has_perm('policies.send_cotizacion_correo'),
             'correo_url': reverse('vehiculo_comparativo_correo', args=[vehiculo.pk]),
             'vehiculo_id': vehiculo.pk,
+            'soat': soat(vehiculo),
+            'pendientes_valor_json': json.dumps(pendientes_de_valor(vehiculo, filas)).replace('<', '\\u003c'),
+            'soat_url': reverse('vehiculo_comparativo_soat', args=[vehiculo.pk]),
             'poliza_vigente': vehiculo.polizas.filter(estado='generada', fecha_renovacion__gte=timezone.localdate())
                                             .select_related('aseguradora').order_by('-fecha_renovacion').first(),
         })
@@ -171,6 +175,33 @@ class ComparativoValoresView(StrictPermissionMixin, View):
         with transaction.atomic():
             ValorExterno.objects.bulk_create(nuevos)
         return JsonResponse({'url': reverse('vehiculo_comparativo', args=[vehiculo.pk])})
+
+
+class ComparativoSoatView(StrictPermissionMixin, View):
+    """Guarda el valor y el vencimiento del SOAT del vehículo (modal «Comparativo»). Los dos son opcionales: vacío borra."""
+    permission_required = 'policies.view_comparativo'
+
+    def post(self, request, pk):
+        vehiculo = get_object_or_404(Vehiculo, pk=pk)
+        texto_valor = str(request.POST.get('soat_valor') or '').strip()
+        texto_fecha = str(request.POST.get('soat_vencimiento') or '').strip()
+        valor = None
+        if texto_valor:
+            valor = _leer_valor(texto_valor)
+            if valor is None:
+                return JsonResponse({'error': 'El valor del SOAT debe ser un número mayor que cero'}, status=400)
+        fecha = None
+        if texto_fecha:
+            try:
+                fecha = date.fromisoformat(texto_fecha)
+            except ValueError:
+                return JsonResponse({'error': 'La fecha de vencimiento del SOAT no es válida'}, status=400)
+            hoy = timezone.localdate()
+            if not (hoy.replace(year=hoy.year - 2) <= fecha <= hoy.replace(year=hoy.year + 2)):
+                return JsonResponse({'error': 'Revisa la fecha de vencimiento del SOAT: está muy lejos de hoy'}, status=400)
+        vehiculo.soat_valor, vehiculo.soat_vencimiento = valor, fecha
+        vehiculo.save(update_fields=['soat_valor', 'soat_vencimiento'])
+        return JsonResponse({'ok': True, 'soat': soat(vehiculo)})
 
 
 class ComparativoPdfView(StrictPermissionMixin, View):

@@ -220,6 +220,11 @@ class Vehiculo(models.Model):
     combustible = models.CharField(max_length=40, null=True, blank=True, verbose_name='Tipo de combustible')
     valor_accesorios = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Valor accesorios')
 
+    # SOAT del vehículo: lo escribe el asesor al abrir el comparativo y sale en el PDF y en el correo (valor y días
+    # que le quedan de vigencia, contados desde el día en que se mira).
+    soat_valor = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='Valor del SOAT')
+    soat_vencimiento = models.DateField(null=True, blank=True, verbose_name='Vencimiento del SOAT')
+
     # Seguimiento: vendido, siniestrado… Distinto de «activo» = no se puede cotizar hasta que alguien lo actualice.
     estado = models.CharField(max_length=15, choices=ESTADO_VEHICULO, default='activo', verbose_name='Estado del vehículo')
     estado_fecha = models.DateField(null=True, blank=True, verbose_name='Fecha del estado')
@@ -250,7 +255,10 @@ class Vehiculo(models.Model):
         }
 
     def toJSON(self):
-        item = model_to_dict(self, exclude=['tomador', 'zona_circulacion', 'created_at', 'estado', 'estado_fecha', 'estado_nota', 'no_compro_fecha'])
+        item = model_to_dict(self, exclude=['tomador', 'zona_circulacion', 'created_at', 'estado', 'estado_fecha', 'estado_nota', 'no_compro_fecha',
+                                            'soat_valor', 'soat_vencimiento'])
+        item['soat_valor'] = int(self.soat_valor) if self.soat_valor is not None else None
+        item['soat_vencimiento'] = self.soat_vencimiento.strftime('%Y-%m-%d') if self.soat_vencimiento else None
         item['tomador'] = self.tomador.toJSON()
         item['estado'] = self.estado_json()
         item['zona_circulacion'] = str(self.zona_circulacion)

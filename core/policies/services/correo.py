@@ -30,7 +30,7 @@ from django.utils.html import strip_tags
 
 from core.policies.models import CorreoEnviado, Cotizacion, FirmaCorreo, PlantillaCorreo, ValorExterno
 from core.policies.services.bots.base import normalizar_texto
-from core.policies.services.comparativo import construir, dinero
+from core.policies.services.comparativo import construir, dinero, soat
 from core.policies.services.polizas import registrar_evento
 
 # (nombre, qué es) — se muestran como botones en el editor de la plantilla.
@@ -298,6 +298,9 @@ def bloque_datos_vehiculo(vehiculo, actual=None):
         ]
     elif actual:
         pares.append(('Aseguradora actual', actual))
+    datos_soat = soat(vehiculo, hoy)
+    if datos_soat:
+        pares += [('Valor SOAT', datos_soat['valor_fmt']), ('Días de vigencia SOAT', datos_soat['dias_texto'])]
     pares = [(t, v) for t, v in pares if v]
     filas = []
     for i in range(0, len(pares), 3):

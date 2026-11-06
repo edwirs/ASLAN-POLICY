@@ -77,6 +77,8 @@
             <div><span>Para</span> <b>{{ tomador.names }}</b></div>
             <div><span>Documento</span> {{ tomador.document_type.abbreviation }} {{ tomador.dni }}</div>
             <div><span>Fecha</span> {% now "d/m/Y" %}</div>
+            {% if soat.valor_fmt %}<div><span>Valor SOAT</span> {{ soat.valor_fmt }}</div>{% endif %}
+            {% if soat.dias_texto %}<div><span>Días de vigencia SOAT</span> {{ soat.dias_texto }}</div>{% endif %}
         </div>
     </header>
 

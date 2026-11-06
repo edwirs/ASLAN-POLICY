@@ -276,7 +276,7 @@ $(function () {
     $('#data').on('click', '.btn-comparativo', function () {
         var fila = $('#data').DataTable().row($(this).closest('tr')).data() || {};
         comparativoModales.abrirPregunta($(this).data('id'), $(this).data('placa'), fila.externas_faltantes,
-            $('#vehiculoPermisos').data('registrar') === 1, fila.valor_manual_ids);
+            $('#vehiculoPermisos').data('registrar') === 1, fila.valor_manual_ids, fila.soat_valor, fila.soat_vencimiento);
     });
 
     // Convertir la solicitud en póliza: se elige la opción que escogió el cliente y listo.
