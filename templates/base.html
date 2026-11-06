@@ -290,76 +290,85 @@
       </li>
       {% endif %}-->
 
-      <li class="nav-item dropdown">
-        <a
-          class="nav-link nav-usuario"
-          href="#"
-          role="button"
-          data-bs-toggle="dropdown"
-          aria-expanded="false"
-          title="{{ request.user.names|default:request.user.username }} ({{ request.user.username }})"
-        >
-          <span class="nav-usuario-nombre">{{ request.user.username }}</span>
-          <i class="fa-solid fa-angle-down nav-usuario-flecha"></i>
+      {% with nombre=request.user.get_short_name|default:request.user.username rol=request.user.groups.first.name %}
+      <li class="nav-item dropdown nav-cuenta">
+        <a class="nav-link nav-cuenta-boton" href="#" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+           aria-expanded="false" title="{{ request.user.names|default:request.user.username }} · {{ request.user.username }}">
+          <img class="nav-cuenta-foto" src="{{ request.user.get_image }}" alt="">
+          <span class="nav-cuenta-texto">
+            <span class="nav-cuenta-nombre">{{ nombre }}</span>
+            {% if rol %}<span class="nav-cuenta-rol">{{ rol }}</span>{% endif %}
+          </span>
+          <i class="fa-solid fa-chevron-down nav-cuenta-flecha"></i>
         </a>
-
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end nav-usuario-menu">
-          <div class="dropdown-header text-center">
-            <div class="fw-bold text-body">{{ request.user.names|default:request.user.username }}</div>
-            <div class="small nav-usuario-completo">{{ request.user.username }}</div>
+        <div class="dropdown-menu dropdown-menu-end nav-cuenta-menu">
+          <div class="nav-cuenta-cabecera">
+            <img class="nav-cuenta-foto-grande" src="{{ request.user.get_image }}" alt="">
+            <div class="nav-cuenta-quien">
+              <b>{{ request.user.names|default:request.user.username }}</b>
+              <small>{{ request.user.username }}</small>
+              {% if rol %}<span class="nav-cuenta-chip">{{ rol }}</span>{% endif %}
+            </div>
           </div>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item">
-            <p class="pb-0 mb-0">
-              <b>Dirección ip:</b>
-              <br>
-              {{ request.META.HTTP_X_REAL_IP|default:request.META.REMOTE_ADDR }}
-            </p>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item">
-            <p class="pb-0 mb-0">
-              <b>Información:</b>
-              <br>
-              {{ request.user_agent }}
-            </p>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item">
-            <p class="pb-0 mb-0">
-              <b>Última fecha de conexión:</b>
-              <br>
-              {{ request.user.last_login }}
-            </p>
-          </a>
+          <dl class="nav-cuenta-datos">
+            <div><dt><i class="fa-solid fa-location-dot"></i> Dirección IP</dt><dd>{{ request.META.HTTP_X_REAL_IP|default:request.META.REMOTE_ADDR }}</dd></div>
+            <div><dt><i class="fa-solid fa-laptop"></i> Equipo</dt><dd>{{ request.user_agent.browser.family|cut:"Headless" }} · {{ request.user_agent.os.family }}</dd></div>
+            <div><dt><i class="fa-regular fa-clock"></i> Conectado desde</dt><dd>{{ request.user.last_login|date:"d/m/Y h:i A" }}</dd></div>
+          </dl>
+          <div class="nav-cuenta-enlaces">
+            <a href="{% url 'user_update_profile' %}"><i class="fa-solid fa-user-pen"></i> Actualizar perfil</a>
+            <a href="{% url 'user_update_password' %}"><i class="fa-solid fa-key"></i> Cambiar contraseña</a>
+          </div>
+          <div class="nav-cuenta-pie">
+            <a class="btn nav-cuenta-salir" href="{% url 'login_logout' %}"><i class="fa-solid fa-arrow-right-from-bracket"></i> Cerrar sesión</a>
+          </div>
         </div>
       </li>
-
-      <li class="nav-item">
-        <a
-          class="nav-link"
-          href="{% url 'login_logout' %}"
-          title="Cerrar sesión"
-        >
-          <i class="fas fa-power-off"></i>
-          <span class="nav-cerrar-texto">Cerrar Sesión</span>
-        </a>
-      </li>
+      {% endwith %}
     </ul>
   </nav>
   <style>
-    /* Usuario en la barra superior: ancho fijo; si el nombre es largo (un correo) se corta con «…» y completo va en el
-       menú y en el tooltip. En pantallas angostas se acorta más y «Cerrar Sesión» queda solo con su ícono. */
-    .nav-usuario { display: inline-flex !important; align-items: center; gap: 4px; max-width: 150px; cursor: pointer; }
-    .nav-usuario-flecha { font-size: .75rem; opacity: .6; flex: none; }
-    .nav-usuario-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .nav-usuario-menu { max-width: 320px; }
-    .nav-usuario-menu .dropdown-item { white-space: normal; word-break: break-word; }
-    .nav-usuario-completo { word-break: break-all; }
-    .nav-cerrar-texto { white-space: nowrap; }
+    /* Cuenta del usuario (barra superior): foto, nombre y perfil; al hacer clic, una tarjeta con sus datos, accesos y
+       «Cerrar sesión». En celular queda solo la foto. */
+    .nav-cuenta-boton { display: inline-flex !important; align-items: center; gap: 10px; padding: 4px 10px 4px 6px !important;
+      border-radius: 999px; transition: background .15s; max-width: 230px; }
+    .nav-cuenta-boton:hover, .nav-cuenta-boton.show { background: var(--bs-tertiary-bg); }
+    .nav-cuenta-foto { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none;
+      box-shadow: 0 0 0 2px var(--bs-body-bg), 0 0 0 3px rgba(14, 116, 144, .35); }
+    .nav-cuenta-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+    .nav-cuenta-nombre { font-size: .9rem; font-weight: 600; color: var(--bs-body-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-cuenta-rol { font-size: .72rem; color: var(--bs-secondary-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-cuenta-flecha { font-size: .65rem; color: var(--bs-secondary-color); flex: none; transition: transform .15s; }
+    .nav-cuenta-boton.show .nav-cuenta-flecha { transform: rotate(180deg); }
+
+    .nav-cuenta-menu { width: 300px; padding: 0 !important; border: 1px solid var(--bs-border-color); border-radius: 14px !important;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, .14) !important; overflow: hidden; margin-top: 8px !important; }
+    .nav-cuenta-cabecera { display: flex; gap: 12px; align-items: center; padding: 16px; background: linear-gradient(135deg, rgba(14, 116, 144, .10), rgba(249, 115, 22, .08)); }
+    .nav-cuenta-foto-grande { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: none; }
+    .nav-cuenta-quien { display: flex; flex-direction: column; min-width: 0; }
+    .nav-cuenta-quien b { font-size: .95rem; color: var(--bs-body-color); }
+    .nav-cuenta-quien small { color: var(--bs-secondary-color); word-break: break-all; }
+    .nav-cuenta-chip { align-self: flex-start; margin-top: 6px; padding: 1px 10px; border-radius: 999px; font-size: .72rem; font-weight: 600;
+      background: rgba(14, 116, 144, .14); color: #0e7490; }
+    .nav-cuenta-datos { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--bs-border-color); }
+    .nav-cuenta-datos > div { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: .8rem; }
+    .nav-cuenta-datos dt { font-weight: 500; color: var(--bs-secondary-color); white-space: nowrap; }
+    .nav-cuenta-datos dt i { width: 14px; text-align: center; margin-right: 4px; }
+    .nav-cuenta-datos dd { margin: 0; text-align: right; color: var(--bs-body-color); }
+    .nav-cuenta-enlaces { padding: 6px; border-bottom: 1px solid var(--bs-border-color); }
+    .nav-cuenta-enlaces a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: .88rem;
+      color: var(--bs-body-color); text-decoration: none; }
+    .nav-cuenta-enlaces a i { width: 16px; text-align: center; color: var(--bs-secondary-color); }
+    .nav-cuenta-enlaces a:hover { background: var(--bs-tertiary-bg); }
+    .nav-cuenta-pie { padding: 10px 12px 12px; }
+    .nav-cuenta-salir { width: 100%; border-radius: 10px; font-weight: 600; color: #dc2626; background: rgba(220, 38, 38, .08);
+      border: 1px solid rgba(220, 38, 38, .2); }
+    .nav-cuenta-salir:hover { color: #fff; background: #dc2626; border-color: #dc2626; }
+    .dark-mode .nav-cuenta-chip { background: rgba(60, 198, 223, .16); color: #67d4e8; }
     @media (max-width: 767.98px) {
-      .nav-usuario { max-width: 110px; }
-      .nav-cerrar-texto { display: none; }
+      .nav-cuenta-boton { max-width: 120px; }
+      .nav-cuenta-rol { display: none; }
+      .nav-cuenta-texto, .nav-cuenta-flecha { display: none; }
     }
   </style>
   <!-- /.navbar -->
@@ -381,26 +390,8 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-      <!-- Sidebar user panel (optional) -->
-      <div class="user-panel mt-3 pb-3 mb-3 d-flex">
-        <div class="image">
-          <img
-            src="{{ request.user.get_image }}"
-            class="img-circle elevation-2"
-            alt="Foto de {{ request.user.names|default:request.user.username }}"
-          >
-        </div>
-
-        <div class="info">
-          <a
-            href="#"
-            class="d-block"
-          >{{ request.user.names|default:request.user.username }}</a>
-        </div>
-      </div>
-
-      <!-- Sidebar Menu -->
-      <nav class="mt-2">
+      <!-- Sidebar Menu (el nombre y la foto del usuario van en la cuenta, arriba a la derecha) -->
+      <nav class="mt-3">
         <ul
           class="nav nav-pills nav-sidebar flex-column nav-child-indent"
           data-widget="treeview"
