@@ -90,7 +90,7 @@
     {# ===== Indicadores ===== #}
     <section class="cmp-kpis cmp-no-imprimir">
         <div class="cmp-kpi cmp-kpi-mejor">
-            <div class="cmp-kpi-label"><i class="fa-solid fa-trophy"></i> Más económica</div>
+            <div class="cmp-kpi-label"><i class="fa-solid fa-trophy"></i></div>
             <div class="cmp-kpi-valor">{{ indicadores.mejor.valor_fmt }}</div>
             <div class="cmp-kpi-sub">{{ indicadores.mejor.aseguradora }} · {{ indicadores.mejor.etiqueta }}</div>
         </div>
@@ -102,7 +102,7 @@
         <div class="cmp-kpi">
             <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia entre extremos</div>
             <div class="cmp-kpi-valor">{{ indicadores.brecha_fmt }}</div>
-            <div class="cmp-kpi-sub">{{ indicadores.brecha_pct|floatformat:1 }}% sobre la más económica</div>
+            <div class="cmp-kpi-sub">{{ indicadores.brecha_pct|floatformat:1 }}%</div>
         </div>
         <div class="cmp-kpi">
             <div class="cmp-kpi-label"><i class="fa-solid fa-building-shield"></i> Aseguradoras comparadas</div>
@@ -134,7 +134,7 @@
                     {% for f in filas %}
                         <tr class="{% if f.posicion == 1 %}cmp-rank-mejor{% endif %}">
                             <td class="text-center"><span class="cmp-pos">{% if f.posicion == 1 %}<i class="fa-solid fa-trophy"></i>{% else %}{{ f.posicion }}{% endif %}</span></td>
-                            <td><b>{{ f.aseguradora }}</b>{% if f.posicion == 1 %} <span class="cmp-chip cmp-chip-ok">Más económica</span>{% endif %}</td>
+                            <td><b>{{ f.aseguradora }}</b></td>
                             <td class="cmp-plan">{{ f.etiqueta }}</td>
                             <td class="text-end">
                                 <span class="cmp-rank-valor">{{ f.valor_fmt }}</span>
@@ -190,7 +190,7 @@
         <div class="cmp-resumen-cabecera">
             <div>
                 <h2 class="cmp-seccion-titulo mb-1">Resumen para el cliente</h2>
-                <p class="cmp-ayuda cmp-no-imprimir">Solo las aseguradoras que aplican a esta solicitud, de la más económica a la más costosa. Las coberturas salen de la ficha de cada aseguradora (Configuraciones › Aseguradoras › Coberturas).</p>
+                <p class="cmp-ayuda cmp-no-imprimir">Solo las aseguradoras que aplican a esta solicitud, de menor a mayor valor. Las coberturas salen de la ficha de cada aseguradora (Configuraciones › Aseguradoras › Coberturas).</p>
             </div>
             <div class="cmp-herramientas cmp-no-imprimir">
                 <label class="cmp-switch" for="cmpSoloDiferencias">

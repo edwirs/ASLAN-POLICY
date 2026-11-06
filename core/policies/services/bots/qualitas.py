@@ -15,6 +15,7 @@ import os
 import re
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.db import connection
@@ -335,6 +336,8 @@ class QualitasBot(RegistroErrorMixin):
         # resolver limpio. Se reintenta solo si el clic en sí falla
         # (ej. bloqueado por un backdrop), no si ya se hizo y solo falta
         # esperar más.
+        # Un «Siguiente» deshabilitado acepta el clic sin hacer nada: primero se espera a que se habilite.
+        self._siguiente_habilitado(page, 30)
         ultimo_error = None
         clic_hecho = False
         for _ in range(intentos):
@@ -351,8 +354,48 @@ class QualitasBot(RegistroErrorMixin):
                 ultimo_error = e
         if not clic_hecho:
             raise ultimo_error
-        # Una sola espera larga tras el único clic, sin volver a clickear.
-        esperar_algun_visible(page, texto_marcador_paso_siguiente, timeout=90000)
+        # Una sola espera larga tras el único clic, sin volver a clickear. Mientras tanto se anota todo aviso que
+        # aparezca (aunque dure un segundo) y toda respuesta de error del servidor de Qualitas: visto en el VPS
+        # (placa JDZ530) que el wizard no avanza sin dejar nada en pantalla y la captura final no lo explica.
+        self._esperar_avance(page, texto_marcador_paso_siguiente, timeout=90)
+
+    MODAL_VISIBLE_JS = """() => [...document.querySelectorAll('.modal.show, .modal.in, [role=dialog], [role=alert], .toast, .swal2-popup, .alert')]
+        .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+        .map(e => (e.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300)).filter(Boolean)"""
+
+    def _esperar_avance(self, page, texto_marcador, timeout=90):
+        marcador = page.get_by_text(_accent_insensitive_pattern(texto_marcador)).and_(page.locator(':visible')).first
+        avisos, errores = [], []
+
+        def respuesta(r):
+            try:
+                if r.status >= 400 and r.request.resource_type in ('xhr', 'fetch', 'document'):
+                    errores.append(f'{r.status} {urlparse(r.url).path[-80:]}')
+            except Exception:
+                pass
+
+        page.on('response', respuesta)
+        try:
+            fin = time.time() + timeout
+            while time.time() < fin:
+                if marcador.is_visible():
+                    return
+                try:
+                    for texto in page.evaluate(self.MODAL_VISIBLE_JS) or []:
+                        if texto not in avisos:
+                            avisos.append(texto)
+                except Exception:
+                    pass
+                page.wait_for_timeout(1000)
+        finally:
+            page.remove_listener('response', respuesta)
+        estado = self._estado_siguiente(page)
+        botones = '; '.join(('HABILITADO ' if b['habilitado'] else 'DESHABILITADO ') + b['detalle'] for b in estado) or 'ninguno'
+        diagnostico = (f'No apareció «{texto_marcador}» en {timeout}s tras «Siguiente». Botones «Siguiente» visibles: '
+                       f'{botones}. Avisos que aparecieron: {" ¦ ".join(avisos[:6]) or "ninguno"}. Respuestas con error '
+                       f'del portal: {", ".join(dict.fromkeys(errores[:10])) or "ninguna"}.')
+        logger.warning('Qualitas: %s', diagnostico)
+        raise PlaywrightTimeoutError(diagnostico)
 
     def _origen_y_uso(self, page):
         """Origen y uso: Livianos -> (despliega más opciones) -> Particular.
@@ -440,16 +483,81 @@ class QualitasBot(RegistroErrorMixin):
         self._guardar_vehiculo_cambios()
 
         # Lugar de residencia = zona de circulación registrada en la solicitud.
-        municipio = self.vehiculo.zona_circulacion.nombre
-        buscar_y_seleccionar_autocompletar(
-            page,
-            texto_a_escribir=municipio,
-            opcion_esperada=municipio,
-            campo_label='Lugar de residencia del asegurado',
-            preferir_texto=self.vehiculo.zona_circulacion.departamento.nombre,
-        )
+        self._elegir_residencia(page)
 
         self._click_siguiente(page, 'Tipo de vigencia')
+
+    # Estado de los botones «Siguiente» visibles. Qualitas los deshabilita (se ven desteñidos) mientras falte algo.
+    ESTADO_SIGUIENTE_JS = """() => [...document.querySelectorAll('button')]
+        .filter(b => /siguiente/i.test(b.innerText || '') && b.getBoundingClientRect().width > 0)
+        .map(b => { const cs = getComputedStyle(b);
+            return {habilitado: !(b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('disabled')
+                                  || cs.pointerEvents === 'none' || parseFloat(cs.opacity) < 0.9),
+                    detalle: `disabled=${b.disabled} aria=${b.getAttribute('aria-disabled')} opacidad=${cs.opacity} clase=${b.className}`.slice(0, 160)}; })"""
+
+    def _estado_siguiente(self, page):
+        try:
+            return page.evaluate(self.ESTADO_SIGUIENTE_JS) or []
+        except Exception:
+            return []
+
+    def _siguiente_habilitado(self, page, segundos):
+        fin = time.time() + segundos
+        while True:
+            if any(b['habilitado'] for b in self._estado_siguiente(page)):
+                return True
+            if time.time() >= fin:
+                return False
+            page.wait_for_timeout(500)
+
+    def _elegir_residencia(self, page, intentos=3):
+        """Visto en el VPS (JDZ530, Bogotá): el campo quedó con «BOGOTA, D.C., BOGOTA, D.C., CM 11001» escrito pero
+        Qualitas no lo tomó como elegido y dejó «Siguiente» deshabilitado (desteñido); el clic no hacía nada. A mano
+        funciona porque la persona elige la opción y sale del campo. Por eso: elegir, salir del campo (Tab) y
+        confirmar que «Siguiente» se habilitó; si no, borrar y volver a elegir."""
+        zona = self.vehiculo.zona_circulacion
+        etiqueta = 'Lugar de residencia del asegurado'
+        for intento in range(1, intentos + 1):
+            if intento > 1:
+                campo = self._campo_por_etiqueta(page, etiqueta)
+                if campo is not None:
+                    try:
+                        campo.fill('')
+                    except Exception:
+                        pass
+                page.wait_for_timeout(1500)
+            buscar_y_seleccionar_autocompletar(
+                page, texto_a_escribir=zona.nombre, opcion_esperada=zona.nombre, campo_label=etiqueta,
+                preferir_texto=zona.departamento.nombre)
+            # Salir del campo como lo hace la persona: el clic en la opción quita el foco ANTES de que la elección se
+            # registre, así que se vuelve a entrar al campo y se sale con Tab (dispara change/blur con el valor elegido).
+            campo = self._campo_por_etiqueta(page, etiqueta)
+            try:
+                if campo is not None:
+                    campo.dispatch_event('change')
+                    campo.focus()
+                page.keyboard.press('Tab')
+            except Exception:
+                pass
+            if self._siguiente_habilitado(page, 15):
+                return
+            logger.warning('Qualitas: «Siguiente» sigue deshabilitado tras elegir la residencia (intento %s): %s',
+                           intento, self._estado_siguiente(page))
+        # Se sigue de todos modos (el diagnóstico de _esperar_avance dirá el estado del botón si no avanza).
+
+    @staticmethod
+    def _campo_por_etiqueta(page, etiqueta):
+        patron = _accent_insensitive_pattern(etiqueta)
+        campo = page.get_by_label(patron).or_(page.get_by_placeholder(patron)).first
+        try:
+            campo.wait_for(timeout=3000)
+            return campo
+        except PlaywrightTimeoutError:
+            pass
+        try:
+            return page.get_by_text(patron).first.locator('xpath=..').locator('input:not([type="hidden"])').first
+        except Exception:
+            return None
 
     def _buscar_por_fasecolda(self, page):
         """0 km: busca el vehículo por código Fasecolda (campo «Código Fasecolda (Enter para buscar)»)."""

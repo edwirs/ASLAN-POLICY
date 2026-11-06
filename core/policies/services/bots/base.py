@@ -154,8 +154,9 @@ ACCION_POR_TIPO = {
 
 # Pistas por (aseguradora, paso) para timeouts cuyo motivo ya se conoce de pruebas reales.
 PISTAS_PASO = {
-    ('Qualitas', 'Datos del vehículo'): 'Qualitas no deja avanzar si ya tiene una cotización pendiente para esta '
-                                         'placa o si no reconoce el vehículo.',
+    ('Qualitas', 'Datos del vehículo'): 'Qualitas no dejó pasar de «Datos del vehículo»: puede tener una cotización '
+                                         'pendiente para esta placa, no reconocer el vehículo o haber quedado un campo '
+                                         'sin completar (ver «Campos/avisos del formulario» en el detalle técnico).',
     ('HDI', 'Cotización (paquetes)'): 'HDI no mostró los paquetes a tiempo: el vehículo puede no ser asegurable '
                                        'o el portal estar lento.',
 }
@@ -174,6 +175,18 @@ AVISOS_NO_COTIZABLE = ('ya contar con este vehiculo asegurado', 'poliza vigente'
 # Los mismos avisos y el de La Equidad («Actualmente el vehículo se encuentra asegurado con la compañía»): el vehículo está
 # asegurado HOY con esa aseguradora. El comparativo y el correo la muestran como la aseguradora actual.
 AVISOS_ASEGURADO_ACTUAL = AVISOS_NO_COTIZABLE + ('asegurado con la compania',)
+
+
+# Fragmentos (sin tildes ni mayúsculas) de las páginas con que un portal rechaza la RED desde donde se conecta el bot
+# (visto en La Equidad desde el VPS: «403 Acceso Denegado. No tiene acceso a este recurso desde su red»). Desde la red
+# de la oficina el mismo usuario sí entra: hay que pedirle a la aseguradora que autorice la IP pública del servidor.
+AVISOS_RED_BLOQUEADA = ('acceso desde su red', 'recurso desde su red', 'acceso bloqueado por politicas de seguridad',
+                        'identifique la ip publica')
+
+
+def bloqueo_de_red(*textos):
+    normal = normalizar_texto(' '.join(t for t in textos if t))
+    return any(aviso in normal for aviso in AVISOS_RED_BLOQUEADA)
 
 
 def es_aseguradora_actual(mensaje):
@@ -252,6 +265,12 @@ def clasificar_error(exc, aseguradora, paso, alerta=None, pantalla=None):
         accion = None
     elif isinstance(exc, BotError):
         tipo, mensaje, accion = exc.tipo, exc.mensaje, exc.accion
+    elif bloqueo_de_red(alerta, pantalla):
+        tipo = 'portal'
+        mensaje = (f'El portal de {aseguradora} bloqueó la conexión desde la red del servidor («Acceso denegado… desde su '
+                   f'red»). Desde la red de la oficina sí deja entrar porque esa IP ya está autorizada.')
+        accion = (f'Pida a soporte de {aseguradora} que autorice la IP pública del servidor de ASLAN (y la URL del '
+                  f'portal). Mientras tanto, cotice {aseguradora} a mano.')
     elif isinstance(exc, PlaywrightTimeoutError):
         if paso == PASO_LOGIN:
             tipo = 'autenticacion'
@@ -386,6 +405,10 @@ class RegistroErrorMixin:
             )
             cuerpo = page.evaluate('document.body.innerText') or ''
             self.ultima_pantalla = re.sub(r'\s+', ' ', cuerpo)[-4000:]
+            avisos = self._avisos_formulario(page)
+            if avisos:
+                # Al final, porque el detalle técnico solo conserva la cola de la pantalla.
+                self.ultima_pantalla += ' || Campos/avisos del formulario: ' + ' | '.join(avisos)
             # Una pantalla con «nueva contraseña» + «confirmar» y dos campos de clave es el cambio obligatorio.
             campos_clave = page.evaluate(
                 """() => [...document.querySelectorAll('input[type=password]')]
@@ -395,6 +418,35 @@ class RegistroErrorMixin:
                 self.ultima_pantalla = 'Formulario de cambio de contraseña visible. ' + self.ultima_pantalla
         except Exception:
             pass
+
+    @staticmethod
+    def _avisos_formulario(page):
+        """Mensajes de validación visibles y etiquetas de los campos marcados como inválidos: explican por qué un
+        «Siguiente» no avanzó. Nunca lee valores de campos (podría haber una contraseña tecleada)."""
+        try:
+            textos = page.evaluate(
+                """() => {
+                    const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+                    const limpio = t => (t || '').replace(/\\s+/g, ' ').trim().slice(0, 160);
+                    const out = [];
+                    document.querySelectorAll('.invalid-feedback, .text-danger, .help-block, .error-message, '
+                        + '.field-validation-error, mat-error, [role=alert], .toast-message, .swal2-html-container')
+                        .forEach(e => { if (vis(e) && limpio(e.innerText)) out.push(limpio(e.innerText)); });
+                    document.querySelectorAll('input, select, textarea').forEach(e => {
+                        if (!vis(e) || e.type === 'password') return;
+                        const malo = e.matches('.is-invalid, .ng-invalid.ng-touched, .ng-invalid.ng-dirty, [aria-invalid=true]')
+                            || (e.required && !e.value);
+                        if (!malo) return;
+                        const lab = (e.id && document.querySelector(`label[for="${e.id}"]`))
+                            || (e.parentElement && e.parentElement.querySelector('label'));
+                        const nombre = limpio(lab ? lab.innerText : (e.placeholder || e.name || e.id));
+                        out.push(`campo inválido o vacío: ${nombre || '(sin etiqueta)'}`);
+                    });
+                    return [...new Set(out)].slice(0, 12);
+                }""")
+            return [t for t in (textos or []) if t]
+        except Exception:
+            return []
 
     # Palabras que delatan cómo se guarda la cotización o se saca el PDF en la pantalla de resultado.
     PALABRAS_DOCUMENTOS = ('guardar', 'grabar', 'pdf', 'imprimir', 'descargar', 'caratula', 'documento', 'enviar',

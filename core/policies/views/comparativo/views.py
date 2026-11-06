@@ -160,7 +160,13 @@ class ComparativoValoresView(StrictPermissionMixin, View):
             valor = _leer_valor(fila.get('valor'))
             if valor is None:
                 return JsonResponse({'error': f'{aseguradora.name}: el valor debe ser un número mayor que cero'}, status=400)
-            nuevos.append(ValorExterno(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, asesor=request.user))
+            valor_2 = None
+            if str(fila.get('valor_2') or '').strip():  # opcional: segundo valor al cotizar a mano (Integral en SdE)
+                valor_2 = _leer_valor(fila.get('valor_2'))
+                if valor_2 is None:
+                    return JsonResponse({'error': f'{aseguradora.name}: el segundo valor debe ser un número mayor que cero'}, status=400)
+            nuevos.append(ValorExterno(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, valor_2=valor_2,
+                                       asesor=request.user))
 
         with transaction.atomic():
             ValorExterno.objects.bulk_create(nuevos)
@@ -301,8 +307,8 @@ class ComparativoValorManualView(StrictPermissionMixin, View):
                 return JsonResponse({'error': 'El valor debe ser un número mayor que cero.'}, status=400)
             if valor == actual.valor:
                 return JsonResponse({'ok': True})
-            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, asesor=request.user,
-                                        documento=actual.documento.name or None)
+            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, valor_2=actual.valor_2,
+                                        asesor=request.user, documento=actual.documento.name or None)
             registrar_evento(vehiculo, 'valor', f'{aseguradora.name}: {anterior}', f'{aseguradora.name}: {dinero(valor)}',
                              'Valor manual corregido en el comparativo', request.user)
         elif accion == 'eliminar':

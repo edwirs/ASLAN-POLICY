@@ -298,6 +298,9 @@ class ValorExterno(models.Model):
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='valores_externos', verbose_name='Vehículo')
     aseguradora = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, related_name='valores_externos', verbose_name='Aseguradora')
     valor = models.DecimalField(max_digits=14, decimal_places=0, verbose_name='Valor final')
+    # Segundo valor del portal al cotizar a mano (Seguros del Estado: Elite = `valor`, Integral = `valor_2`). El
+    # comparativo usa siempre `valor`.
+    valor_2 = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='Segundo valor')
     # PDF de la cotización de la aseguradora: se adjunta al correo si este valor queda entre los dos más baratos.
     documento = models.FileField(upload_to=_ruta_cotizacion_manual, null=True, blank=True, verbose_name='PDF de la cotización')
     asesor = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name='Registrado por')

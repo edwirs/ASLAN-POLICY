@@ -59,6 +59,15 @@ def datos_usados(c):
     return [{'etiqueta': e, 'valor': val} for e, val in datos]
 
 
+# Nombres de los dos valores que se piden al cotizar a mano. El primero es el que entra al comparativo.
+ETIQUETAS_A_MANO = {'Seguros del Estado': ('Valor Elite', 'Valor Integral')}
+ETIQUETAS_A_MANO_DEFECTO = ('Valor 1', 'Valor 2')
+
+
+def etiquetas_a_mano(nombre_aseguradora):
+    return ETIQUETAS_A_MANO.get(nombre_aseguradora, ETIQUETAS_A_MANO_DEFECTO)
+
+
 def a_mano(c):
     """Para cotizar a mano una aseguradora con bot que no trajo valor (p. ej. Seguros del Estado rechaza al navegador del
     bot): el enlace al portal, los datos para copiar y el valor manual que ya se haya registrado después del intento."""
@@ -84,7 +93,9 @@ def a_mano(c):
         'aseguradora_id': c.aseguradora_id,
         'portal_url': credencial.portal_url if credencial else None,
         'datos': [{'etiqueta': e, 'valor': val} for e, val in datos if val],
-        'valor': {'valor': float(manual.valor), 'fecha': timezone.localtime(manual.created_at).strftime('%d/%m/%Y %H:%M'),
+        'etiquetas': list(etiquetas_a_mano(c.aseguradora.name)),
+        'valor': {'valor': float(manual.valor), 'valor_2': float(manual.valor_2) if manual.valor_2 else None,
+                  'fecha': timezone.localtime(manual.created_at).strftime('%d/%m/%Y %H:%M'),
                   'por': manual.asesor.names or manual.asesor.username} if manual else None,
     }
 

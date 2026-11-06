@@ -227,8 +227,11 @@ var ProcesoCotizacion = (function () {
         aMano[c.id] = c;
         var html = '<div class="pc-a-mano">';
         if (c.a_mano.valor) {
-            html += '<div class="pc-a-mano-valor"><i class="fa-solid fa-hand"></i> Cotizada a mano: <b>' + dinero(c.a_mano.valor.valor) + '</b>' +
-                ' <small>' + esc(c.a_mano.valor.fecha) + ' · ' + esc(c.a_mano.valor.por) + '</small></div>';
+            var et = c.a_mano.etiquetas || ['Valor 1', 'Valor 2'], v = c.a_mano.valor;
+            html += '<div class="pc-a-mano-valor"><i class="fa-solid fa-hand"></i> Cotizada a mano: ' +
+                (v.valor_2 ? esc(et[0]) + ' <b>' + dinero(v.valor) + '</b> · ' + esc(et[1]) + ' <b>' + dinero(v.valor_2) + '</b>'
+                           : '<b>' + dinero(v.valor) + '</b>') +
+                ' <small>' + esc(v.fecha) + ' · ' + esc(v.por) + '</small></div>';
         }
         html += '<button type="button" class="btn btn-sm btn-outline-primary pc-abrir-a-mano" data-id="' + c.id + '">' +
             '<i class="fa-solid fa-hand-pointer"></i> ' + (c.a_mano.valor ? 'Corregir valor a mano' : 'Cotizar a mano en el portal') + '</button></div>';
@@ -246,9 +249,15 @@ var ProcesoCotizacion = (function () {
             '<div class="mt-2"><a class="btn btn-sm btn-primary pc-am-portal" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir el portal</a></div></div></div>' +
             '<div class="pc-am-paso"><span class="pc-am-num">2</span><div class="w-100"><b>Cotiza con estos datos</b> <small class="text-muted">(clic en un dato para copiarlo)</small>' +
             '<div class="pc-am-datos"></div></div></div>' +
-            '<div class="pc-am-paso"><span class="pc-am-num">3</span><div class="w-100"><b>Escribe la prima total que te dio el portal</b>' +
-            '<div class="input-group mt-2 pc-am-valor"><span class="input-group-text">$</span><input type="text" inputmode="numeric" autocomplete="off" class="form-control" placeholder="Ej: 1.300.000"></div>' +
-            '<small class="text-muted">Entra al comparativo, al correo y al PDF como valor «Cotizado a mano».</small></div></div>' +
+            '<div class="pc-am-paso"><span class="pc-am-num">3</span><div class="w-100"><b>Escribe los valores que te dio el portal</b>' +
+            '<div class="row g-2 mt-1">' +
+            '<div class="col-sm-6"><label class="form-label small fw-semibold mb-1 pc-am-et1">Valor 1</label>' +
+            '<div class="input-group pc-am-valor"><span class="input-group-text">$</span><input type="text" inputmode="numeric" autocomplete="off" class="form-control pc-am-v1" placeholder="Ej: 1.300.000"></div></div>' +
+            '<div class="col-sm-6"><label class="form-label small fw-semibold mb-1 pc-am-et2">Valor 2</label>' +
+            '<div class="input-group pc-am-valor"><span class="input-group-text">$</span><input type="text" inputmode="numeric" autocomplete="off" class="form-control pc-am-v2" placeholder="Ej: 1.450.000"></div></div>' +
+            '</div>' +
+            '<small class="text-muted">El <b class="pc-am-et1b">Valor 1</b> entra al comparativo, al correo y al PDF como valor «Cotizado a mano». ' +
+            'El <b class="pc-am-et2b">Valor 2</b> queda registrado junto a él.</small></div></div>' +
             '</div>' +
             '<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>' +
             '<button type="button" class="btn btn-success pc-am-guardar"><i class="fa-solid fa-check"></i> Registrar valor</button></div>' +
@@ -279,18 +288,25 @@ var ProcesoCotizacion = (function () {
             return '<button type="button" class="pc-am-dato" title="Copiar"><span>' + esc(d.etiqueta) + '</span><b>' + esc(d.valor) + '</b>' +
                 '<i class="fa-regular fa-copy"></i></button>';
         }).join(''));
-        $m.find('.pc-am-valor input').val(c.a_mano.valor ? String(c.a_mano.valor.valor).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '');
+        var et = c.a_mano.etiquetas || ['Valor 1', 'Valor 2'];
+        $m.find('.pc-am-et1, .pc-am-et1b').text(et[0]);
+        $m.find('.pc-am-et2, .pc-am-et2b').text(et[1]);
+        var miles = function (n) { return n ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; };
+        $m.find('.pc-am-v1').val(c.a_mano.valor ? miles(c.a_mano.valor.valor) : '');
+        $m.find('.pc-am-v2').val(c.a_mano.valor ? miles(c.a_mano.valor.valor_2) : '');
         aMano.modal.show();
     }
 
     function guardarAMano() {
         var c = aMano.c, $m = $('#modalAMano');
-        var valor = $m.find('.pc-am-valor input').val().replace(/\D/g, '');
-        if (!valor || parseInt(valor, 10) <= 0) { toastr.error('Escribe la prima total que te dio el portal.'); return; }
+        var et = c.a_mano.etiquetas || ['Valor 1', 'Valor 2'];
+        var valor = $m.find('.pc-am-v1').val().replace(/\D/g, '');
+        var valor2 = $m.find('.pc-am-v2').val().replace(/\D/g, '');
+        if (!valor || parseInt(valor, 10) <= 0) { toastr.error('Escribe el ' + et[0] + ' que te dio el portal.'); $m.find('.pc-am-v1').focus(); return; }
         var $b = $m.find('.pc-am-guardar').prop('disabled', true);
         $.ajax({
             url: window.PROCESO_URLS.valorManual.replace('/0/', '/' + c.vehiculo_id + '/'), type: 'POST', dataType: 'json',
-            headers: {'X-CSRFToken': csrftoken}, data: {valores: JSON.stringify([{aseguradora: c.a_mano.aseguradora_id, valor: valor}])}
+            headers: {'X-CSRFToken': csrftoken}, data: {valores: JSON.stringify([{aseguradora: c.a_mano.aseguradora_id, valor: valor, valor_2: valor2}])}
         }).done(function (r) {
             if (r.error) { toastr.error(r.error); return; }
             aMano.modal.hide();

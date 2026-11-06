@@ -6,7 +6,7 @@
             <th class="cmp-col-etiqueta"><span>Cobertura</span></th>
             {% for c in resumen.columnas %}
                 <th class="cmp-col {% if c.es_mejor %}cmp-col-mejor{% endif %}">
-                    {% if c.es_mejor %}<span class="cmp-cinta"><i class="fa-solid fa-trophy"></i> Más económica</span>{% endif %}
+                    {% if c.es_mejor %}<span class="cmp-cinta"><i class="fa-solid fa-trophy"></i></span>{% endif %}
                     <div class="cmp-aseg">{{ c.aseguradora }}</div>
                     <div class="cmp-producto">{% if c.producto %}Plan {{ c.producto }}{% else %}{{ c.etiqueta }}{% endif %}</div>
                     <div class="cmp-precio">{{ c.valor_fmt }}</div>

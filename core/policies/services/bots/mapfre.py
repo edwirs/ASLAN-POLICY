@@ -16,6 +16,7 @@ Sesiones: al terminar (bien o mal) SIEMPRE se cierra sesión.
 import logging
 import os
 import re
+import sys
 
 from django.conf import settings
 from django.db import connection
@@ -158,9 +159,23 @@ class MapfreBot(RegistroErrorMixin):
             return True
         return 'has been closed' in str(error) or 'Target closed' in str(error)
 
+    @staticmethod
+    def _hay_pantalla():
+        """Linux sin X ni Wayland (un VPS) no puede abrir la ventana que necesita el asesor. macOS y Windows siempre."""
+        if not sys.platform.startswith('linux'):
+            return True
+        return bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+
     def _abrir_navegador(self, playwright):
         """Visible: con el Google Chrome instalado (el Chrome de pruebas de Playwright se cierra al abrirse visible en
         macOS 26). Si no está instalado, el de Playwright."""
+        if not self.headless and not self._hay_pantalla():
+            raise BotPortalError(
+                'Mapfre no se puede cotizar automáticamente en este servidor: su portal pide el captcha «No soy un '
+                'robot» y el código SMS en una ventana visible, y el servidor no tiene pantalla.',
+                accion='Cotice Mapfre a mano en su portal y cargue el valor con «Cotizar a mano». Si no la va a usar, '
+                       'desactívela en Aseguradoras › Mapfre.',
+            )
         if not self.headless:
             try:
                 return playwright.chromium.launch(headless=False, channel='chrome')
