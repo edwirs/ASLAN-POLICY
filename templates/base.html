@@ -292,19 +292,28 @@
 
       <li class="nav-item dropdown">
         <a
-          class="nav-link"
+          class="nav-link nav-usuario"
+          href="#"
+          role="button"
           data-bs-toggle="dropdown"
+          aria-expanded="false"
+          title="{{ request.user.names|default:request.user.username }} ({{ request.user.username }})"
         >
-          Usuario: {{ request.user.username }}
+          <span class="nav-usuario-nombre">{{ request.user.username }}</span>
+          <i class="fa-solid fa-angle-down nav-usuario-flecha"></i>
         </a>
 
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end">
-          <div class="dropdown-header text-center">Datos de conexión</div>
+        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end nav-usuario-menu">
+          <div class="dropdown-header text-center">
+            <div class="fw-bold text-body">{{ request.user.names|default:request.user.username }}</div>
+            <div class="small nav-usuario-completo">{{ request.user.username }}</div>
+          </div>
+          <div class="dropdown-divider"></div>
           <a class="dropdown-item">
             <p class="pb-0 mb-0">
               <b>Dirección ip:</b>
               <br>
-              {{ request.META.REMOTE_ADDR }}
+              {{ request.META.HTTP_X_REAL_IP|default:request.META.REMOTE_ADDR }}
             </p>
           </a>
           <div class="dropdown-divider"></div>
@@ -330,13 +339,29 @@
         <a
           class="nav-link"
           href="{% url 'login_logout' %}"
+          title="Cerrar sesión"
         >
           <i class="fas fa-power-off"></i>
-          Cerrar Sesión
+          <span class="nav-cerrar-texto">Cerrar Sesión</span>
         </a>
       </li>
     </ul>
   </nav>
+  <style>
+    /* Usuario en la barra superior: ancho fijo; si el nombre es largo (un correo) se corta con «…» y completo va en el
+       menú y en el tooltip. En pantallas angostas se acorta más y «Cerrar Sesión» queda solo con su ícono. */
+    .nav-usuario { display: inline-flex !important; align-items: center; gap: 4px; max-width: 240px; cursor: pointer; }
+    .nav-usuario-flecha { font-size: .75rem; opacity: .6; flex: none; }
+    .nav-usuario-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-usuario-menu { max-width: 320px; }
+    .nav-usuario-menu .dropdown-item { white-space: normal; word-break: break-word; }
+    .nav-usuario-completo { word-break: break-all; }
+    .nav-cerrar-texto { white-space: nowrap; }
+    @media (max-width: 767.98px) {
+      .nav-usuario { max-width: 110px; }
+      .nav-cerrar-texto { display: none; }
+    }
+  </style>
   <!-- /.navbar -->
 
   <!-- Main Sidebar Container -->
