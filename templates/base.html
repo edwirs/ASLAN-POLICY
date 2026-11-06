@@ -53,7 +53,7 @@
   ></link>
 
   <link
-    href="{% static 'css/style.css' %}?v=7"
+    href="{% static 'css/style.css' %}?v=9"
     rel="stylesheet"
   ></link>
 
@@ -234,36 +234,18 @@
         </a>
       </li>
 
-      <!-- Notificaciones (por ahora datos estáticos de ejemplo, como en AdminLTE) -->
-      <li class="nav-item dropdown" id="menuNotificaciones">
+      <!-- Notificaciones: las 4 cosas más importantes de la oficina (core/policies/services/notificaciones.py) -->
+      <li class="nav-item dropdown" id="menuNotificaciones" data-url="{% url 'notificaciones' %}">
         <a class="nav-link" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
           <i class="far fa-bell"></i>
-          <span class="badge navbar-badge notif-contador" id="notifContador" data-n="7">7</span>
+          <span class="badge navbar-badge notif-contador" id="notifContador" data-n="0" hidden>0</span>
         </a>
         <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end notif-menu">
-          <span class="dropdown-item dropdown-header">Notificaciones <small class="text-muted">· datos de ejemplo</small></span>
+          <span class="dropdown-item dropdown-header">Notificaciones</span>
           <div class="notif-lista">
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item notif-ejemplo">
-            <span class="notif-icono bg-primary"><i class="fas fa-envelope"></i></span>
-            <span class="notif-texto">4 mensajes nuevos</span>
-            <span class="notif-hora">hace 3 min</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item notif-ejemplo">
-            <span class="notif-icono bg-success"><i class="fas fa-circle-check"></i></span>
-            <span class="notif-texto">8 cotizaciones completadas</span>
-            <span class="notif-hora">hace 12 horas</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item notif-ejemplo">
-            <span class="notif-icono bg-warning"><i class="fas fa-file-lines"></i></span>
-            <span class="notif-texto">3 reportes nuevos</span>
-            <span class="notif-hora">hace 2 días</span>
-          </a>
-          <div class="dropdown-divider"></div>
+            <div class="notif-vacio"><i class="fa-solid fa-spinner fa-spin"></i> Revisando…</div>
           </div>
-          <a href="#" class="dropdown-item dropdown-footer">Ver todas las notificaciones</a>
+          <a href="{% url 'dashboard' %}" class="dropdown-item dropdown-footer">Ir al panel de control</a>
         </div>
       </li>
 
@@ -460,7 +442,7 @@
   <script src="{% static 'js/main.js' %}"></script>
   <script src="{% static 'js/functions.js' %}?v=2"></script>
   <script src="{% static 'js/theme.js' %}"></script>
-  <script src="{% static 'js/notificaciones.js' %}?v=3"></script>
+  <script src="{% static 'js/notificaciones.js' %}?v=4"></script>
   <script src="{% static 'js/buscador.js' %}?v=1"></script>
   <script>
     (function () {

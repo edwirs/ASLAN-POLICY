@@ -20,12 +20,14 @@ from django.urls import path, include
 from config import settings
 from core.dashboard.views import DashboardView
 from core.policies.views.agente.views import api_vincular
+from core.policies.views.notificaciones import notificaciones
 from core.tenants.acceso_soporte import acceso_soporte
 
 urlpatterns = [
     path('', include('core.login.urls')),
     path('admin/', admin.site.urls),
     path('agente/api/vincular/', api_vincular, name='agente_api_vincular'),
+    path('notificaciones/', notificaciones, name='notificaciones'),
     path('acceso-soporte/', acceso_soporte, name='acceso_soporte'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('pos/', include('core.pos.urls')),

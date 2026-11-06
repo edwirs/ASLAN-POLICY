@@ -267,6 +267,11 @@ $(function () {
     });
 
     procesoVista.modal = new bootstrap.Modal(document.getElementById('modalProceso'));
+    // Enlace de la campana (?proceso=ID&buscar=PLACA): abre de una vez el proceso de esa solicitud (p. ej. Mapfre pide el código).
+    var procesoInicial = parseInt(new URLSearchParams(location.search).get('proceso'), 10);
+    if (procesoInicial) {
+        procesoVista.abrir(procesoInicial, new URLSearchParams(location.search).get('buscar') || '');
+    }
 
     $('#data').on('click', '.btn-ver-proceso', function () {
         procesoVista.abrir($(this).data('id'), $(this).data('placa'));
