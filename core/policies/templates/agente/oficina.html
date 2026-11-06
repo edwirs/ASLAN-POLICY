@@ -1,0 +1,159 @@
+{% extends 'body.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active"><i class="fa-solid fa-desktop"></i> {{ module_name }}</li>
+{% endblock %}
+
+{% block content %}
+    <style>
+        .ag-estado { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; }
+        .ag-estado::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .ag-on { background: rgba(22, 163, 74, .12); color: #15803d; }
+        .ag-off { background: rgba(100, 116, 139, .14); color: #475569; }
+        .ag-codigo { font: 700 2rem/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+        .ag-paso { display: flex; gap: 12px; margin-bottom: 14px; }
+        .ag-paso b.num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: #0e7490; color: #fff;
+            display: inline-flex; align-items: center; justify-content: center; }
+        .dark-mode .ag-on { background: rgba(34, 197, 94, .16); color: #4ade80; }
+        .dark-mode .ag-off { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+    </style>
+
+    <div class="card card-outline card-primary">
+        <div class="card-header">
+            <h3 class="card-title mb-0" style="font-size: 30px;"><i class="fa-solid fa-desktop"></i> {{ title }}</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                El <b>Agente ASLAN</b> es un programa que se instala en un PC de la oficina. Con él, las aseguradoras que bloquean la
+                conexión desde el servidor (La Equidad) o que piden una persona para el captcha (Mapfre) se cotizan con el
+                navegador de ese PC: el portal ve la red de la oficina y la ventana de Mapfre sale en ese equipo. El PC solo tiene
+                que estar encendido y conectado a internet; no se abren puertos ni se guardan contraseñas en él.
+            </p>
+            <h5 class="fw-bold"><i class="fa-solid fa-network-wired"></i> Equipos vinculados</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle" id="tblAgentes">
+                    <thead><tr><th>Equipo</th><th>Estado</th><th>Última señal</th><th>Vinculado por</th><th>Versión</th><th>Opciones</th></tr></thead>
+                    <tbody><tr><td colspan="6" class="text-muted">Cargando…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card card-outline card-info">
+                <div class="card-header"><h3 class="card-title fw-bold"><i class="fa-solid fa-link"></i> Vincular un equipo</h3></div>
+                <div class="card-body">
+                    <div class="ag-paso"><b class="num">1</b><div>
+                        Desde el PC de la oficina, descarga e instala el agente (Windows 10 u 11).<br>
+                        <a class="btn btn-sm btn-primary mt-2" href="{{ descarga_url }}"><i class="fa-solid fa-download"></i> Descargar Agente ASLAN</a>
+                    </div></div>
+                    <div class="ag-paso"><b class="num">2</b><div>
+                        Genera un código y escríbelo en el agente junto con la dirección de ASLAN. El código sirve una sola vez y vence en 15 minutos.<br>
+                        {% if puede_editar %}
+                            <button type="button" class="btn btn-sm btn-info mt-2" id="btnCodigo"><i class="fa-solid fa-key"></i> Generar código</button>
+                        {% else %}
+                            <span class="text-muted small">Tu perfil no puede vincular equipos.</span>
+                        {% endif %}
+                        <div id="cajaCodigo" class="mt-3" hidden>
+                            <div class="small text-muted">Dirección de ASLAN</div>
+                            <div class="fw-bold mb-2" id="txtServidor"></div>
+                            <div class="small text-muted">Código de vinculación</div>
+                            <div class="ag-codigo" id="txtCodigo"></div>
+                            <div class="small text-muted mt-1">Vence a las <span id="txtVence"></span>.</div>
+                        </div>
+                    </div></div>
+                    <div class="ag-paso"><b class="num">3</b><div>
+                        Cuando el agente diga <b>«Conectado»</b>, el equipo aparece arriba <span class="ag-estado ag-on">En línea</span>.
+                        Para Mapfre conviene instalarlo en el PC de cada asesor que cotiza: la ventana del captcha sale en el equipo del
+                        asesor que hizo la solicitud (si su agente está encendido) o, si no, en cualquier otro en línea.
+                    </div></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card card-outline card-secondary">
+                <div class="card-header"><h3 class="card-title fw-bold"><i class="fa-solid fa-building-shield"></i> Dónde se cotiza cada aseguradora</h3></div>
+                <div class="card-body">
+                    <table class="table table-sm align-middle" id="tblAseguradoras">
+                        <thead><tr><th>Aseguradora</th><th>Dónde se cotiza</th><th></th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <p class="small text-muted mb-0">
+                        Se cambia en Aseguradoras › Editar › «Dónde se cotiza». Si el agente está apagado, «Agente si está encendido»
+                        usa el servidor; «Solo con el agente» avisa para cotizar a mano. Seguros del Estado no usa el agente: se cotiza a mano.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="application/javascript">
+        $(function () {
+            var puedeEditar = {% if puede_editar %}true{% else %}false{% endif %};
+            var urlEditar = '{% url "aseguradora_update" 0 %}';
+
+            function esc(t) { return $('<div>').text(t == null ? '' : String(t)).html(); }
+
+            function pedir(datos, ok) {
+                $.ajax({url: window.location.pathname, type: 'POST', headers: {'X-CSRFToken': csrftoken}, data: datos, dataType: 'json'})
+                    .done(function (r) { if (r.error) { message_error(r.error); } else { ok(r); } })
+                    .fail(function () { message_error('No se pudo comunicar con el servidor.'); });
+            }
+
+            function pintar(r) {
+                var $tb = $('#tblAgentes tbody').empty();
+                if (!r.agentes.length) {
+                    $tb.append('<tr><td colspan="6" class="text-muted">Ningún equipo vinculado todavía.</td></tr>');
+                }
+                r.agentes.forEach(function (a) {
+                    var estado = a.en_linea ? '<span class="ag-estado ag-on">En línea</span>' : '<span class="ag-estado ag-off">Apagado</span>';
+                    if (a.actualizar) { estado += ' <span class="badge bg-warning text-dark">Actualizar</span>'; }
+                    var botones = puedeEditar
+                        ? '<button class="btn btn-sm btn-outline-secondary btn-renombrar" data-id="' + a.id + '" data-nombre="' + esc(a.nombre) + '" title="Cambiar nombre"><i class="fa-solid fa-pen"></i></button> ' +
+                          '<button class="btn btn-sm btn-outline-danger btn-desvincular" data-id="' + a.id + '" data-nombre="' + esc(a.nombre) + '" title="Desvincular"><i class="fa-solid fa-link-slash"></i></button>'
+                        : '';
+                    $tb.append('<tr><td><b>' + esc(a.nombre) + '</b><div class="small text-muted">' + esc(a.sistema) + ' · ' + esc(a.navegador) + ' · IP ' + esc(a.ip) + '</div></td>' +
+                        '<td>' + estado + '</td><td>' + esc(a.ultima_senal) + '</td><td>' + esc(a.usuario) + '</td><td>' + esc(a.version) +
+                        '</td><td class="text-nowrap">' + botones + '</td></tr>');
+                });
+                var $ta = $('#tblAseguradoras tbody').empty();
+                r.aseguradoras.forEach(function (s) {
+                    var color = s.modo === 'servidor' ? 'secondary' : 'info';
+                    $ta.append('<tr><td>' + esc(s.nombre) + (s.activa ? '' : ' <span class="badge bg-light text-muted">Inactiva</span>') + '</td>' +
+                        '<td><span class="badge bg-' + color + '">' + esc(s.modo_texto) + '</span></td>' +
+                        '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="' + urlEditar.replace('/0/', '/' + s.id + '/') + '"><i class="fa-solid fa-pen"></i></a></td></tr>');
+                });
+            }
+
+            function cargar() { pedir({action: 'search'}, pintar); }
+
+            $('#btnCodigo').on('click', function () {
+                pedir({action: 'codigo'}, function (r) {
+                    $('#txtServidor').text(r.servidor);
+                    $('#txtCodigo').text(r.codigo);
+                    $('#txtVence').text(r.vence);
+                    $('#cajaCodigo').prop('hidden', false);
+                });
+            });
+
+            $('#tblAgentes').on('click', '.btn-desvincular', function () {
+                var id = $(this).data('id'), nombre = $(this).data('nombre');
+                dialog_action({
+                    content: '¿Desvincular el equipo «' + esc(nombre) + '»? El agente de ese PC deja de funcionar hasta que se vincule de nuevo.',
+                    success: function () { pedir({action: 'desvincular', id: id}, cargar); },
+                    cancel: function () {}
+                });
+            });
+
+            $('#tblAgentes').on('click', '.btn-renombrar', function () {
+                var id = $(this).data('id'), nombre = prompt('Nombre del equipo:', $(this).data('nombre'));
+                if (nombre) { pedir({action: 'renombrar', id: id, nombre: nombre}, cargar); }
+            });
+
+            cargar();
+            setInterval(cargar, 15000);
+        });
+    </script>
+{% endblock %}

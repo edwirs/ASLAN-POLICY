@@ -1,0 +1,5 @@
+# Dependencias del Agente ASLAN (el programa de la oficina). Playwright DEBE ser la misma versión mayor.menor que la
+# del servidor (deploy/txt/requirements.txt): el navegador remoto solo se entiende entre versiones iguales.
+playwright==1.60.0
+websockets==15.0.1
+pyinstaller==6.16.0

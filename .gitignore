@@ -382,3 +382,10 @@ pip-selfcheck.json
 
 # Respaldos de la base de datos (contienen datos reales): nunca al repositorio
 respaldos/
+
+# Agente ASLAN: salidas de compilación
+agente/.venv-build/
+agente/dist/
+agente/build/
+agente/salida/
+agente/*.spec

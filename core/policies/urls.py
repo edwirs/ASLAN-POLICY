@@ -25,6 +25,7 @@ from core.policies.views.asistente.views import (
     asistente_eliminar,
 )
 from core.policies.views.asesor.views import AsesorCreateView, AsesorListView, AsesorUpdateView
+from core.policies.views.agente.views import AgenteOficinaView
 from core.policies.views.buscar import BuscarView
 from core.policies.views.comparativo.views import (ComparativoCorreoView, ComparativoImprimirView, ComparativoPdfView,
                                                    ComparativoValoresView, ComparativoValorManualView, ComparativoView)
@@ -42,6 +43,7 @@ urlpatterns = [
     path('solicitud/cotizar/reintentar/', reintentar_cotizacion, name='solicitud_reintentar_cotizacion'),
     path('solicitud/reactivar-placa/', reactivar_placa, name='solicitud_reactivar_placa'),
     path('aseguradoras/', AseguradoraListView.as_view(), name='aseguradora_list'),
+    path('agente-oficina/', AgenteOficinaView.as_view(), name='agente_oficina'),
     path('aseguradoras/nueva/', AseguradoraCreateView.as_view(), name='aseguradora_create'),
     path('aseguradoras/<int:pk>/editar/', AseguradoraUpdateView.as_view(), name='aseguradora_update'),
     path('aseguradoras/<int:pk>/coberturas/', AseguradoraCoberturasView.as_view(), name='aseguradora_coberturas'),

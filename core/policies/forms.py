@@ -263,6 +263,12 @@ class AseguradoraCredencialForm(forms.ModelForm):
         # Opciones de la empresa en el cotizador de este portal (oficina, productos…): van en `parametros`.
         guardados = (credencial.parametros or {}) if credencial else {}
         for p in parametros_de(aseguradora.name):
+            if p.get('opciones'):
+                self.fields['param_' + p['clave']] = forms.ChoiceField(
+                    required=False, label=p['etiqueta'], choices=p['opciones'], help_text=p.get('ayuda', ''),
+                    initial=guardados.get(p['clave']) or p.get('defecto', ''),
+                    widget=forms.Select(attrs={'class': 'form-control form-select'}))
+                continue
             self.fields['param_' + p['clave']] = forms.CharField(
                 required=False, max_length=300, label=p['etiqueta'],
                 help_text=' '.join(x for x in (p.get('ayuda', ''), f'Si se deja vacío se usa: {p["defecto"]}.' if p.get('defecto') else '') if x),

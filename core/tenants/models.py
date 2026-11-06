@@ -93,6 +93,42 @@ class AccesoPlataforma(models.Model):
     ips_permitidas = models.CharField(max_length=300, blank=True, default='', help_text='Separadas por coma. Vacío = cualquiera.')
     actualizado = models.DateTimeField(auto_now=True)
 
+class AgenteLocal(models.Model):
+    """Un equipo de la oficina de una empresa con el «Agente ASLAN» instalado. Los bots que deben salir por la red de
+    la oficina (portales que bloquean la IP del servidor) o que necesitan una ventana visible (captcha de Mapfre)
+    manejan el navegador de ese equipo a través del relevo (`manage.py relay_agentes`). Vive en el schema público
+    porque el relevo lo consulta sin saber de qué empresa es. La llave solo se guarda cifrada (SHA-256)."""
+    empresa = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='agentes', verbose_name='Empresa')
+    nombre = models.CharField(max_length=80, verbose_name='Equipo')
+    usuario = models.CharField(max_length=150, blank=True, default='', verbose_name='Usuario que lo vinculó')
+    llave_hash = models.CharField(max_length=64, unique=True)
+    activo = models.BooleanField(default=True, verbose_name='Vinculado')
+    conectado = models.BooleanField(default=False)
+    ultima_senal = models.DateTimeField(null=True, blank=True, verbose_name='Última señal')
+    version = models.CharField(max_length=20, blank=True, default='')
+    version_playwright = models.CharField(max_length=20, blank=True, default='')
+    sistema = models.CharField(max_length=80, blank=True, default='')
+    navegador = models.CharField(max_length=40, blank=True, default='')
+    ip = models.CharField(max_length=45, blank=True, default='', verbose_name='IP pública')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-activo', 'nombre', 'id']
+
+    def __str__(self):
+        return f'{self.nombre} ({self.empresa.schema_name})'
+
+
+class CodigoVinculacion(models.Model):
+    """Código de un solo uso, de vida corta, que se escribe en el agente para asociarlo a la empresa."""
+    empresa = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='codigos_agente')
+    codigo_hash = models.CharField(max_length=64, unique=True)
+    usuario = models.CharField(max_length=150, blank=True, default='')
+    vence = models.DateTimeField()
+    usado = models.BooleanField(default=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+
 # Este signal se dispara justo después de que se crea una nueva empresa (Client)
 @receiver(post_save, sender=Client)
 def create_default_domain(sender, instance, created, **kwargs):

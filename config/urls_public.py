@@ -1,12 +1,14 @@
 """URLs del dominio de la plataforma (schema «public»): el panel de ASLAN. Las empresas NO llegan aquí: su dominio usa config/urls.py."""
 from django.urls import path
 
+from core.policies.views.agente.views import api_vincular
 from core.tenants import gestion as g
 from core.tenants import plataforma as p
 from core.tenants import seguridad_panel as sp
 
 urlpatterns = [
     path('', p.inicio, name='plataforma_inicio'),
+    path('agente/api/vincular/', api_vincular, name='agente_api_vincular'),
     path('ingresar/', p.ingresar, name='plataforma_ingresar'),
     path('salir/', p.salir, name='plataforma_salir'),
     path('empresas/', p.empresas, name='plataforma_empresas'),

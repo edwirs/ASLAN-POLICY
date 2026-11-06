@@ -269,8 +269,9 @@ def clasificar_error(exc, aseguradora, paso, alerta=None, pantalla=None):
         tipo = 'portal'
         mensaje = (f'El portal de {aseguradora} bloqueó la conexión desde la red del servidor («Acceso denegado… desde su '
                    f'red»). Desde la red de la oficina sí deja entrar porque esa IP ya está autorizada.')
-        accion = (f'Pida a soporte de {aseguradora} que autorice la IP pública del servidor de ASLAN (y la URL del '
-                  f'portal). Mientras tanto, cotice {aseguradora} a mano.')
+        accion = (f'Cotice {aseguradora} con el Agente ASLAN de la oficina (Configuraciones › Aseguradoras › '
+                  f'{aseguradora} › «Dónde se cotiza»: Agente de la oficina), o pida a soporte de {aseguradora} que '
+                  f'autorice la IP pública del servidor de ASLAN. Mientras tanto, cotice a mano.')
     elif isinstance(exc, PlaywrightTimeoutError):
         if paso == PASO_LOGIN:
             tipo = 'autenticacion'
@@ -317,6 +318,10 @@ def registrar_error(cotizacion, exc, paso, schema_name, alerta=None, pantalla=No
         cotizacion.save(update_fields=['estado_bot', 'error_tipo', 'paso_bot', 'mensaje_bot', 'accion_sugerida', 'detalle_tecnico'])
     return info
 
+
+# Aseguradoras que pueden cotizarse con el navegador del Agente ASLAN de la oficina. Seguros del Estado no: su portal
+# rechaza los navegadores automatizados sin importar desde qué red se entre, y se cotiza a mano.
+AGENTE_PERMITIDO = ('Mapfre', 'La Equidad Seguros', 'Qualitas', 'HDI', 'AXA Colpatria', 'Seguros Mundial')
 
 # Un 0 km no tiene placa: en TODOS los portales se escribe siempre esta (no la de la solicitud).
 PLACA_CERO_KM = 'TL123A'
@@ -537,8 +542,14 @@ class RegistroErrorMixin:
                         pass
             datos = None
             if descargas:
-                with open(descargas[0].path(), 'rb') as archivo:
-                    datos = archivo.read()
+                # save_as y no path(): con el navegador del Agente ASLAN la descarga queda en el PC de la oficina.
+                import os
+                import tempfile
+                with tempfile.TemporaryDirectory() as carpeta:
+                    ruta = os.path.join(carpeta, 'cotizacion.pdf')
+                    descargas[0].save_as(ruta)
+                    with open(ruta, 'rb') as archivo:
+                        datos = archivo.read()
             else:
                 for nueva in [p for p in contexto.pages if p not in antes]:
                     try:
@@ -600,6 +611,68 @@ class RegistroErrorMixin:
             with schema_context(self.schema_name):
                 Cotizacion.objects.filter(pk=self.cotizacion.pk, estado_bot='esperando_confirmacion').update(
                     estado_bot='en_proceso', verificacion_bot=None, codigo_verificacion=None)
+
+    # ------------------------------------------------------------------ dónde se abre el navegador
+    # Cada aseguradora se cotiza en este servidor o con el navegador del «Agente ASLAN» de la oficina (parámetro
+    # «ejecutar_en» de la credencial; ver services/credenciales.py y core/tenants/agentes.py).
+    agente_usado = None
+
+    def _modo_ejecucion(self):
+        if self.cotizacion.aseguradora.name not in AGENTE_PERMITIDO:
+            return 'servidor'
+        modo = self.parametro('ejecutar_en') if getattr(self, 'credencial', None) is not None else ''
+        return modo if modo in ('servidor', 'agente', 'automatico') else 'servidor'
+
+    def _lanzar_navegador(self, playwright, headless=True, canal=None):
+        """Abre el navegador del bot: el del agente de la oficina si a esta aseguradora le corresponde y está en línea;
+        si no, uno local (con el canal pedido si existe, p. ej. el Google Chrome instalado)."""
+        modo = self._modo_ejecucion()
+        if modo != 'servidor':
+            agente = self._agente_para_bot()
+            if agente is not None:
+                return self._conectar_agente(playwright, agente, headless)
+            if modo == 'agente':
+                nombre = self.cotizacion.aseguradora.name
+                raise BotPortalError(
+                    f'{nombre} se cotiza con el Agente ASLAN de la oficina y en este momento no hay ningún equipo con el '
+                    'agente encendido.',
+                    accion=f'Encienda el PC de la oficina que tiene el Agente ASLAN (o ábralo desde el escritorio) y '
+                           f'reenvíe a {nombre}. Mientras tanto, cotice a mano.')
+        if canal:
+            try:
+                return playwright.chromium.launch(headless=headless, channel=canal)
+            except Exception:
+                logger.warning('No se encontró el navegador «%s»; se usa el de Playwright.', canal)
+        return playwright.chromium.launch(headless=headless)
+
+    def _agente_para_bot(self):
+        from core.tenants.agentes import agente_disponible  # import local: evita ciclo al cargar el módulo
+        asesor = getattr(self.cotizacion, 'asesor', None)
+        try:
+            with schema_context('public'):
+                return agente_disponible(self.schema_name, getattr(asesor, 'username', ''))
+        except Exception:
+            logger.warning('No se pudo consultar el agente de la oficina.', exc_info=True)
+            return None
+
+    def _conectar_agente(self, playwright, agente, headless):
+        from core.tenants.agentes import clave_relay, compatible, url_sesion  # import local: evita ciclo
+        nombre = self.cotizacion.aseguradora.name
+        if not compatible(agente):
+            raise BotPortalError(
+                f'El Agente ASLAN del equipo «{agente.nombre}» está desactualizado y no puede manejar el navegador.',
+                accion=f'Instale la versión más reciente del Agente ASLAN en ese equipo (Configuraciones › Agente de la '
+                       f'oficina) y reenvíe a {nombre}.')
+        self.agente_usado = agente.nombre
+        logger.info('%s: cotización #%s con el navegador del agente «%s».', nombre, self.cotizacion.pk, agente.nombre)
+        try:
+            return playwright.chromium.connect(url_sesion(agente, headless), timeout=60000,
+                                               headers={'X-Relay-Clave': clave_relay()})
+        except Exception as exc:
+            raise BotPortalError(
+                f'No se pudo abrir el navegador en el equipo «{agente.nombre}» de la oficina ({str(exc).strip()[:150]}).',
+                accion=f'Revise que el Agente ASLAN de ese equipo diga «Conectado» y reenvíe a {nombre}; si sigue '
+                       f'igual, ciérrelo y vuelva a abrirlo.') from exc
 
     def _registrar_error(self, exc):
         return registrar_error(self.cotizacion, exc, self.paso_actual, self.schema_name,

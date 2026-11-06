@@ -1,0 +1,17 @@
+# Relevo de los Agente ASLAN (manage.py relay_agentes). Copiar a /etc/systemd/system/aslan-relay.service y luego:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aslan-relay
+# Ajuste User y las rutas si su instalación es distinta.
+[Unit]
+Description=ASLAN - relevo de los agentes de oficina
+After=network.target postgresql.service
+
+[Service]
+User=edwin
+WorkingDirectory=/home/edwin/aslan-multiagente/ASLAN-POLICY
+ExecStart=/home/edwin/aslan-multiagente/ASLAN-POLICY/venv/bin/python manage.py relay_agentes
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

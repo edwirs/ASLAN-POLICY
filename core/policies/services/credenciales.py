@@ -82,8 +82,32 @@ PARAMETROS_POR_ASEGURADORA = {
 }
 
 
+# Dónde se abre el navegador del bot (ver core/tenants/agentes.py). Va primero en las opciones de cada aseguradora con
+# bot, salvo Seguros del Estado (se cotiza a mano: su portal rechaza los navegadores automatizados desde cualquier red).
+OPCIONES_EJECUCION = (
+    ('servidor', 'Servidor de ASLAN'),
+    ('automatico', 'Agente de la oficina si está encendido; si no, el servidor'),
+    ('agente', 'Solo con el Agente de la oficina'),
+)
+EJECUCION_POR_DEFECTO = {'Mapfre': 'automatico', 'La Equidad Seguros': 'automatico'}
+CON_AGENTE = ('Mapfre', 'La Equidad Seguros', 'Qualitas', 'HDI', 'AXA Colpatria', 'Seguros Mundial')
+
+
+def _parametro_ejecucion(aseguradora_nombre):
+    return {
+        'clave': 'ejecutar_en', 'etiqueta': 'Dónde se cotiza', 'opciones': OPCIONES_EJECUCION,
+        'defecto': EJECUCION_POR_DEFECTO.get(aseguradora_nombre, 'servidor'),
+        'ayuda': ('«Agente de la oficina» = el navegador del PC de la oficina con el Agente ASLAN (Configuraciones › '
+                  'Agente de la oficina): sale con la IP de la oficina y muestra ahí las ventanas que piden una persona '
+                  '(captcha de Mapfre).'),
+    }
+
+
 def parametros_de(aseguradora_nombre):
-    return PARAMETROS_POR_ASEGURADORA.get(aseguradora_nombre, ())
+    propios = PARAMETROS_POR_ASEGURADORA.get(aseguradora_nombre, ())
+    if aseguradora_nombre in CON_AGENTE:
+        return (_parametro_ejecucion(aseguradora_nombre),) + tuple(propios)
+    return propios
 
 
 def parametro(credencial, aseguradora_nombre, clave):

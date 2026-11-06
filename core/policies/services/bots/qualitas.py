@@ -188,7 +188,7 @@ class QualitasBot(RegistroErrorMixin):
         cotizador_page = None
         try:
             with sync_playwright() as playwright, schema_context(self.schema_name):
-                browser = playwright.chromium.launch(headless=self.headless)
+                browser = self._lanzar_navegador(playwright, headless=self.headless)
                 page = browser.new_page()
                 try:
                     self._paso(PASO_LOGIN)

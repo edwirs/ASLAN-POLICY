@@ -167,21 +167,25 @@ class MapfreBot(RegistroErrorMixin):
         return bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
 
     def _abrir_navegador(self, playwright):
-        """Visible: con el Google Chrome instalado (el Chrome de pruebas de Playwright se cierra al abrirse visible en
-        macOS 26). Si no está instalado, el de Playwright."""
+        """El navegador tiene que verse (captcha). Con el Agente ASLAN la ventana sale en el PC de la oficina; en este
+        equipo, con el Google Chrome instalado (el Chrome de pruebas de Playwright se cierra al abrirse visible en
+        macOS 26) o, si no está, con el de Playwright."""
+        modo = self._modo_ejecucion()
+        if modo != 'servidor':
+            agente = self._agente_para_bot()
+            if agente is not None:
+                return self._conectar_agente(playwright, agente, self.headless)
+            if modo == 'agente':
+                return self._lanzar_navegador(playwright, headless=self.headless)  # avisa que el agente está apagado
         if not self.headless and not self._hay_pantalla():
             raise BotPortalError(
-                'Mapfre no se puede cotizar automáticamente en este servidor: su portal pide el captcha «No soy un '
-                'robot» y el código SMS en una ventana visible, y el servidor no tiene pantalla.',
-                accion='Cotice Mapfre a mano en su portal y cargue el valor con «Cotizar a mano». Si no la va a usar, '
-                       'desactívela en Aseguradoras › Mapfre.',
+                'Mapfre no se pudo cotizar: su portal pide el captcha «No soy un robot» y el código SMS en una ventana '
+                'visible, el servidor no tiene pantalla y no hay ningún Agente ASLAN encendido en la oficina.',
+                accion='Encienda el PC de la oficina que tiene el Agente ASLAN (o ábralo desde el escritorio) y reenvíe a '
+                       'Mapfre; la ventana saldrá en ese equipo. Mientras tanto, cotice Mapfre a mano y cargue el valor '
+                       'con «Cotizar a mano».',
             )
-        if not self.headless:
-            try:
-                return playwright.chromium.launch(headless=False, channel='chrome')
-            except Exception:
-                logger.warning('Mapfre: no se encontró Google Chrome instalado; se usa el navegador de Playwright.')
-        return playwright.chromium.launch(headless=self.headless)
+        return self._lanzar_navegador(playwright, headless=self.headless, canal=None if self.headless else 'chrome')
 
     # ------------------------------------------------------------------
     # Pasos

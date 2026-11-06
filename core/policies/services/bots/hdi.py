@@ -162,7 +162,7 @@ class HdiBot(RegistroErrorMixin):
 
         try:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=self.headless)
+                browser = self._lanzar_navegador(playwright, headless=self.headless)
                 contexto = browser.new_context(viewport={'width': 1366, 'height': 900})
                 home = contexto.new_page()
                 cotizador = None

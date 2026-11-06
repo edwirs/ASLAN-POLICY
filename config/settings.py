@@ -228,6 +228,16 @@ PG_DUMP = env('PG_DUMP', default='')   # ruta de pg_dump si no es la que se dete
 # (sin hacer clic en nada) en media/bot_debug/mapeo/, para mapear dónde se guarda la cotización y se descarga el PDF.
 BOTS_MAPEAR_DOCUMENTOS = env.bool('BOTS_MAPEAR_DOCUMENTOS', default=True)
 
+# Agente local («Agente ASLAN» en un PC de la oficina): los bots de las aseguradoras que bloquean la IP del servidor o
+# piden captcha (La Equidad, Mapfre) manejan el navegador de ese PC a través del relevo `manage.py relay_agentes`.
+# El relevo escucha SOLO en 127.0.0.1; nginx le pasa /agente/ws/ (ver deploy/agente/). La clave interna separa a los
+# bots (este mismo servidor) de los agentes: si no se define en .env.secrets se deriva de SECRET_KEY.
+AGENTE_RELAY_PUERTO = env.int('AGENTE_RELAY_PUERTO', default=8008)
+AGENTE_RELAY_CLAVE = env('AGENTE_RELAY_CLAVE', default='')
+AGENTE_DESCARGA_URL = env('AGENTE_DESCARGA_URL', default='/descargas/ASLAN-Agente-Setup.exe')
+AGENTE_VERSION_MINIMA = env('AGENTE_VERSION_MINIMA', default='1.0.0')
+AGENTE_SEGUNDOS_EN_LINEA = 90   # sin señal en ese tiempo, el agente se da por apagado
+
 # Vencimiento: pasada la fecha «pagado hasta» hay estos días de gracia (con aviso) y luego se suspende el acceso.
 GRACIA_DIAS = env.int('GRACIA_DIAS', default=5)
 SUSPENDER_POR_VENCIMIENTO = env.bool('SUSPENDER_POR_VENCIMIENTO', default=True)

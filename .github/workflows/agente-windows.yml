@@ -1,0 +1,29 @@
+# Compila el instalador del Agente ASLAN para Windows. Se corre a mano (Actions › «Agente ASLAN (Windows)» › Run workflow)
+# o al subir un tag agente-v*. El .exe queda como artefacto descargable de la ejecución.
+name: Agente ASLAN (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['agente-v*']
+
+jobs:
+  instalador:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agente
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Construir
+        run: powershell -ExecutionPolicy Bypass -File construir_windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ASLAN-Agente-Setup
+          path: agente/salida/ASLAN-Agente-Setup.exe
+          retention-days: 30

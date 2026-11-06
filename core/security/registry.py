@@ -183,6 +183,8 @@ MENU = (
         )),
         Item('insurers', 'Aseguradoras', 'aseguradora_list', 'policies.view_aseguradora',
              q('policies', 'view_aseguradora', 'add_aseguradora', 'change_aseguradora'), modulo='cotizador'),
+        Item('office_agent', 'Agente de la oficina', 'agente_oficina', 'policies.view_aseguradora',
+             icon='fa-solid fa-desktop', modulo='cotizador'),
         Item('advisors', 'Asesores', 'asesor_list', 'policies.view_asesor',
              q('policies', 'view_asesor', 'add_asesor', 'change_asesor'), modulo='asesores'),
         Item('email_templates', 'Plantillas de correo', 'plantilla_correo_list', 'policies.view_plantillacorreo',

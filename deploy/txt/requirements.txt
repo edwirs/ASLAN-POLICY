@@ -29,7 +29,8 @@ openpyxl==3.1.5
 django-tenants
 xhtml2pdf
 qrcode[pil]
-playwright
+playwright==1.60.0
+websockets==15.0.1
 anthropic
 cryptography
 gunicorn
