@@ -429,7 +429,78 @@ class HdiBot(RegistroErrorMixin):
                     f'(en la solicitud es 0 km: {"Sí" if self.vehiculo.es_cero_km else "No"}).',
                     accion='Corrija en la solicitud si el vehículo es 0 km o no, y reenvíe a HDI.',
                 )
-            objetivo.check(force=True)
+            if not self._marcar_radio(cot, objetivo):
+                raise BotPortalError(f'HDI no dejó marcar la respuesta de la pregunta {pregunta + 1} de «Preguntas adicionales».')
+
+    # Índice (en document.querySelectorAll('input[type=radio]')) del radio que corresponde a un texto («Masculino»):
+    # el <label for> de HDI está roto, así que se busca por cercanía (hermano inmediato o contenedor con un solo radio).
+    RADIO_DE_TEXTO_JS = """(texto) => {
+        const norm = t => (t || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const objetivo = norm(texto);
+        const todos = [...document.querySelectorAll('input[type=radio]')];
+        const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const etiquetas = [...document.querySelectorAll('label, span, p, div')].filter(e => vis(e) && norm(e.textContent) === objetivo);
+        for (const el of etiquetas) {
+            for (const vecino of [el.previousElementSibling, el.nextElementSibling]) {
+                if (vecino && vecino.matches('input[type=radio]')) return todos.indexOf(vecino);
+            }
+            let c = el;
+            for (let i = 0; i < 5 && c; i++, c = c.parentElement) {
+                const dentro = c.querySelectorAll('input[type=radio]');
+                if (dentro.length === 1) return todos.indexOf(dentro[0]);
+                if (dentro.length > 1) break;
+            }
+        }
+        return -1;
+    }"""
+
+    def _marcar_radio(self, cot, radio, texto=None):
+        """Marca un radio y COMPRUEBA que quedó marcado. HDI dibuja sus radios a mano (appearance-none) y a veces no
+        toma el clic sobre el <input>: primero se pulsa su texto, como lo haría una persona, y si no queda marcado se
+        prueban otras formas. True si quedó marcado."""
+        intentos = []
+        if texto:
+            intentos.append(lambda: cot.get_by_text(texto, exact=True).first.click(timeout=5000))
+        intentos += [
+            lambda: radio.click(force=True, timeout=5000),
+            lambda: radio.evaluate('e => e.click()'),
+            lambda: radio.evaluate("e => { const c = e.closest('label') || e.parentElement; if (c) c.click(); }"),
+            lambda: radio.evaluate("""e => { e.checked = true;
+                e.dispatchEvent(new Event('input', {bubbles: true})); e.dispatchEvent(new Event('change', {bubbles: true})); }"""),
+        ]
+        for intento in intentos:
+            try:
+                if radio.is_checked():
+                    return True
+                intento()
+            except Exception:
+                logger.debug('HDI: un intento de marcar el radio falló.', exc_info=True)
+            cot.wait_for_timeout(300)
+        try:
+            return radio.is_checked()
+        except Exception:
+            return False
+
+    def _elegir_genero(self, cot):
+        """Masculino/Femenino por su texto (no por posición: en la página pueden quedar radios de otros pasos)."""
+        quiere = 'Masculino' if (self.tomador.gender or 'male') == 'male' else 'Femenino'
+        otro = 'Femenino' if quiere == 'Masculino' else 'Masculino'
+        radios = cot.locator('input[type=radio]')
+        indice, indice_otro = cot.evaluate(self.RADIO_DE_TEXTO_JS, quiere), cot.evaluate(self.RADIO_DE_TEXTO_JS, otro)
+        if indice < 0:  # no se encontró el texto: los dos radios visibles, en el orden de siempre
+            visibles = cot.locator('input[type=radio]:visible')
+            radio = visibles.nth(0 if quiere == 'Masculino' else 1)
+            otro_radio = visibles.nth(1 if quiere == 'Masculino' else 0)
+        else:
+            radio = radios.nth(indice)
+            otro_radio = radios.nth(indice_otro) if indice_otro >= 0 else None
+        # Si HDI ya trae el género (cliente conocido) y está bloqueado, se respeta.
+        if otro_radio is not None and otro_radio.is_checked() and otro_radio.is_disabled():
+            return
+        if not self._marcar_radio(cot, radio, quiere):
+            raise BotPortalError(
+                f'HDI no dejó marcar el género «{quiere}» en Información personal.',
+                accion='Reenvíe la solicitud a HDI. Si se repite, avise a soporte: el portal pudo cambiar esa pantalla.')
 
     def _info_personal(self, cot):
         """Paso 3: nombre, género, nacimiento y ciudad. Dinámico: solo se
@@ -442,11 +513,7 @@ class HdiBot(RegistroErrorMixin):
             if campo.is_enabled() and not campo.input_value():
                 escribir_verificado(cot, campo, valor.capitalize(), delay=60)
 
-        # El <label for> del género está roto (no apunta a ningún input), así
-        # que se marca el radio directamente.
-        radios_genero = cot.locator('input[type=radio]')
-        if not any(radios_genero.nth(i).is_checked() for i in range(radios_genero.count())):
-            radios_genero.nth(0 if (self.tomador.gender or 'male') == 'male' else 1).check(force=True)
+        self._elegir_genero(cot)
 
         nac = self.tomador.birthdate
         for nombre_btn, valor in (('Día', str(nac.day)), ('Mes', MESES[nac.month - 1]), ('Año', str(nac.year))):
