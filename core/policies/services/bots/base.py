@@ -647,10 +647,19 @@ class RegistroErrorMixin:
 
     def _agente_para_bot(self):
         from core.tenants.agentes import agente_disponible  # import local: evita ciclo al cargar el módulo
-        asesor = getattr(self.cotizacion, 'asesor', None)
+        from core.user.models import User
+        # El usuario del asesor vive en el schema de la empresa. Dentro de sync_playwright la conexión queda en «public»,
+        # así que no se puede usar `cotizacion.asesor` (lo cargaría de ahí): se lee explícitamente en su schema.
+        usuario = ''
+        try:
+            with schema_context(self.schema_name):
+                usuario = (User.objects.filter(pk=getattr(self.cotizacion, 'asesor_id', None))
+                           .values_list('username', flat=True).first() or '')
+        except Exception:
+            logger.warning('No se pudo leer el asesor de la cotización #%s.', self.cotizacion.pk, exc_info=True)
         try:
             with schema_context('public'):
-                return agente_disponible(self.schema_name, getattr(asesor, 'username', ''))
+                return agente_disponible(self.schema_name, usuario)
         except Exception:
             logger.warning('No se pudo consultar el agente de la oficina.', exc_info=True)
             return None
