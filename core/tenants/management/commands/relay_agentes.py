@@ -148,6 +148,13 @@ class Relevo:
                     tipo = json.loads(mensaje).get('tipo')
                 except (ValueError, AttributeError):
                     continue
+                if tipo == 'error_sesion':
+                    # El agente no pudo abrir el navegador: se le pasa el motivo al bot que lo está esperando.
+                    datos_error = json.loads(mensaje)
+                    pendiente = self.pendientes.get(str(datos_error.get('sid', '')))
+                    if pendiente and pendiente[0] == agente_id and not pendiente[1].done():
+                        pendiente[1].set_exception(ConnectionError(str(datos_error.get('mensaje', ''))[:200]))
+                    continue
                 if tipo == 'latido':
                     if not await _marcar(agente_id, True):
                         await conexion.close(4401, 'Equipo desvinculado')
@@ -186,9 +193,16 @@ class Relevo:
         try:
             await control.send(json.dumps({'tipo': 'abrir', 'sid': sid, 'headless': headless}))
             datos = await asyncio.wait_for(futuro, SEGUNDOS_ESPERA_AGENTE)
-        except (asyncio.TimeoutError, ConnectionError) as exc:
-            logger.warning('Agente #%s no abrió el navegador (sesión %s): %s', agente_id, sid, exc or 'sin respuesta')
+        except asyncio.TimeoutError:
+            logger.warning('Agente #%s no abrió el navegador (sesión %s): sin respuesta en %s s', agente_id, sid,
+                           SEGUNDOS_ESPERA_AGENTE)
             await conexion.close(4408, 'El agente no abrió el navegador a tiempo')
+            return
+        except ConnectionError as exc:
+            logger.warning('Agente #%s no abrió el navegador (sesión %s): %s', agente_id, sid, exc)
+            # La razón de un cierre WebSocket admite 123 bytes: se recorta por bytes, sin partir una letra.
+            razon = f'El agente no pudo abrir el navegador: {exc}'.encode('utf-8')[:120].decode('utf-8', 'ignore')
+            await conexion.close(4408, razon)
             return
         finally:
             self.pendientes.pop(sid, None)

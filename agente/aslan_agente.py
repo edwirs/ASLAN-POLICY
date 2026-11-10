@@ -45,7 +45,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 NOMBRE = 'Agente ASLAN'
 PUERTO_UNICA_INSTANCIA = 48151
 SEGUNDOS_LATIDO = 25
@@ -189,11 +189,22 @@ def vincular(servidor, codigo, equipo):
     """Canjea el código de vinculación (generado en ASLAN › Configuraciones › Agente de la oficina) por la llave."""
     cuerpo = json.dumps({'codigo': codigo, 'equipo': equipo, 'sistema': descripcion_sistema(),
                          'version': VERSION}).encode('utf-8')
-    peticion = Request(servidor + '/agente/api/vincular/', data=cuerpo, method='POST',
+
+    def peticion():  # nueva cada vez: urllib le deja escrito el proxy a la que ya usó
+        return Request(servidor + '/agente/api/vincular/', data=cuerpo, method='POST',
                        headers={'Content-Type': 'application/json', 'User-Agent': f'AgenteASLAN/{VERSION}'})
+    import urllib.request
+    directo = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # sin el proxy de Windows
     try:
-        with urlopen(peticion, timeout=20) as respuesta:
-            return json.loads(respuesta.read().decode('utf-8'))
+        try:
+            with urlopen(peticion(), timeout=20) as respuesta:
+                return json.loads(respuesta.read().decode('utf-8'))
+        except HTTPError:
+            raise
+        except URLError as exc:
+            log.warning('Vinculación con el proxy del sistema falló (%s); se intenta directa.', exc.reason)
+            with directo.open(peticion(), timeout=20) as respuesta:
+                return json.loads(respuesta.read().decode('utf-8'))
     except HTTPError as exc:
         try:
             mensaje = json.loads(exc.read().decode('utf-8')).get('error')
@@ -486,6 +497,7 @@ class Agente:
         self.bucle = None
         self._cambio = None
         self._ws_control = None
+        self._proxy_aslan = True   # True = como diga Windows; None = directa (ver _conectar_aslan)
         self.parar = False
 
     # ------------------------------------------------------------------ estado (lo lee la ventana)
@@ -552,17 +564,54 @@ class Agente:
         partes = urlsplit(self.config.servidor)
         return f"{'wss' if partes.scheme == 'https' else 'ws'}://{partes.netloc}{ruta}"
 
+    async def _conectar_aslan(self, ruta, **opciones):
+        """Conexión WebSocket con ASLAN. websockets (15+) usa solo el proxy configurado en Windows: algunas oficinas lo
+        necesitan, pero si ese proxy no existe o no resuelve, la conexión falla con «getaddrinfo failed». Se intenta
+        primero como funcionó la última vez (al arrancar: con el proxy del sistema) y, si falla, de la otra forma; con
+        un par de reintentos por si el DNS falla un momento. Recuerda la forma que funcionó."""
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import InvalidStatus
+
+        modos = [self._proxy_aslan, None if self._proxy_aslan is True else True]
+        ultimo = None
+        for intento in range(3):
+            for modo in modos:
+                try:
+                    ws = await connect(self._ws(ruta), additional_headers=self._cabeceras(), max_size=None,
+                                       open_timeout=20, compression=None, proxy=modo, **opciones)
+                except InvalidStatus:
+                    raise
+                except (OSError, asyncio.TimeoutError) as exc:
+                    ultimo = exc
+                    log.warning('Conexión con ASLAN (%s, %s): %s', ruta.rsplit('/', 2)[-2] if 'datos' in ruta else 'control',
+                                'proxy de Windows' if modo else 'directa', exc)
+                    continue
+                if modo is not self._proxy_aslan:
+                    log.info('Conexión con ASLAN %s.', 'directa (sin el proxy de Windows)' if modo is None else 'por el proxy de Windows')
+                    self._proxy_aslan = modo
+                return ws
+            await asyncio.sleep(1 + intento)
+        raise ultimo
+
+    async def _avisar_error(self, sid, mensaje):
+        """Le cuenta a ASLAN por qué no se pudo abrir el navegador (el asesor lo ve en la cotización)."""
+        ws = self._ws_control
+        if ws is None:
+            return
+        try:
+            await ws.send(json.dumps({'tipo': 'error_sesion', 'sid': sid, 'mensaje': str(mensaje)[:200]}))
+        except Exception:
+            pass
+
     def _cabeceras(self):
         return {'Authorization': f'Bearer {self.config.llave}', 'User-Agent': f'AgenteASLAN/{VERSION}'}
 
     async def _control(self):
-        from websockets.asyncio.client import connect
         from websockets.exceptions import ConnectionClosed, InvalidStatus
 
         self._estado('conectando', f'Conectando con {self.config.servidor}…')
         try:
-            ws = await connect(self._ws('/agente/ws/control'), additional_headers=self._cabeceras(), max_size=None,
-                               open_timeout=20, ping_interval=20, ping_timeout=40, compression=None)
+            ws = await self._conectar_aslan('/agente/ws/control', ping_interval=20, ping_timeout=40)
         except InvalidStatus as exc:
             if exc.response.status_code == 401:
                 self._desvinculado()
@@ -622,23 +671,27 @@ class Agente:
         self.total_sesiones += 1
         self.ultima_sesion = time.strftime('%I:%M %p')
         remoto = local = None
+        paso = 'servidor de navegador'
         try:
             if not self.playwright.vivo():
                 await asyncio.to_thread(self.playwright.iniciar)
-            remoto = await connect(self._ws(f'/agente/ws/datos/{sid}'), additional_headers=self._cabeceras(),
-                                   max_size=None, open_timeout=20, ping_interval=20, ping_timeout=60, compression=None)
+            paso = 'conexión con ASLAN'
+            remoto = await self._conectar_aslan(f'/agente/ws/datos/{sid}', ping_interval=20, ping_timeout=60)
             opciones = {'headless': headless, 'timeout': 60000,
                         'proxy': {'server': f'http://127.0.0.1:{self.proxy.puerto}'}}
             if self.canal:
                 opciones['channel'] = self.canal
+            paso = 'navegador de este equipo'
+            # Es este mismo PC (127.0.0.1): nunca por el proxy de Windows.
             local = await connect(self.playwright.url, max_size=None, open_timeout=60, ping_interval=None,
-                                  compression=None,
+                                  compression=None, proxy=None,
                                   additional_headers={'x-playwright-browser': 'chromium',
                                                       'x-playwright-launch-options': json.dumps(opciones)})
             log.info('Sesión %s: navegador abierto (%s).', sid[:6], 'oculto' if headless else 'visible')
             await self._unir(remoto, local, sid)
         except Exception as exc:
-            log.warning('Sesión %s: %s', sid[:6], exc)
+            log.warning('Sesión %s (%s): %s: %s', sid[:6], paso, type(exc).__name__, exc)
+            await self._avisar_error(sid, f'{paso}: {exc}')
         finally:
             for conexion in (local, remoto):
                 if conexion is not None:
@@ -883,6 +936,12 @@ def main():
     args = parser.parse_args()
     configurar_registro(consola=args.consola)
     log.info('%s %s · Playwright %s · %s', NOMBRE, VERSION, version_playwright(), descripcion_sistema())
+    try:
+        import urllib.request
+        proxies = {k: urlsplit(v).netloc.rpartition('@')[2] for k, v in urllib.request.getproxies().items()}
+        log.info('Proxy del sistema: %s', proxies or 'ninguno')
+    except Exception:
+        pass
 
     configuracion = Configuracion()
     agente = Agente(configuracion)
