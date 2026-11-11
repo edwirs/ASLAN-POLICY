@@ -517,14 +517,20 @@ class RegistroErrorMixin:
         except Exception:
             logger.warning('No se pudo guardar el mapeo de documentos.', exc_info=True)
 
-    def _descargar_pdf(self, page, clic, espera=60):
+    def _descargar_pdf(self, page, clic, espera=60, filtro=None):
         """Pulsa (con `clic()`) el botón del portal que descarga el PDF de la cotización y lo guarda en
         `Cotizacion.pdf`. Atrapa la descarga venga de esta pestaña o de una nueva; si el portal abre el PDF en una
         pestaña en vez de descargarlo, lo pide por su dirección. Nunca lanza: si no hay PDF, la cotización sigue
-        completada con su valor y el asesor puede subirlo a mano al armar el correo. Devuelve True si lo guardó."""
+        completada con su valor y el asesor puede subirlo a mano al armar el correo. `filtro(descarga)` descarta las
+        descargas que no son la cotización (p. ej. un comparativo que el portal baja junto). Devuelve True si lo guardó."""
         descargas, contexto, escuchadas = [], page.context, []
 
         def guardar(descarga):
+            try:
+                if filtro is not None and not filtro(descarga):
+                    return
+            except Exception:
+                pass
             descargas.append(descarga)
 
         def escuchar(pestana):

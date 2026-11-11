@@ -202,7 +202,36 @@ class EquidadBot(RegistroErrorMixin):
         except Exception:
             logger.warning('La Equidad: no se encontró «Descargar» del Plan Full (cotización #%s).', self.cotizacion.pk, exc_info=True)
             return
-        self._descargar_pdf(page, lambda: boton.click(timeout=15000))
+
+        def clic():
+            boton.click(timeout=15000)
+            self._responder_confirmacion_descarga(page)
+
+        # Solo el PDF del plan: el comparativo del portal («Planes-cobertura_<placa>.pdf») no se guarda.
+        if not self._descargar_pdf(page, clic, filtro=lambda d: not d.suggested_filename.lower().startswith('planes-cobertura')):
+            aviso = self._dialogo(page)
+            if aviso:
+                logger.warning('La Equidad: sin PDF de la cotización #%s; el portal mostró: %s', self.cotizacion.pk, aviso[:200])
+
+    def _responder_confirmacion_descarga(self, page, timeout=10):
+        """Tras «Descargar» el portal pregunta «¿Desea descargar el comparativo de los planes cotizados junto con el plan
+        individual…?» y no descarga nada hasta que se responda. Se cierra con la X: el portal entiende «no» y baja solo
+        el PDF del plan (con «Cancelar» hace lo mismo; con «Aceptar» bajaría también el comparativo)."""
+        dialogo = page.locator('mat-dialog-container').filter(has_text=re.compile(r'descargar el comparativo', re.I)).last
+        try:
+            dialogo.wait_for(state='visible', timeout=timeout * 1000)
+        except PlaywrightTimeoutError:
+            logger.info('La Equidad: el portal no preguntó por el comparativo al descargar (cotización #%s).', self.cotizacion.pk)
+            return
+        for opcion in (dialogo.get_by_label('Cerrar cuadro de informacion'),
+                       dialogo.get_by_role('button', name=re.compile(r'^\s*Cancelar\s*$', re.I))):
+            try:
+                opcion.first.click(timeout=5000)
+                dialogo.wait_for(state='hidden', timeout=5000)
+                return
+            except Exception:
+                continue
+        logger.warning('La Equidad: no se pudo responder la pregunta del comparativo (cotización #%s).', self.cotizacion.pk)
 
     def _cerrar_sesion(self, page):
         """Cierra sesión SIEMPRE, sin lanzar excepción: cierra avisos abiertos, menú de
