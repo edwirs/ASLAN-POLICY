@@ -117,9 +117,9 @@
             {% endif %}
         </div>
         <div class="cmp-kpi">
-            <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia entre las dos más bajas</div>
+            <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia{% if indicadores.segunda %} entre {{ indicadores.mejor.aseguradora }} y {{ indicadores.segunda.aseguradora }}{% endif %}</div>
             <div class="cmp-kpi-valor">{% if indicadores.segunda %}{{ indicadores.brecha_fmt }}{% else %}—{% endif %}</div>
-            <div class="cmp-kpi-sub">{% if indicadores.segunda %}La segunda cuesta {{ indicadores.brecha_pct|floatformat:1 }}% más{% else %}Falta otra aseguradora con valor{% endif %}</div>
+            <div class="cmp-kpi-sub">{% if indicadores.segunda %}{{ indicadores.segunda.aseguradora }} cuesta {{ indicadores.brecha_pct|floatformat:1 }}% más{% else %}Falta otra aseguradora con valor{% endif %}</div>
         </div>
         <div class="cmp-kpi">
             <div class="cmp-kpi-label"><i class="fa-solid fa-building-shield"></i> Aseguradoras comparadas</div>
