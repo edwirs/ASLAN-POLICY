@@ -445,21 +445,41 @@ class MapfreBot(RegistroErrorMixin):
 
     # Busca, en la fila del producto destacado de la tabla de resultados, el botón con ícono de PDF (más a la derecha).
     # Lo marca con data-aslan-pdf para pulsarlo con Playwright. Nunca toma «Emitir» ni «Recotizar».
+    # El PDF de la cotización está en la columna «Carátula» de la tabla de resultados (ícono rojo de PDF), en la fila del
+    # producto que cuenta (Super Trebol 117). Se ubica la columna por su título, como lo haría una persona; si no
+    # aparece, se busca un ícono de PDF en la fila. Nunca se toca «Emitir» ni «SimuCrediMapfre».
     BOTON_PDF_JS = """(producto) => {
-        const tabla = [...document.querySelectorAll('table')].find(t => /Vlr\\.?\\s*prima/i.test(t.innerText));
+        const norm = t => (t || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const tabla = [...document.querySelectorAll('table')].find(t => /vlr\\.?\\s*prima/.test(norm(t.innerText)));
         if (!tabla) return {estado: 'sin_tabla'};
-        const filas = [...tabla.querySelectorAll('tbody tr')];
-        const fila = filas.find(tr => tr.innerText.toLowerCase().includes(producto)) || filas[0];
+        const filas = [...tabla.querySelectorAll('tr')];
+        const esTitulo = c => norm(c.innerText) === 'caratula';
+        const cabecera = filas.find(tr => [...tr.children].some(esTitulo));
+        const datos = filas.filter(tr => tr !== cabecera && tr.querySelectorAll('td').length > 1);
+        // Primero la celda de producto exacta («Super Trebol 117 /» = super trebol 117); si no, la que lo contenga.
+        const exacta = tr => [...tr.children].some(c => norm(c.innerText).replace(/\\s*\\/\\s*$/, '') === producto);
+        const fila = datos.find(exacta) || datos.find(tr => norm(tr.innerText).includes(producto)) || datos[0];
         if (!fila) return {estado: 'sin_filas'};
-        const atributos = e => [e.className && e.className.baseVal === undefined ? e.className : '', e.id, e.title, e.getAttribute('alt'),
-            e.getAttribute('src'), e.getAttribute('href'), e.getAttribute('onclick'), e.getAttribute('aria-label')].join(' ');
-        const candidatos = [...fila.querySelectorAll('a, button, img, i, span, input[type=image], [onclick]')]
-            .filter(e => /pdf/i.test(atributos(e) + ' ' + (e.innerText || '')) && !/emitir|recotizar/i.test(e.innerText + ' ' + e.title));
-        if (!candidatos.length) return {estado: 'sin_boton', html: fila.outerHTML.slice(0, 6000)};
-        const boton = candidatos[0].closest('a, button, [onclick]') || candidatos[0];
+        const prohibido = e => /emitir|recotizar|simucredi/i.test((e.innerText || '') + ' ' + (e.title || '') + ' ' + (e.getAttribute('onclick') || ''));
+        const clicable = e => e.closest('a, button, [onclick], input[type=image]') || e;
+        let boton = null, como = '';
+        if (cabecera) {
+            const indice = [...cabecera.children].findIndex(esTitulo);
+            const celda = fila.children[indice];
+            const el = celda && celda.querySelector('a, button, input[type=image], [onclick], img, svg, i, span');
+            if (el && !prohibido(clicable(el))) { boton = clicable(el); como = 'columna Carátula'; }
+        }
+        if (!boton) {
+            const atributos = e => [e.className && e.className.baseVal === undefined ? e.className : '', e.id, e.title, e.getAttribute('alt'),
+                e.getAttribute('src'), e.getAttribute('href'), e.getAttribute('onclick'), e.getAttribute('aria-label')].join(' ');
+            const candidatos = [...fila.querySelectorAll('a, button, img, i, span, input[type=image], [onclick]')]
+                .filter(e => /pdf|caratula/i.test(atributos(e) + ' ' + (e.innerText || '')) && !prohibido(e));
+            if (candidatos.length) { boton = clicable(candidatos[0]); como = 'ícono de PDF en la fila'; }
+        }
+        if (!boton) return {estado: 'sin_boton', html: fila.outerHTML.slice(0, 6000)};
         document.querySelectorAll('[data-aslan-pdf]').forEach(e => e.removeAttribute('data-aslan-pdf'));
         boton.setAttribute('data-aslan-pdf', '1');
-        return {estado: 'ok'};
+        return {estado: 'ok', como: como};
     }"""
 
     def _descargar_cotizacion(self, page):
@@ -477,6 +497,7 @@ class MapfreBot(RegistroErrorMixin):
             if resultado.get('estado') != 'ok':
                 self._guardar_fila_sin_pdf(resultado)
                 return
+            logger.info('Mapfre: PDF de la cotización #%s por la %s.', self.cotizacion.pk, resultado.get('como'))
             boton = marco.locator('[data-aslan-pdf="1"]').first
             boton.scroll_into_view_if_needed(timeout=10000)
         except Exception:

@@ -4,8 +4,8 @@
 {% block body_class %}sidebar-collapse{% endblock %}
 
 {% block assets %}
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=6">
-    <script src="{% static 'comparativo/js/modales.js' %}?v=4"></script>
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=7">
+    <script src="{% static 'comparativo/js/modales.js' %}?v=5"></script>
     <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=3">
     <script src="{% static 'comparativo/js/correo.js' %}?v=4"></script>
 {% endblock %}
@@ -106,15 +106,20 @@
             <div class="cmp-kpi-valor">{{ indicadores.mejor.valor_fmt }}</div>
             <div class="cmp-kpi-sub">{{ indicadores.mejor.aseguradora }} · {{ indicadores.mejor.etiqueta }}</div>
         </div>
-        <div class="cmp-kpi">
-            <div class="cmp-kpi-label"><i class="fa-solid fa-arrow-trend-up"></i> Más alta</div>
-            <div class="cmp-kpi-valor">{{ indicadores.alta.valor_fmt }}</div>
-            <div class="cmp-kpi-sub">{{ indicadores.alta.aseguradora }} · {{ indicadores.alta.etiqueta }}</div>
+        <div class="cmp-kpi cmp-kpi-segunda">
+            <div class="cmp-kpi-label"><i class="fa-solid fa-medal"></i></div>
+            {% if indicadores.segunda %}
+                <div class="cmp-kpi-valor">{{ indicadores.segunda.valor_fmt }}</div>
+                <div class="cmp-kpi-sub">{{ indicadores.segunda.aseguradora }} · {{ indicadores.segunda.etiqueta }}</div>
+            {% else %}
+                <div class="cmp-kpi-valor">—</div>
+                <div class="cmp-kpi-sub">Solo hay una aseguradora con valor</div>
+            {% endif %}
         </div>
         <div class="cmp-kpi">
-            <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia entre extremos</div>
-            <div class="cmp-kpi-valor">{{ indicadores.brecha_fmt }}</div>
-            <div class="cmp-kpi-sub">{{ indicadores.brecha_pct|floatformat:1 }}%</div>
+            <div class="cmp-kpi-label"><i class="fa-solid fa-arrows-left-right"></i> Diferencia entre las dos más bajas</div>
+            <div class="cmp-kpi-valor">{% if indicadores.segunda %}{{ indicadores.brecha_fmt }}{% else %}—{% endif %}</div>
+            <div class="cmp-kpi-sub">{% if indicadores.segunda %}La segunda cuesta {{ indicadores.brecha_pct|floatformat:1 }}% más{% else %}Falta otra aseguradora con valor{% endif %}</div>
         </div>
         <div class="cmp-kpi">
             <div class="cmp-kpi-label"><i class="fa-solid fa-building-shield"></i> Aseguradoras comparadas</div>
@@ -144,8 +149,8 @@
                     </thead>
                     <tbody>
                     {% for f in filas %}
-                        <tr class="{% if f.posicion == 1 %}cmp-rank-mejor{% endif %}">
-                            <td class="text-center"><span class="cmp-pos">{% if f.posicion == 1 %}<i class="fa-solid fa-trophy"></i>{% else %}{{ f.posicion }}{% endif %}</span></td>
+                        <tr class="{% if f.posicion == 1 %}cmp-rank-mejor{% elif f.posicion == 2 %}cmp-rank-segunda{% endif %}">
+                            <td class="text-center"><span class="cmp-pos">{% if f.posicion == 1 %}<i class="fa-solid fa-trophy"></i>{% elif f.posicion == 2 %}<i class="fa-solid fa-medal"></i>{% else %}{{ f.posicion }}{% endif %}</span></td>
                             <td><b>{{ f.aseguradora }}</b></td>
                             <td class="cmp-plan">{{ f.etiqueta }}</td>
                             <td class="text-end">

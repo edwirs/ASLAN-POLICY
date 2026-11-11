@@ -385,6 +385,17 @@ class RegistroErrorMixin:
         from core.policies.services.credenciales import parametro  # import local: evita ciclo al cargar el módulo
         return parametro(getattr(self, 'credencial', None), self.cotizacion.aseguradora.name, clave)
 
+    def contacto_portal(self):
+        """Correo, celular y dirección de la EMPRESA que el bot escribe en el portal: los de la credencial de esta
+        aseguradora o, si están vacíos, el contacto general (Configuraciones › Aseguradoras). Nunca los del cliente: esos
+        son para el comparativo. Se lee en el schema de la empresa (dentro de sync_playwright la conexión queda en
+        «public») y se guarda para el resto del proceso."""
+        if getattr(self, '_contacto_portal', None) is None:
+            from core.policies.services.credenciales import contacto  # import local: evita ciclo al cargar el módulo
+            with schema_context(self.schema_name):
+                self._contacto_portal = contacto(getattr(self, 'credencial', None), self.cotizacion.aseguradora.name)
+        return self._contacto_portal
+
     @property
     def placa_portal(self):
         """Placa que se escribe en el portal de la aseguradora: la real, o `PLACA_CERO_KM` si es 0 km."""

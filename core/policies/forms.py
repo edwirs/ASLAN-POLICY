@@ -9,7 +9,8 @@ from core.policies.services.polizas import MAX_CUOTAS
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services import correo as servicio_correo
 from core.policies.services.coberturas import CAMPOS as CAMPOS_COBERTURA, SECCIONES as SECCIONES_COBERTURA
-from core.policies.services.credenciales import INICIALES, PORTALES, campos_de, obligatorios_de, parametros_de
+from core.policies.services.credenciales import (CAMPOS_CONTACTO, INICIALES, PORTALES, campos_de, contacto_general,
+                                                 obligatorios_de, parametros_de)
 from core.pos.models import DocumentType, Municipio
 from core.user.models import User
 
@@ -244,6 +245,15 @@ class AseguradoraCredencialForm(forms.ModelForm):
             campo.required = False
         if 'password' in self.fields and self.instance.pk and self.instance.password:
             self.fields['password'].widget.attrs['placeholder'] = 'Dejar vacío para conservar la actual'
+        # Correo y celular: opcionales aquí; si se dejan vacíos el bot usa el contacto general para los portales.
+        general = contacto_general()
+        for nombre, del_general in CAMPOS_CONTACTO.items():
+            if nombre in self.fields:
+                valor = getattr(general, del_general)
+                self.fields[nombre].label = str(self.fields[nombre].label).replace(' (cotizador)', '') + ' (opcional)'
+                self.fields[nombre].help_text = (f'Vacío = el contacto general para los portales ({valor}).' if valor else
+                                                 'Vacío = el contacto general para los portales (arriba en Aseguradoras).')
+                self.fields[nombre].widget.attrs['placeholder'] = valor or ''
         if self.es_nueva:
             for nombre in self.CAMPOS_ASEGURADORA:
                 self.fields[nombre].widget.attrs.setdefault('class', 'form-control')
@@ -290,9 +300,12 @@ class AseguradoraCredencialForm(forms.ModelForm):
         cleaned = super().clean()
         # Un bot sin datos de acceso completos no puede quedar activo.
         if cleaned.get('aseguradora_activa') and self.aseguradora.name in BOTS_DISPONIBLES:
+            general = contacto_general()
             for nombre in obligatorios_de(self.aseguradora):
                 if nombre not in self.fields or cleaned.get(nombre):
                     continue
+                if nombre in CAMPOS_CONTACTO and getattr(general, CAMPOS_CONTACTO[nombre]):
+                    continue  # lo cubre el contacto general para los portales
                 if nombre == 'password' and self.instance.pk and self.instance.password:
                     continue
                 self.add_error(nombre, 'Obligatorio para dejar la aseguradora activa.')

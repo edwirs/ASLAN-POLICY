@@ -547,11 +547,12 @@ class MundialBot(RegistroErrorMixin):
         self._elegir_fecha(page, self.tomador.birthdate)
         municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
-        # Dirección, celular y correo de contacto: los de la empresa (Configuraciones › Aseguradoras › Seguros Mundial).
-        contacto = (self.parametro('direccion'), self.credencial.telefono_contacto, self.credencial.correo_contacto)
+        # Dirección, celular y correo de contacto: los de la empresa (contacto para los portales), nunca los del cliente.
+        datos = self.contacto_portal()
+        contacto = (datos['direccion'], datos['celular'], datos['correo'])
         if not all(contacto):
             raise BotDatosError('Faltan la dirección, el celular o el correo de contacto de la empresa para Seguros Mundial.',
-                                accion='Complételos en Configuraciones › Aseguradoras › Seguros Mundial y reenvíe la solicitud.')
+                                accion='Complételos en Configuraciones › Aseguradoras › «Contacto para los portales» y reenvíe.')
         self._escribir(page.locator('#direccionPropietario'), contacto[0])
         self._escribir(page.locator('#celularPropietario'), contacto[1], comparar='digitos')
         self._escribir(page.locator('#correoPropietario'), contacto[2])

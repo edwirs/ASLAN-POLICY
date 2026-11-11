@@ -488,11 +488,13 @@ class AxaColpatriaBot(RegistroErrorMixin):
         self._esperar_vehiculo(page, 'Datos personales y placa')
 
     def _rellenar_email(self, page):
-        """Si el portal pide el correo (personas que no conoce), se completa con el del tomador."""
+        """Si el portal pide el correo (personas que no conoce), va el de la empresa (contacto para los portales); el del
+        cliente es para el comparativo."""
         marco = self._marco(page)
         correo = marco.locator('#People_Email:visible')
-        if correo.count() and not correo.first.input_value() and self.tomador.email:
-            correo.first.fill(self.tomador.email)
+        empresa = self.contacto_portal()['correo']
+        if correo.count() and not correo.first.input_value() and empresa:
+            correo.first.fill(empresa)
 
     def _esperar_vehiculo(self, page, paso, timeout=150):
         """Espera la sección de datos del vehículo; si antes sale un aviso del portal, lo explica. El servidor de AXA

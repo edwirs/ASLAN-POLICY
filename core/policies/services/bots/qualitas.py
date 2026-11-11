@@ -638,9 +638,13 @@ class QualitasBot(RegistroErrorMixin):
             else:
                 campo.fill(valor, timeout=timeout)
 
-        # Datos fijos de contacto (configurados en la credencial de la aseguradora).
-        llenar_lento('Correo electrónico', self.credencial.correo_contacto)
-        llenar_lento('Teléfono móvil', self.credencial.telefono_contacto)
+        # Contacto de la empresa (contacto para los portales), nunca el del cliente.
+        datos = self.contacto_portal()
+        if not datos['correo'] or not datos['celular']:
+            raise BotDatosError('Falta el correo o el celular de contacto de la empresa para Qualitas.',
+                                accion='Complételos en Configuraciones › Aseguradoras › «Contacto para los portales» y reenvíe.')
+        llenar_lento('Correo electrónico', datos['correo'])
+        llenar_lento('Teléfono móvil', datos['celular'])
 
         # El <select id="selectTypePerson"> real solo tiene las opciones
         # "Natural" / "Jurídica" (no "Persona Natural"/"Persona Jurídica" —

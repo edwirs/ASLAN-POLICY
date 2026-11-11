@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 
 from core.policies.forms import AseguradoraCredencialForm, CoberturaForm
-from core.policies.models import Aseguradora, CoberturaAseguradora
+from core.policies.models import Aseguradora, CoberturaAseguradora, ContactoPortales
 from core.policies.services.coberturas import secciones_de
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.credenciales import credencial_vigente, faltantes
@@ -37,6 +37,28 @@ def _resumen(aseguradora):
     }
 
 
+def _guardar_contacto(datos):
+    """Contacto general que los bots escriben en los portales (correo, celular, dirección)."""
+    import re
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    correo = (datos.get('correo') or '').strip()
+    celular = re.sub(r'\D', '', datos.get('celular') or '')
+    direccion = ' '.join((datos.get('direccion') or '').split())
+    if correo:
+        try:
+            validate_email(correo)
+        except ValidationError:
+            return {'error': 'El correo no es válido.'}
+    if celular and not 7 <= len(celular) <= 15:
+        return {'error': 'El celular debe tener entre 7 y 15 dígitos.'}
+    contacto = ContactoPortales.actual()
+    contacto.correo, contacto.celular, contacto.direccion = correo[:100], celular, direccion[:150]
+    contacto.save()
+    return {'correo': contacto.correo, 'celular': contacto.celular, 'direccion': contacto.direccion}
+
+
 class AseguradoraListView(StrictPermissionMixin, TemplateView):
     template_name = 'aseguradora/list.html'
     permission_required = 'policies.view_aseguradora'
@@ -61,6 +83,11 @@ class AseguradoraListView(StrictPermissionMixin, TemplateView):
                         aseguradora.is_active = activar
                         aseguradora.save(update_fields=['is_active'])
                         data = _resumen(aseguradora)
+            elif action == 'contacto':
+                if not request.user.has_perm('policies.change_aseguradora'):
+                    data['error'] = 'Tu perfil no puede modificar el contacto para los portales.'
+                else:
+                    data = _guardar_contacto(request.POST)
             elif action == 'clave_resuelta':
                 # Falsa alarma (o ya la cambiaron sin pasar por aquí): se quita el bloqueo sin tocar la contraseña.
                 if not request.user.has_perm('policies.change_aseguradora'):
@@ -80,6 +107,7 @@ class AseguradoraListView(StrictPermissionMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Aseguradoras'
         context['module_name'] = MODULE_NAME
+        context['contacto'] = ContactoPortales.actual()
         context['list_url'] = reverse_lazy('aseguradora_list')
         if self.request.user.has_perm('policies.add_aseguradora'):
             context['create_url'] = reverse_lazy('aseguradora_create')

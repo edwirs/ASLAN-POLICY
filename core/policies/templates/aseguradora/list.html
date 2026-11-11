@@ -24,11 +24,71 @@
         .ase-portal:hover { background: rgba(8, 145, 178, .16); color: #155e75; }
         .ase-acciones { display: inline-flex; flex-wrap: nowrap; gap: 6px; }
         .dark-mode .ase-portal { background: rgba(60, 198, 223, .14); color: #67d4e8; }
+        .ase-contacto { border: 1px solid rgba(14, 116, 144, .22); background: rgba(14, 116, 144, .04); border-radius: 14px; padding: 12px 16px; }
+        .ase-contacto-cabecera { display: flex; gap: 12px; align-items: center; cursor: pointer; user-select: none; }
+        .ase-contacto-cabecera b { display: block; }
+        .ase-contacto-cabecera small { color: #64748b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ase-contacto-flecha { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            color: #64748b; transition: transform .2s, background .15s; flex: none; }
+        .ase-contacto-cabecera:hover .ase-contacto-flecha { background: rgba(14, 116, 144, .1); }
+        .ase-contacto-cabecera[aria-expanded="true"] .ase-contacto-flecha { transform: rotate(45deg); }
+        .min-w-0 { min-width: 0; }
+        .ase-contacto-icono { width: 36px; height: 36px; border-radius: 10px; background: #0e7490; color: #fff; display: inline-flex;
+            align-items: center; justify-content: center; flex: none; }
+        .dark-mode .ase-contacto { background: rgba(60, 198, 223, .06); border-color: rgba(60, 198, 223, .25); }
+        .dark-mode .ase-contacto-cabecera small { color: #cbd5e1; }
     </style>
 {% endblock %}
 
 {% block ayuda %}
     Aquí se administran los datos de acceso que usan los bots para cotizar en cada aseguradora. Una aseguradora <b>inactiva</b> no se incluye en las cotizaciones nuevas (por ejemplo, si su cuenta se bloqueó). Las contraseñas se guardan cifradas y nunca se muestran.
+{% endblock %}
+
+{% block content_list %}
+    <div class="ase-contacto mb-3">
+        <div class="ase-contacto-cabecera" role="button" data-bs-toggle="collapse" data-bs-target="#aseContactoCuerpo"
+             aria-expanded="false" aria-controls="aseContactoCuerpo">
+            <span class="ase-contacto-icono"><i class="fa-solid fa-address-card"></i></span>
+            <div class="flex-grow-1 min-w-0">
+                <b>Contacto para los portales</b>
+                <small id="aseContactoResumen">{% if contacto.correo or contacto.celular %}{{ contacto.correo|default:"Sin correo" }} · {{ contacto.celular|default:"Sin celular" }}{% else %}<span class="text-danger">Sin configurar: los bots de Qualitas y Mundial lo necesitan</span>{% endif %}</small>
+            </div>
+            <span class="ase-contacto-flecha"><i class="fas fa-plus"></i></span>
+        </div>
+        <div class="collapse" id="aseContactoCuerpo">
+            <p class="small text-muted mt-3 mb-2">Los bots escriben este correo, celular y dirección en los portales de todas las aseguradoras.
+                Los datos de la solicitud (del cliente) solo van al comparativo y al correo.</p>
+            <form class="row g-2 align-items-end" id="frmContacto" autocomplete="off">
+                <div class="col-md-4"><label class="form-label small fw-semibold mb-1">Correo</label>
+                    <input type="email" class="form-control" name="correo" value="{{ contacto.correo }}" placeholder="cotizaciones@suempresa.com" {% if not perms.policies.change_aseguradora %}disabled{% endif %}></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold mb-1">Celular</label>
+                    <input type="text" inputmode="numeric" class="form-control" name="celular" value="{{ contacto.celular }}" placeholder="3001234567" {% if not perms.policies.change_aseguradora %}disabled{% endif %}></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold mb-1">Dirección</label>
+                    <input type="text" class="form-control" name="direccion" value="{{ contacto.direccion }}" placeholder="Calle 00 # 00-00" {% if not perms.policies.change_aseguradora %}disabled{% endif %}></div>
+                {% if perms.policies.change_aseguradora %}
+                    <div class="col-md-2 d-grid"><button type="submit" class="btn btn-primary rounded-pill"><i class="fa-solid fa-floppy-disk"></i> Guardar</button></div>
+                {% endif %}
+            </form>
+            <div class="small text-muted mt-2">Si una aseguradora necesita un correo o celular distinto, se escribe en su <b>Editar</b>; si se deja vacío, usa este.</div>
+        </div>
+    </div>
+    <script>
+        $(function () {
+            $('#frmContacto').on('submit', function (e) {
+                e.preventDefault();
+                var datos = $(this).serializeArray();
+                datos.push({name: 'action', value: 'contacto'});
+                $.ajax({url: window.location.pathname, type: 'POST', headers: {'X-CSRFToken': csrftoken}, data: $.param(datos), dataType: 'json'})
+                    .done(function (r) {
+                        if (r.error) { toastr.error(r.error); return; }
+                        toastr.success('Contacto para los portales guardado.');
+                        $('#aseContactoResumen').text((r.correo || 'Sin correo') + ' · ' + (r.celular || 'Sin celular'));
+                        $('#data').DataTable().ajax.reload(null, false);
+                    })
+                    .fail(function () { toastr.error('No se pudo guardar el contacto.'); });
+            });
+        });
+    </script>
 {% endblock %}
 
 {% block columns %}

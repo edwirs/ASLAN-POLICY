@@ -66,8 +66,8 @@ PARAMETROS_POR_ASEGURADORA = {
         {'clave': 'deducible_perdida_parcial', 'etiqueta': 'Deducible por pérdida parcial', 'defecto': '1.200.000'},
     ),
     'Seguros Mundial': (
-        {'clave': 'direccion', 'etiqueta': 'Dirección de contacto', 'obligatorio': True,
-         'ayuda': 'Va con el correo y el celular de contacto en los datos del propietario (ej. la dirección de la oficina).'},
+        {'clave': 'direccion', 'etiqueta': 'Dirección de contacto (opcional)',
+         'ayuda': 'Vacío = la dirección del contacto general para los portales (arriba en Aseguradoras).'},
     ),
     'AXA Colpatria': (
         {'clave': 'perfil', 'etiqueta': 'Perfil con el que se entra', 'defecto': 'Administrador',
@@ -123,6 +123,26 @@ def lista(valor):
     return [p.strip() for p in str(valor or '').split(',') if p.strip()]
 
 
+# Contacto que los bots escriben en los portales: el general de la empresa (ContactoPortales), salvo que la credencial
+# de esa aseguradora traiga el suyo. Campo de la credencial -> campo del contacto general.
+CAMPOS_CONTACTO = {'correo_contacto': 'correo', 'telefono_contacto': 'celular'}
+
+
+def contacto_general():
+    from core.policies.models import ContactoPortales  # import local: evita ciclo al cargar el módulo
+    return ContactoPortales.actual()
+
+
+def contacto(credencial, aseguradora_nombre, general=None):
+    """{'correo', 'celular', 'direccion'} que el bot de esta aseguradora escribe en su portal."""
+    general = general or contacto_general()
+    return {
+        'correo': ((credencial.correo_contacto if credencial else '') or general.correo or '').strip(),
+        'celular': ((credencial.telefono_contacto if credencial else '') or general.celular or '').strip(),
+        'direccion': (str(parametro(credencial, aseguradora_nombre, 'direccion') or '') or general.direccion or '').strip(),
+    }
+
+
 def campos_de(aseguradora):
     return CAMPOS_POR_ASEGURADORA.get(aseguradora.name, CAMPOS_BASE)
 
@@ -140,10 +160,15 @@ def faltantes(aseguradora, credencial=None):
     """Etiquetas de los datos obligatorios que aún no están configurados."""
     credencial = credencial if credencial is not None else credencial_vigente(aseguradora)
     modelo = aseguradora.credenciales.model
+    general = contacto_general()
     pendientes = []
     for campo in obligatorios_de(aseguradora):
+        if campo in CAMPOS_CONTACTO and getattr(general, CAMPOS_CONTACTO[campo]):
+            continue  # lo cubre el contacto general para los portales
         if credencial is None or not getattr(credencial, campo):
             pendientes.append(str(modelo._meta.get_field(campo).verbose_name))
+    if aseguradora.name == 'Seguros Mundial' and not contacto(credencial, aseguradora.name, general)['direccion']:
+        pendientes.append('Dirección de contacto')
     for p in parametros_de(aseguradora.name):
         if p.get('obligatorio') and not parametro(credencial, aseguradora.name, p['clave']):
             pendientes.append(p['etiqueta'])

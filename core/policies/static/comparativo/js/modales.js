@@ -75,6 +75,15 @@ var comparativoModales = {
         this.soloSoat = false;
         this.establecer(id, placa);
         var preguntar = !!(puedeRegistrar && faltantes && faltantes.length);
+        // El SOAT ya registrado (valor y fecha, sin vencer) no se vuelve a pedir: se corrige con «Editar» en el comparativo.
+        var hoy = new Date(), hoyTxt = hoy.getFullYear() + '-' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '-' + ('0' + hoy.getDate()).slice(-2);
+        var soatListo = !!(soatValor && soatVencimiento && soatVencimiento >= hoyTxt);
+        if (soatListo && !preguntar) {
+            location.href = this.comparativoUrl;
+            return;
+        }
+        $('#modalPregunta .cmp-soat').prop('hidden', soatListo);
+        $('#cmpSeccionValores').toggleClass('cmp-sin-borde', soatListo);
         this.faltantes = preguntar ? faltantes : [];
         $('#cmpFaltantes').text(preguntar ? 'Sin valor todavía: ' + faltantes.map(function (f) { return f.nombre; }).join(', ') + '.' : '');
         $('#cmpSeccionValores').prop('hidden', !preguntar);
@@ -87,6 +96,7 @@ var comparativoModales = {
     // Desde la página del comparativo: solo el SOAT; al guardar se recarga para verlo en la ficha.
     abrirSoat: function (placa, soatValor, soatVencimiento) {
         this.soloSoat = true;
+        $('#modalPregunta .cmp-soat').prop('hidden', false);
         $('.cmp-placa').text(placa || '');
         $('#cmpSeccionValores, #cmpSiAgregar').prop('hidden', true);
         $('#cmpNoAgregar span').text('Guardar');

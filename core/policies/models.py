@@ -116,6 +116,25 @@ class AseguradoraCredencial(models.Model):
         )
 
 
+class ContactoPortales(models.Model):
+    """Correo, celular y dirección de contacto de la EMPRESA que los bots escriben en los portales de las aseguradoras
+    (todos). Es uno solo por empresa (Configuraciones › Aseguradoras). Una aseguradora puede tener los suyos en su
+    credencial; si los deja vacíos, usa estos. El correo y el teléfono de la solicitud son del cliente final: van al
+    comparativo y al correo, nunca a los portales."""
+    correo = models.EmailField(max_length=100, blank=True, default='', verbose_name='Correo de contacto para los portales')
+    celular = models.CharField(max_length=20, blank=True, default='', verbose_name='Celular de contacto para los portales')
+    direccion = models.CharField(max_length=150, blank=True, default='', verbose_name='Dirección de contacto para los portales')
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Contacto para los portales'
+        default_permissions = ()
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.order_by('id').first() or cls()
+
+
 class CoberturaAseguradora(models.Model):
     """Ficha comparativa de coberturas y asistencias de una aseguradora (cuadro «COMPARATIVO»).
 

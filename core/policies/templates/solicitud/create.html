@@ -272,12 +272,13 @@
 
                 <div class="quote-bot-results d-none" id="quoteBotResults"></div>
 
-                <button type="button" class="btn btn-outline-primary" id="btnNuevaSolicitud">
-                    <i class="fa-solid fa-plus"></i> Registrar otra solicitud
-                </button>
+                {# En pestaña nueva: esta se queda mostrando el avance de los bots de la solicitud recién registrada. #}
+                <a href="{% url 'solicitud_cotizacion_create' %}" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-plus"></i> Registrar otra solicitud <i class="fa-solid fa-arrow-up-right-from-square ms-1 small"></i>
+                </a>
                 {% if perms.policies.view_vehiculo %}
-                    <a href="{% url 'vehiculo_list' %}" class="btn btn-link">
-                        <i class="fa-solid fa-list"></i> Ver solicitudes registradas
+                    <a href="{% url 'vehiculo_list' %}" target="_blank" rel="noopener" class="btn btn-link">
+                        <i class="fa-solid fa-list"></i> Ver solicitudes registradas <i class="fa-solid fa-arrow-up-right-from-square ms-1 small"></i>
                     </a>
                 {% endif %}
             </div>

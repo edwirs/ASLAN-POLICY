@@ -15,6 +15,9 @@
     --cmp-bad: #b91c1c;
     --cmp-bad-soft: rgba(220, 38, 38, 0.06);
     --cmp-gold: #d97706;
+    --cmp-amber: #b45309;
+    --cmp-amber-soft: rgba(245, 158, 11, 0.13);
+    --cmp-amber-strong: rgba(245, 158, 11, 0.55);
     color: var(--cmp-text);
 }
 
@@ -33,6 +36,9 @@
     --cmp-bad: #f1948a;
     --cmp-bad-soft: rgba(220, 38, 38, 0.14);
     --cmp-gold: #fbbf24;
+    --cmp-amber: #fbbf24;
+    --cmp-amber-soft: rgba(245, 158, 11, 0.18);
+    --cmp-amber-strong: rgba(251, 191, 36, 0.6);
 }
 
 .cmp-solo-imprimir { display: none; }
@@ -75,6 +81,9 @@
 .cmp-kpi-sub { font-size: 12px; color: var(--cmp-muted); }
 .cmp-kpi-mejor { background: var(--cmp-good-soft); border-color: var(--cmp-good-strong); }
 .cmp-kpi-mejor .cmp-kpi-valor, .cmp-kpi-mejor .cmp-kpi-label { color: var(--cmp-good); }
+/* La segunda opción más económica: ámbar, para que el cliente vea de un vistazo sus dos mejores opciones. */
+.cmp-kpi-segunda { background: var(--cmp-amber-soft); border-color: var(--cmp-amber-strong); }
+.cmp-kpi-segunda .cmp-kpi-valor, .cmp-kpi-segunda .cmp-kpi-label { color: var(--cmp-amber); }
 
 /* ---------- Chips ---------- */
 .cmp-chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--cmp-surface-2); border: 1px solid var(--cmp-border); color: var(--cmp-muted); white-space: nowrap; }
@@ -92,6 +101,10 @@
 .cmp-rank-tabla thead th { background: var(--cmp-surface-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--cmp-muted); border-bottom: 2px solid var(--cmp-border-strong); white-space: nowrap; }
 .cmp-rank-tabla tbody tr:hover td { background-color: var(--cmp-accent-soft); }
 .cmp-rank-tabla tbody tr.cmp-rank-mejor td { background-color: var(--cmp-good-soft); }
+.cmp-rank-tabla tbody tr.cmp-rank-segunda td { background-color: var(--cmp-amber-soft); }
+.cmp-rank-segunda .cmp-pos { background: #f59e0b; border-color: transparent; color: #fff; }
+.cmp-rank-segunda .cmp-rank-valor { color: var(--cmp-amber); }
+.cmp-rank-segunda .cmp-barra span { background: #f59e0b; }
 .cmp-pos { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 800; background: var(--cmp-surface-2); border: 1px solid var(--cmp-border); color: var(--cmp-muted); }
 .cmp-rank-mejor .cmp-pos { background: var(--cmp-gold); border-color: transparent; color: #fff; }
 .cmp-plan, .cmp-fecha { color: var(--cmp-muted); white-space: nowrap; }

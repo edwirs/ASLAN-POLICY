@@ -225,15 +225,17 @@ def resumen_cliente(filas):
 
 
 def indicadores(filas):
-    """Cifras de cabecera del comparativo: la más económica, la más alta y la brecha entre ambas."""
+    """Cifras de cabecera del comparativo: la más económica, la segunda más económica y cuánto más cuesta la segunda
+    (las dos opciones que se le resaltan al cliente)."""
     if not filas:
         return None
-    mejor, alta = filas[0], filas[-1]
-    brecha = alta['valor'] - mejor['valor']
+    mejor = filas[0]
+    segunda = filas[1] if len(filas) > 1 else None
+    brecha = (segunda['valor'] - mejor['valor']) if segunda else Decimal('0')
     return {
         'cantidad': len(filas),
         'mejor': mejor,
-        'alta': alta,
+        'segunda': segunda,
         'brecha_fmt': dinero(brecha),
-        'brecha_pct': (brecha * 100 / mejor['valor']) if mejor['valor'] else Decimal('0'),
+        'brecha_pct': (brecha * 100 / mejor['valor']) if segunda and mejor['valor'] else Decimal('0'),
     }

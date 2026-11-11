@@ -59,6 +59,7 @@ VARIABLES_CORREO = ('correo_cliente', 'correo_asesor')
 # Las tablas van compactas y centradas (el texto sí ocupa todo el ancho del correo).
 ANCHO_TABLAS = 600
 ANCHO_PROMOCION = 110  # la imagen de la promoción (logo) va pequeña
+ANCHO_FIRMA = 380      # la firma, más angosta que las tablas (600) para que no domine el correo
 # Colores del comparativo (comparativo.css), para que el correo se vea como el «Ranking de valores».
 TEXTO = '#0f172a'
 GRIS = '#64748b'
@@ -69,6 +70,9 @@ ACENTO = '#0891b2'
 VERDE = '#15803d'
 VERDE_SUAVE = '#ecf8f0'
 DORADO = '#d97706'
+AMBAR = '#f59e0b'          # la segunda opción más económica (como en el «Ranking de valores»)
+AMBAR_TEXTO = '#b45309'
+AMBAR_SUAVE = '#fef6e4'
 NARANJA = '#f26a21'
 FUENTE = 'Arial, Helvetica, sans-serif'
 
@@ -315,16 +319,17 @@ def bloque_datos_vehiculo(vehiculo, actual=None):
     return _tarjeta('Vehículo', titulo, contenido)
 
 
-def _posicion(numero, mejor):
-    fondo, color, borde = (DORADO, '#ffffff', DORADO) if mejor else (SUPERFICIE, GRIS, BORDE)
+def _posicion(numero, mejor, segunda=False):
+    fondo, color, borde = (DORADO, '#ffffff', DORADO) if mejor else (AMBAR, '#ffffff', AMBAR) if segunda else (SUPERFICIE, GRIS, BORDE)
     return (f'<span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:10px;text-align:center;'
             f'font-family:{FUENTE};font-size:10px;font-weight:bold;background:{fondo};color:{color};border:1px solid {borde};">'
             f'{"★" if mejor else numero}</span>')
 
 
-def _barra(porcentaje, mejor):
+def _barra(porcentaje, mejor, segunda=False):
+    color = VERDE if mejor else AMBAR if segunda else ACENTO
     return (f'<div style="width:100%;max-width:80px;height:3px;background:{BORDE};border-radius:3px;margin:3px 0 0 auto;font-size:0;line-height:0;">'
-            f'<div style="width:{porcentaje}%;height:3px;background:{VERDE if mejor else ACENTO};border-radius:3px;font-size:0;line-height:0;"></div></div>')
+            f'<div style="width:{porcentaje}%;height:3px;background:{color};border-radius:3px;font-size:0;line-height:0;"></div></div>')
 
 
 def bloque_comparativo(vehiculo, plantilla, filas=None):
@@ -342,7 +347,8 @@ def bloque_comparativo(vehiculo, plantilla, filas=None):
     ultima = len(filas) - 1
     for i, f in enumerate(filas):
         mejor = f['posicion'] == 1
-        fondo = VERDE_SUAVE if mejor else '#ffffff'
+        segunda = f['posicion'] == 2
+        fondo = VERDE_SUAVE if mejor else AMBAR_SUAVE if segunda else '#ffffff'
         borde = '' if i == ultima else f'border-bottom:1px solid {BORDE};'
         td = f'font-family:{FUENTE};padding:6px 8px;background:{fondo};{borde}vertical-align:middle;'
         asegurado = asegurados.get(f['cotizacion_id']) or comercial
@@ -350,11 +356,11 @@ def bloque_comparativo(vehiculo, plantilla, filas=None):
                       f'+{f["diferencia_fmt"]}<br><span style="font-size:10px;color:{GRIS};">'
                       f'{str(round(f["diferencia_pct"], 1)).replace(".", ",")}% más</span>')
         cuerpo.append(
-            f'<tr><td align="center" width="32" style="{td}">{_posicion(f["posicion"], mejor)}</td>'
+            f'<tr><td align="center" width="32" style="{td}">{_posicion(f["posicion"], mejor, segunda)}</td>'
             f'<td style="{td}"><span style="font-size:12px;font-weight:bold;color:{TEXTO};">{escape(f["aseguradora"])}</span>'
             f'<br><span style="font-size:11px;color:{GRIS};">{escape(f["etiqueta"])}</span></td>'
-            f'<td align="right" style="{td}white-space:nowrap;"><span style="font-size:13px;font-weight:bold;color:{VERDE if mejor else TEXTO};">'
-            f'{f["valor_fmt"]}</span>{_barra(f["barra"], mejor)}</td>'
+            f'<td align="right" style="{td}white-space:nowrap;"><span style="font-size:13px;font-weight:bold;color:{VERDE if mejor else AMBAR_TEXTO if segunda else TEXTO};">'
+            f'{f["valor_fmt"]}</span>{_barra(f["barra"], mejor, segunda)}</td>'
             f'<td align="right" class="solo-ancho" style="{td}font-size:12px;color:{TEXTO};white-space:nowrap;">{diferencia}</td>'
             f'<td align="right" class="solo-ancho" style="{td}font-size:12px;color:{TEXTO};white-space:nowrap;">{dinero(asegurado) if asegurado else "—"}</td></tr>')
     dias = plantilla.vigencia_cotizacion_dias if plantilla else 15
@@ -399,7 +405,7 @@ def bloque_promocion(plantilla, filas, src):
 
 def bloque_firma(usuario, src):
     if src:
-        return _imagen(src, f'Firma de {_nombre_usuario(usuario)}', 600)
+        return _imagen(src, f'Firma de {_nombre_usuario(usuario)}', ANCHO_FIRMA)
     empresa = _empresa()
     lineas = [f'<b style="color:{TEXTO};font-size:15px;">{escape(_nombre_usuario(usuario))}</b>']
     for dato in (empresa.get('nombre'), getattr(usuario, 'email', ''), ' · '.join(empresa.get('telefonos', [])), empresa.get('sitio_texto')):
