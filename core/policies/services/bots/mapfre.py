@@ -11,12 +11,16 @@ Lo que el portal exige a una persona (el bot NO lo hace por su cuenta):
   2. Código de 6 dígitos que Mapfre envía por SMS al celular registrado: el asesor lo escribe directamente en la
      ventana de Mapfre (Cotizacion.verificacion_bot = 'portal': la plataforma solo muestra el aviso, sin modal).
 
-Sesiones: al terminar (bien o mal) SIEMPRE se cierra sesión.
+Sesiones: las solicitudes de Mapfre se cotizan en una SESIÓN COMPARTIDA (services/bots/sesion_compartida.py): el asesor
+resuelve el captcha y el código una vez y el bot cotiza ahí, una tras otra, las que lleguen; a los «minutos_sesion» de
+haber entrado (10 por defecto) se cierra sesión y la siguiente vuelve a pedir el ingreso. Siempre se cierra sesión al
+final (por tiempo, por falla del ingreso o si el trabajador termina).
 """
 import logging
 import os
 import re
 import sys
+import time
 
 from django.conf import settings
 from django.db import connection
@@ -52,15 +56,19 @@ class MapfreBot(RegistroErrorMixin):
     # El reCAPTCHA lo marca una persona: el navegador tiene que verse (lo lee el runner).
     REQUIERE_NAVEGADOR_VISIBLE = True
 
-    def __init__(self, cotizacion, headless=False):
+    # Las solicitudes van a la fila de la sesión compartida (lo lee el runner).
+    SESION_COMPARTIDA = True
+
+    def __init__(self, cotizacion, headless=False, schema_name=None):
         self.cotizacion = cotizacion
         self.vehiculo = cotizacion.vehiculo
         self._foto_vehiculo()
         self.tomador = self.vehiculo.tomador
         self.headless = headless
         self.credencial = self._get_credencial()
-        # Dentro de sync_playwright Django usa otra conexión (schema public).
-        self.schema_name = connection.schema_name
+        # Dentro de sync_playwright Django usa otra conexión (schema public): el trabajador de la sesión compartida
+        # construye el bot ahí dentro, por eso puede pasar el schema explícito.
+        self.schema_name = schema_name or connection.schema_name
 
     def _get_credencial(self):
         credencial = self.cotizacion.aseguradora.credenciales.filter(is_active=True).order_by('-id').first()
@@ -140,6 +148,109 @@ class MapfreBot(RegistroErrorMixin):
             self._set_estado('error', mensaje='Se agotó el tiempo esperando la verificación del asesor en Mapfre.')
         except Exception as e:
             logger.exception('Error cotizando %s en Mapfre', self.vehiculo.placa)
+            self._registrar_error(e)
+
+    # ------------------------------------------------------------------
+    # Sesión compartida (ver services/bots/sesion_compartida.py)
+    # ------------------------------------------------------------------
+
+    def minutos_sesion(self):
+        try:
+            return max(0, min(int(str(self.parametro('minutos_sesion')).strip()), 60))
+        except (TypeError, ValueError):
+            return 10
+
+    def _entrar(self, playwright, sesion):
+        """Abre el navegador y entra a Mapfre (captcha y código los hace el asesor). Deja la sesión lista en el menú."""
+        sesion.cerrar(self, 'se vuelve a entrar')
+        sesion.browser = self._abrir_navegador(playwright)
+        sesion.page = sesion.browser.new_context(viewport={'width': 1366, 'height': 900}).new_page()
+        self._paso(PASO_LOGIN)
+        self._login(sesion.page)
+        self._paso('Verificación por código')
+        self._verificar_codigo(sesion.page)
+        sesion.inicio = time.time()
+        sesion.minutos = self.minutos_sesion()
+        sesion.credencial_id = self.credencial.pk
+        sesion.url_menu = sesion.page.url
+        logger.info('Sesión de Mapfre abierta por la cotización #%s (se cierra en %s min).', self.cotizacion.pk, sesion.minutos)
+
+    def _volver_al_menu(self, sesion):
+        """Para la siguiente cotización en la misma sesión: vuelve a la página del menú en la que quedó al entrar. False
+        si el portal ya no tiene la sesión (muestra el ingreso o el código) o no carga el menú: hay que volver a entrar."""
+        page = sesion.page
+        try:
+            page.goto(sesion.url_menu, wait_until='domcontentloaded', timeout=40000)
+            page.wait_for_timeout(1500)
+            if page.locator('[id="form_login:TXT_USER"]').count() or 'VerificarCodigoMfa' in page.url:
+                logger.info('Mapfre: la sesión ya había vencido en el portal (cotización #%s).', self.cotizacion.pk)
+                return False
+            for _ in range(30):
+                marco = page.frame(name='iFramePpal')
+                if marco is not None and marco.get_by_text(re.compile(r'Cotizaci.n\s*Emisi.n', re.I)).count():
+                    return True
+                page.wait_for_timeout(1000)
+            logger.warning('Mapfre: al volver al menú no apareció «Cotización Emisión» (cotización #%s, %s).',
+                           self.cotizacion.pk, page.url)
+        except Exception:
+            logger.warning('Mapfre: no se pudo volver al menú de la sesión abierta (cotización #%s).', self.cotizacion.pk,
+                           exc_info=True)
+        return False
+
+    def cotizar_en_sesion(self, playwright, sesion):
+        """Cotiza esta solicitud en la sesión compartida: la reutiliza si sigue abierta y le queda tiempo; si no, entra
+        (captcha + código). Nunca lanza: deja la cotización completada o con su error."""
+        self._set_estado('en_proceso', mensaje=None)
+        with schema_context(self.schema_name):
+            self.cotizacion.ejecutado_en = timezone.now()
+            self.cotizacion.save(update_fields=['ejecutado_en'])
+        if self.vehiculo.es_cero_km:  # se resuelve sin tocar el portal (no gasta la sesión)
+            try:
+                self._cotizar(None)
+            except Exception as e:
+                self._registrar_error(e)
+            return
+
+        page = None
+        try:
+            reutiliza = sesion.sirve_para(self.credencial.pk)
+            if reutiliza:
+                self._paso('Sesión de Mapfre ya abierta (sin captcha)')
+                reutiliza = self._volver_al_menu(sesion)
+            if not reutiliza:
+                self._entrar(playwright, sesion)
+            page = sesion.page
+            self._paso('Cotización')
+            nota = self._cotizar(page)
+            sesion.cotizaciones += 1
+            self._mapear_documentos(page)
+            self._descargar_cotizacion(page)
+            if reutiliza:
+                nota = ((nota or '') + ' Cotizado en la sesión de Mapfre que ya estaba abierta.').strip()
+            self._set_estado('completado', mensaje=nota)
+        except BotCancelado:
+            sesion.cerrar(self, 'el asesor canceló')
+            self._set_estado('cancelado', mensaje='El asesor canceló la cotización en Mapfre.')
+        except BotTimeout:
+            sesion.cerrar(self, 'nadie hizo la verificación')
+            self._set_estado('error', mensaje='Se agotó el tiempo esperando la verificación del asesor en Mapfre.')
+        except Exception as e:
+            logger.exception('Error cotizando %s en Mapfre', self.vehiculo.placa)
+            actual = sesion.page
+            if actual is not None and self._ventana_cerrada(actual, e):
+                sesion.cerrar(None, 'cerraron la ventana')
+                e = BotPortalError(
+                    'Se cerró la ventana de Mapfre antes de que el bot terminara de cotizar.',
+                    accion='Reenvíe la solicitud a Mapfre (botón «Reenviar a Mapfre») y deje abierta la ventana; se cierra '
+                           'sola unos minutos después. Puede minimizarla mientras tanto.')
+            else:
+                if actual is not None:
+                    self._guardar_pantalla(actual)
+                    self._capturar_diagnostico(actual)
+                if page is None:
+                    # Falló el ingreso: se cierra todo. Si falló la cotización, la sesión sigue para la siguiente (antes de
+                    # usarla se comprueba que el portal la mantenga).
+                    sesion.cerrar(self, 'falló el ingreso')
             self._registrar_error(e)
 
     @staticmethod

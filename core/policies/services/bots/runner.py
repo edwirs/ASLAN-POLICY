@@ -22,6 +22,12 @@ def lanzar_bot_en_segundo_plano(cotizacion_id, bot_class, schema_name):
     """
     from core.policies.models import Cotizacion
 
+    if getattr(bot_class, 'SESION_COMPARTIDA', False):
+        # Mapfre: va a la fila de la sesión compartida de la empresa (captcha y código una vez por sesión).
+        from core.policies.services.bots.sesion_compartida import encolar
+        encolar(cotizacion_id, schema_name)
+        return
+
     def _tarea():
         with schema_context(schema_name):
             cotizacion = None

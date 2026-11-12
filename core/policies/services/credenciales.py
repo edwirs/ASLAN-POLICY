@@ -64,6 +64,9 @@ PARAMETROS_POR_ASEGURADORA = {
          'ayuda': 'Código de la lista de RCE del portal: (254) = 4.000 millones.'},
         {'clave': 'deducible_cero_perdida_total', 'etiqueta': 'Deducible en cero por pérdida total', 'defecto': 'SI (S)'},
         {'clave': 'deducible_perdida_parcial', 'etiqueta': 'Deducible por pérdida parcial', 'defecto': '1.200.000'},
+        {'clave': 'minutos_sesion', 'etiqueta': 'Minutos que queda abierta la sesión', 'defecto': '10',
+         'ayuda': 'Después del captcha y el código, las solicitudes de Mapfre que lleguen en este tiempo se cotizan en la '
+                  'misma sesión, sin volver a pedirlos. Al cumplirse se cierra sesión. 0 = cerrar después de cada una.'},
     ),
     'Seguros Mundial': (
         {'clave': 'direccion', 'etiqueta': 'Dirección de contacto (opcional)',
