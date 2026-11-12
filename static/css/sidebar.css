@@ -1,0 +1,118 @@
+/* === Menú lateral de ASLAN MultiAgente de Seguros ===
+   Azul marino con el azul de la marca (--aslan-blue) como acento, en lugar del gris por defecto de AdminLTE.
+   - La página actual queda resaltada (static/js/sidebar.js le pone .active y abre su grupo).
+   - Los submenús cuelgan de una línea guía en vez de los círculos vacíos.
+   Se carga después de AdminLTE, del tema oscuro y de brand.css. */
+:root {
+    --menu-fondo: #0e1f33;
+    --menu-fondo-2: #0a1726;
+    --menu-texto: rgba(220, 230, 242, .74);
+    --menu-texto-fuerte: #ffffff;
+    --menu-hover: rgba(255, 255, 255, .06);
+    --menu-guia: rgba(255, 255, 255, .09);
+    --menu-acento: var(--aslan-blue, #2ab1ee);
+}
+
+.main-sidebar.sidebar-dark-primary,
+.dark-mode .main-sidebar.sidebar-dark-primary {
+    background: linear-gradient(180deg, var(--menu-fondo) 0%, var(--menu-fondo-2) 100%);
+    box-shadow: 2px 0 18px rgba(4, 12, 24, .28) !important;
+}
+
+/* Franja de la marca: misma altura que la barra superior (style.css), con una línea fina abajo. */
+.sidebar-dark-primary .brand-link,
+.dark-mode .sidebar-dark-primary .brand-link { border-bottom: 1px solid rgba(255, 255, 255, .07) !important; }
+.sidebar-dark-primary .brand-link .brand-aslan b { color: #fff; }
+.sidebar-dark-primary .brand-link .brand-aslan small { color: var(--menu-acento); opacity: 1; }
+
+.main-sidebar .sidebar { padding: 0 .6rem; }
+.main-sidebar .sidebar nav { margin-top: .9rem !important; }
+
+/* Barra de desplazamiento fina cuando el menú no cabe. */
+.main-sidebar .sidebar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .15) transparent; }
+.main-sidebar .sidebar::-webkit-scrollbar { width: 6px; }
+.main-sidebar .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .15); border-radius: 3px; }
+
+/* ---- Opciones ---- */
+.sidebar-dark-primary .nav-sidebar > .nav-item { margin-bottom: 2px; }
+.sidebar-dark-primary .nav-sidebar .nav-link {
+    position: relative;
+    display: flex; align-items: center;
+    width: auto !important;   /* AdminLTE fija 234 px y los submenús, con su sangría, se salían por la derecha */
+    min-height: 40px; padding: .5rem .75rem;
+    border-radius: 10px;
+    color: var(--menu-texto);
+    font-size: .93rem; font-weight: 500;
+    transition: background-color .15s ease, color .15s ease;
+}
+.sidebar-dark-primary .nav-sidebar .nav-link > .nav-icon {
+    flex: 0 0 1.6rem; width: 1.6rem; margin-right: .55rem;
+    font-size: 1rem; text-align: center;
+    color: rgba(220, 230, 242, .55);
+    transition: color .15s ease;
+}
+.sidebar-dark-primary .nav-sidebar .nav-link > p { flex: 1 1 auto; margin: 0; white-space: nowrap; }
+
+.sidebar-dark-primary .nav-sidebar .nav-link:hover,
+.sidebar-dark-primary .nav-sidebar .nav-link:focus-visible {
+    background-color: var(--menu-hover);
+    color: var(--menu-texto-fuerte);
+}
+.sidebar-dark-primary .nav-sidebar .nav-link:hover > .nav-icon { color: var(--menu-texto-fuerte); }
+.sidebar-dark-primary .nav-sidebar .nav-link:focus-visible { outline: 2px solid var(--menu-acento); outline-offset: -2px; }
+
+/* Flecha de los grupos: más discreta y gira al abrir (AdminLTE ya la rota). */
+.sidebar-dark-primary .nav-sidebar .nav-link p > .right {
+    top: 50% !important; transform: translateY(-50%); font-size: .75rem; opacity: .55;
+    transition: transform .2s ease, opacity .15s ease;
+}
+.sidebar-dark-primary .nav-sidebar .menu-open > .nav-link p > .right,
+.sidebar-dark-primary .nav-sidebar .menu-is-opening > .nav-link p > .right { transform: translateY(-50%) rotate(-90deg); opacity: .9; }
+
+/* Grupo abierto: el título se ve en blanco, sin fondo de «seleccionado». */
+.sidebar-dark-primary .nav-sidebar > .nav-item.menu-open > .nav-link,
+.sidebar-dark-primary .nav-sidebar > .nav-item.menu-is-opening > .nav-link { color: var(--menu-texto-fuerte); background-color: transparent; }
+.sidebar-dark-primary .nav-sidebar .nav-item.menu-open > .nav-link > .nav-icon { color: var(--menu-texto-fuerte); }
+
+/* Página actual: fondo azul suave, barra de acento a la izquierda e ícono azul. */
+.sidebar-dark-primary .nav-sidebar .nav-link.active,
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
+    background: linear-gradient(90deg, rgba(42, 177, 238, .24), rgba(42, 177, 238, .08)) !important;
+    color: var(--menu-texto-fuerte) !important;
+    box-shadow: none !important;
+    font-weight: 600;
+}
+.sidebar-dark-primary .nav-sidebar .nav-link.active::before {
+    content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--menu-acento);
+}
+.sidebar-dark-primary .nav-sidebar .nav-link.active > .nav-icon { color: var(--menu-acento) !important; }
+
+/* Grupo que contiene la página actual: su ícono también va en azul. */
+.sidebar-dark-primary .nav-sidebar .nav-item.tiene-activo > .nav-link > .nav-icon { color: var(--menu-acento); }
+
+/* ---- Submenús: cuelgan de una línea guía ---- */
+.sidebar-dark-primary .nav-sidebar .nav-treeview {
+    margin: 2px 0 6px 1.55rem; padding-left: .45rem;
+    border-left: 1px solid var(--menu-guia);
+}
+.sidebar-dark-primary .nav-sidebar.nav-child-indent .nav-treeview { padding-left: .45rem; }
+.sidebar-dark-primary .nav-sidebar .nav-treeview > .nav-item { margin-bottom: 1px; }
+.sidebar-dark-primary .nav-sidebar .nav-treeview > .nav-item > .nav-link {
+    min-height: 36px; padding: .4rem .65rem; font-size: .88rem;
+}
+.sidebar-dark-primary .nav-sidebar .nav-treeview > .nav-item > .nav-link > .nav-icon {
+    flex-basis: 1.3rem; width: 1.3rem; margin-right: .5rem; font-size: .85rem;
+}
+.sidebar-dark-primary .nav-sidebar .nav-treeview .nav-link.active::before { top: 8px; bottom: 8px; }
+
+/* ---- Menú colapsado (solo íconos): centrados, sin línea guía ni sangría ---- */
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .sidebar { padding: 0 .5rem; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .nav-sidebar .nav-link { justify-content: center; padding: .5rem 0; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .nav-sidebar .nav-link > .nav-icon { margin-right: 0; }
+.sidebar-mini.sidebar-collapse .main-sidebar:not(:hover) .nav-sidebar .nav-treeview { margin-left: 0; padding-left: 0; border-left: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-dark-primary .nav-sidebar .nav-link,
+    .sidebar-dark-primary .nav-sidebar .nav-link p > .right { transition: none; }
+}
