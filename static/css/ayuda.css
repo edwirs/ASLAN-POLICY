@@ -14,12 +14,12 @@
 .ayuda-pop .popover-header i { color: var(--aslan-blue, #2ab1ee); margin-right: 4px; }
 .ayuda-pop .popover-body { line-height: 1.5; }
 
-.dark-mode .btn-ayuda { border-color: #6c757d; color: #adb5bd; }
-.dark-mode .ayuda-pop { background-color: #343a40; border-color: #4b545c; }
-.dark-mode .ayuda-pop .popover-header { background-color: #3a4047; border-bottom-color: #4b545c; color: #f1f3f5; }
+.dark-mode .btn-ayuda { border-color: var(--dk-borde-campo); color: var(--dk-texto-2); }
+.dark-mode .ayuda-pop { background-color: var(--dk-superficie); border-color: var(--dk-borde); }
+.dark-mode .ayuda-pop .popover-header { background-color: var(--dk-elevado); border-bottom-color: var(--dk-borde); color: #f1f3f5; }
 .dark-mode .ayuda-pop .popover-body { color: #dee2e6; }
-.dark-mode .ayuda-pop.bs-popover-bottom > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=bottom] > .popover-arrow::after { border-bottom-color: #3a4047; }
-.dark-mode .ayuda-pop.bs-popover-top > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=top] > .popover-arrow::after { border-top-color: #343a40; }
+.dark-mode .ayuda-pop.bs-popover-bottom > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=bottom] > .popover-arrow::after { border-bottom-color: var(--dk-elevado); }
+.dark-mode .ayuda-pop.bs-popover-top > .popover-arrow::after, .dark-mode .ayuda-pop.bs-popover-auto[data-popper-placement^=top] > .popover-arrow::after { border-top-color: var(--dk-superficie); }
 
 /* Botón de estado de las tablas: ancho fijo para que Activa/Inactiva no cambien el tamaño de la columna. */
 .btn-estado { min-width: 92px; font-weight: 600; }

@@ -10,7 +10,7 @@
 {% block assets_list %}
     <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
-    <link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=4">
     <script>
         var puedeEditar = {% if perms.policies.change_poliza %}true{% else %}false{% endif %};
         var puedeEliminar = {% if perms.policies.delete_poliza %}true{% else %}false{% endif %};

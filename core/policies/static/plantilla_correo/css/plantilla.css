@@ -15,11 +15,11 @@
     color: var(--pc-text);
 }
 .dark-mode .pc-page, .dark-mode .pc-modal {
-    --pc-surface: #343a40;
-    --pc-surface-2: #3a4047;
-    --pc-border: #4b545c;
+    --pc-surface: var(--dk-superficie);
+    --pc-surface-2: var(--dk-elevado);
+    --pc-border: var(--dk-borde);
     --pc-text: #f1f3f5;
-    --pc-muted: #adb5bd;
+    --pc-muted: var(--dk-texto-2);
     --pc-accent: #f5a266;
     --pc-accent-soft: rgba(242, 139, 65, .2);
     --pc-ok: #5fdc82;

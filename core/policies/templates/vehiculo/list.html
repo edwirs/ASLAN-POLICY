@@ -9,7 +9,7 @@
 
 {% block assets_list %}
     <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}">
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=8">
     <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}", valorManual: "{% url 'vehiculo_comparativo_valores' 0 %}", puedeValorManual: {{ perms.policies.add_valor_externo|yesno:'true,false' }}};</script>
     <script src="{% static 'solicitud/js/proceso.js' %}?v=4"></script>
     <script src="{% static 'comparativo/js/modales.js' %}?v=5"></script>

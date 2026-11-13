@@ -1,6 +1,6 @@
 {# «El cliente eligió esta»: convierte la solicitud cotizada en póliza. Lo usan Solicitudes registradas y el Comparativo. #}
 {% load static %}
-<link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'poliza/css/poliza.css' %}?v=4">
 <script src="{% static 'poliza/js/convertir.js' %}?v=2"></script>
 <div class="modal fade" id="modalConvertir" tabindex="-1" aria-labelledby="modalConvertirLabel" aria-hidden="true"
      data-url="{% url 'poliza_convertir' %}" data-polizas-url="{% url 'poliza_list' %}">

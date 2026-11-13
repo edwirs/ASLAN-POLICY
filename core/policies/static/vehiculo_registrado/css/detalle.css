@@ -11,11 +11,11 @@
     padding: 6px 4px 10px;
 }
 .dark-mode .vr-detalle {
-    --vr-surface: #343a40;
-    --vr-surface-2: #3a4047;
-    --vr-border: #4b545c;
+    --vr-surface: var(--dk-superficie);
+    --vr-surface-2: var(--dk-elevado);
+    --vr-border: var(--dk-borde);
     --vr-text: #f1f3f5;
-    --vr-muted: #adb5bd;
+    --vr-muted: var(--dk-texto-2);
     --vr-accent: #f5a266;
     --vr-accent-soft: rgba(242, 139, 65, .2);
 }

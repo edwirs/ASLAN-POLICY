@@ -1,4 +1,4 @@
-// Tema claro / oscuro: AdminLTE (body.dark-mode) + Bootstrap 5.3 (data-bs-theme).
+// Tema claro / oscuro: AdminLTE (body.dark-mode) + Bootstrap 5.3 (data-bs-theme). Colores del oscuro: static/css/dark-mode.css («azul noche»).
 // La elección se guarda en el navegador de cada usuario; por defecto es el tema claro.
 (function () {
     var KEY = 'aslan-theme';
@@ -12,21 +12,21 @@
     var DARK_COLORS = ['#7cb5ec', '#e8e8ee', '#90ed7d', '#f7a35c', '#8085e9', '#f15c80', '#e4d354', '#2b908f', '#f45b5b', '#91e8e1'];
 
     function chartOptions(dark) {
-        var text = dark ? '#ced4da' : '#666666';
+        var text = dark ? '#b8c6d8' : '#666666';
         var title = dark ? '#f8f9fa' : '#333333';
-        var line = dark ? '#6c757d' : '#ccd6eb';
+        var line = dark ? '#2e4b72' : '#ccd6eb';
         return {
             colors: dark ? DARK_COLORS : LIGHT_COLORS,
             chart: {backgroundColor: 'transparent'},
             title: {style: {color: title}},
             subtitle: {style: {color: text}},
             xAxis: {labels: {style: {color: text}}, title: {style: {color: text}}, lineColor: line, tickColor: line},
-            yAxis: {labels: {style: {color: text}}, title: {style: {color: text}}, gridLineColor: dark ? '#4b545c' : '#e6e6e6'},
+            yAxis: {labels: {style: {color: text}}, title: {style: {color: text}}, gridLineColor: dark ? '#21385a' : '#e6e6e6'},
             legend: {itemStyle: {color: text}, itemHoverStyle: {color: dark ? '#ffffff' : '#000000'},
-                itemHiddenStyle: {color: dark ? '#6c757d' : '#cccccc'}},
-            tooltip: {backgroundColor: dark ? 'rgba(33, 37, 41, 0.95)' : 'rgba(247, 247, 247, 0.85)',
+                itemHiddenStyle: {color: dark ? '#6f84a0' : '#cccccc'}},
+            tooltip: {backgroundColor: dark ? 'rgba(14, 31, 51, 0.96)' : 'rgba(247, 247, 247, 0.85)', borderColor: dark ? '#2e4b72' : undefined,
                 style: {color: dark ? '#f8f9fa' : '#333333'}},
-            credits: {style: {color: dark ? '#8f98a1' : '#999999'}}
+            credits: {style: {color: dark ? '#6f84a0' : '#999999'}}
         };
     }
 

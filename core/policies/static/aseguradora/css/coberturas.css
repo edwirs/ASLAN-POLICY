@@ -54,12 +54,12 @@
     color: #64748b;
 }
 
-.dark-mode .cob-ficha { background: #343a40; border-color: #4b545c; }
+.dark-mode .cob-ficha { background: var(--dk-superficie); border-color: var(--dk-borde); }
 .dark-mode .cob-producto { color: #f8f9fa; }
-.dark-mode .cob-seccion { border-color: #4b545c; }
-.dark-mode .cob-seccion-titulo { background: #3a4047; color: #ced4da; }
-.dark-mode .cob-tabla th { color: #ced4da; border-bottom-color: #4b545c; }
-.dark-mode .cob-tabla td { color: #f8f9fa; border-bottom-color: #4b545c; }
-.dark-mode .cob-observaciones { color: #adb5bd; }
+.dark-mode .cob-seccion { border-color: var(--dk-borde); }
+.dark-mode .cob-seccion-titulo { background: var(--dk-elevado); color: #ced4da; }
+.dark-mode .cob-tabla th { color: #ced4da; border-bottom-color: var(--dk-borde); }
+.dark-mode .cob-tabla td { color: #f8f9fa; border-bottom-color: var(--dk-borde); }
+.dark-mode .cob-observaciones { color: var(--dk-texto-2); }
 .dark-mode .aseg-tabs .nav-link { color: #ced4da; }
-.dark-mode .aseg-tabs .nav-link.active { background: transparent; color: #17a2b8; }
+.dark-mode .aseg-tabs .nav-link.active { background: transparent; color: var(--dk-acento); }

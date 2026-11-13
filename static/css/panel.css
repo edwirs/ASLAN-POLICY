@@ -1,6 +1,6 @@
 /* Panel de inicio (dashboard). Los colores de marca vienen de brand.css (--aslan-blue); el tema oscuro se redefine al final. */
 .pn { --pn-texto: #1f2937; --pn-suave: #6b7280; --pn-borde: #e5e7eb; --pn-fondo-2: #f8fafc; padding: 4px 0 8px; }
-.dark-mode .pn { --pn-texto: #f1f3f5; --pn-suave: #adb5bd; --pn-borde: #4b545c; --pn-fondo-2: #3a4047; }
+.dark-mode .pn { --pn-texto: #f1f3f5; --pn-suave: var(--dk-texto-2); --pn-borde: var(--dk-borde); --pn-fondo-2: var(--dk-elevado); }
 
 /* Encabezado */
 .pn-cabecera { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
@@ -40,7 +40,7 @@ a.pn-kpi-pie:hover { background: rgba(0, 0, 0, .22); color: #fff; }
     display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; height: 100%;
     background: #fff; border: 1px solid var(--pn-borde); box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
 }
-.dark-mode .pn-mini { background: #343a40; }
+.dark-mode .pn-mini { background: var(--dk-superficie); }
 .pn-mini b { display: block; white-space: nowrap; font-size: 20px; line-height: 1.1; color: var(--pn-texto); }
 .pn-mini b small { font-size: 13px; color: var(--pn-suave); font-weight: 600; }
 .pn-mini div > span { display: block; font-size: 12px; color: var(--pn-suave); line-height: 1.25; }
@@ -122,4 +122,4 @@ a.pn-lista-item[href]:hover { background: var(--pn-fondo-2); color: var(--pn-tex
 .pn-placa { font-weight: 800; letter-spacing: .05em; margin-right: 4px; }
 .pn-vacio { margin: 18px 0; text-align: center; color: var(--pn-suave); font-size: 13px; }
 .pn-vacio i { color: #22c55e; }
-.dark-mode .pn-seg { background: #343a40; }
+.dark-mode .pn-seg { background: var(--dk-superficie); }
