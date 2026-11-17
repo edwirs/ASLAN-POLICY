@@ -323,8 +323,9 @@ def registrar_error(cotizacion, exc, paso, schema_name, alerta=None, pantalla=No
 # rechaza los navegadores automatizados sin importar desde qué red se entre, y se cotiza a mano.
 AGENTE_PERMITIDO = ('Mapfre', 'La Equidad Seguros', 'Qualitas', 'HDI', 'AXA Colpatria', 'Seguros Mundial')
 
-# Un 0 km no tiene placa: en TODOS los portales se escribe siempre esta (no la de la solicitud).
-PLACA_CERO_KM = 'TL123A'
+# Un 0 km no tiene placa: en los portales se escribe siempre esta (no la de la solicitud). Forma de placa de tránsito
+# libre («TL» + 4 números): HDI la exige con el tipo «Tránsito Libre (Vehículo 0 km)». Seguros Mundial no la usa (ver mundial.py).
+PLACA_CERO_KM = 'TL1234'
 
 
 class RegistroErrorMixin:

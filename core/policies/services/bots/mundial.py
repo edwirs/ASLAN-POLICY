@@ -4,7 +4,9 @@ Flujo (mapeado con una sesión real exploratoria, no a ciegas):
   1. Inicio de sesión en dos pantallas: usuario + CONTINUAR, contraseña + INGRESAR.
   2. Línea de negocio «Movilidad» › producto «Rodando contigo» › acción «Nueva cotización».
   3. Nueva cotización: tipo y número de documento, placa, modelo y zona de circulación («Municipio - Departamento»).
-     Placa REAL siempre (Mundial no acepta la placa de 0 km TL123A: exige formato de carro).
+     Placa REAL siempre, también en un 0 km: Mundial no aceptaba la placa común de 0 km (TL123A, exige formato de
+     carro) y bloquea 24 horas la placa con una cotización en curso, así que una placa compartida (TL1234) frenaría
+     al siguiente 0 km.
      Si el vehículo es 0 km el portal abre un modal «¿Tu vehículo es 0 Km?»: se pasa a SI, se escribe el valor
      comercial, y luego un segundo modal pide el código Fasecolda.
   4. Información del vehículo: se captura (modelo, marca, clase, tipo, color, motor, chasis, serie, valor comercial,

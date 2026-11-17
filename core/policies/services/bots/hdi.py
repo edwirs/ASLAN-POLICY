@@ -32,7 +32,6 @@ os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
 
 from core.policies.services.bots.base import (  # noqa: E402
     PASO_LOGIN,
-    PLACA_CERO_KM,
     BotAutenticacionError,
     BotCancelado,
     BotDatosError,
@@ -56,8 +55,8 @@ logger = logging.getLogger(__name__)
 USO_VEHICULO = 'Particular personas'
 TIPO_PLACA_NORMAL = 'Colombiana'
 TIPO_PLACA_CERO_KM = 'Tránsito Libre (Vehículo 0 km)'
-# Un 0 km no tiene placa: con el tipo «Tránsito Libre» HDI pide un número de tránsito libre y se usa
-# siempre la placa de 0 km común a todos los bots (`PLACA_CERO_KM`), no el dato de la solicitud.
+# Un 0 km no tiene placa: con el tipo «Tránsito Libre» HDI pide un número de tránsito libre («TL» + 4 números) y se
+# usa la placa de 0 km común a todos los bots (`PLACA_CERO_KM` = TL1234), no el dato de la solicitud.
 # Para reconocer la opción aunque HDI cambie tildes o espacios («Tránsito Libre(Vehiculo 0km)»).
 PATRON_TIPO_PLACA = {
     TIPO_PLACA_CERO_KM: re.compile(r'tr[aá]nsito\s*libre', re.I),
@@ -351,7 +350,7 @@ class HdiBot(RegistroErrorMixin):
         if not validar.is_enabled():
             if self.vehiculo.es_cero_km:
                 raise BotDatosError(
-                    f'HDI no aceptó «{PLACA_CERO_KM}» como número de «Tránsito Libre (Vehículo 0 km)».',
+                    f'HDI no aceptó «{self.placa_portal}» como número de «Tránsito Libre (Vehículo 0 km)».',
                     accion='HDI rechazó el número de tránsito libre que usa el sistema para los 0 km. Confirme con HDI '
                            'cuál debe usarse y avise a soporte para actualizarlo; mientras tanto cotice este vehículo '
                            'directamente en el portal de HDI.',
