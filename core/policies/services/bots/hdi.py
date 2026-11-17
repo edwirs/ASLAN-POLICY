@@ -58,6 +58,24 @@ TIPO_PLACA_NORMAL = 'Colombiana'
 TIPO_PLACA_CERO_KM = 'Tránsito Libre (Vehículo 0 km)'
 # Un 0 km no tiene placa: con el tipo «Tránsito Libre» HDI pide un número de tránsito libre y se usa
 # siempre la placa de 0 km común a todos los bots (`PLACA_CERO_KM`), no el dato de la solicitud.
+# Para reconocer la opción aunque HDI cambie tildes o espacios («Tránsito Libre(Vehiculo 0km)»).
+PATRON_TIPO_PLACA = {
+    TIPO_PLACA_CERO_KM: re.compile(r'tr[aá]nsito\s*libre', re.I),
+    TIPO_PLACA_NORMAL: re.compile(r'^\s*colombiana\s*$', re.I | re.M),
+}
+# Lee la opción que muestra la lista «Tipo de placa»: sube desde la etiqueta hasta el primer contenedor con más texto.
+JS_TIPO_PLACA_MOSTRADO = r"""() => {
+    const esEtiqueta = e => /^\s*tipo de placa\s*\*?\s*$/i.test(e.textContent || '');
+    const etiquetas = [...document.querySelectorAll('label, span, p, legend, div')].filter(esEtiqueta);
+    for (const et of etiquetas) {
+        let n = et.parentElement;
+        for (let i = 0; i < 4 && n; i++, n = n.parentElement) {
+            const t = (n.innerText || '').replace(/tipo de placa\s*\*?/i, '').trim();
+            if (t) return t.split('\n')[0].trim();
+        }
+    }
+    return '';
+}"""
 MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
          'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -227,6 +245,44 @@ class HdiBot(RegistroErrorMixin):
         except PlaywrightTimeoutError:
             raise BotAutenticacionError('No se pudo iniciar sesión en HDI: después de ingresar no apareció el menú principal (¿contraseña vencida o cuenta bloqueada?).')
 
+    def _tipo_placa_mostrado(self, cot):
+        """Texto que muestra la lista «Tipo de placa» (la opción elegida), o '' si no se pudo leer."""
+        try:
+            return cot.evaluate(JS_TIPO_PLACA_MOSTRADO) or ''
+        except Exception:
+            return ''
+
+    def _elegir_tipo_placa(self, cot, tipo_placa):
+        """Elige el tipo de placa y comprueba que la lista lo muestre. Para un 0 km es obligatorio que quede
+        «Tránsito Libre (Vehículo 0 km)»: con «Colombiana» HDI rechaza la placa de 0 km o cotiza como usado."""
+        patron = PATRON_TIPO_PLACA[tipo_placa]
+        for intento in range(2):
+            cot.get_by_text('Tipo de placa').first.click()
+            opcion = cot.locator('ul li').filter(has_text=patron).first
+            try:
+                opcion.click(timeout=4000)
+            except PlaywrightTimeoutError:
+                cot.get_by_text(patron).first.click(timeout=4000)
+            cot.wait_for_timeout(400)
+            mostrado = self._tipo_placa_mostrado(cot)
+            if patron.search(mostrado):
+                return
+            logger.warning('HDI: «Tipo de placa» muestra %r después de elegir %r (intento %s).', mostrado, tipo_placa, intento + 1)
+        if not self.vehiculo.es_cero_km and not mostrado:
+            return  # placa normal: HDI ya abre en «Colombiana» y no se pudo leer la lista; sigue como antes
+        try:
+            disponibles = ', '.join(t.strip() for t in cot.locator('ul li').all_inner_texts() if t.strip())
+        except Exception:
+            disponibles = ''
+        raise BotPortalError(
+            f'HDI no dejó elegir «{tipo_placa}» en «Tipo de placa»'
+            + (f' (quedó «{mostrado}»)' if mostrado else '')
+            + (f'; opciones del portal: {disponibles}.' if disponibles else '.'),
+            accion=('Para un vehículo 0 km el tipo de placa debe ser «Tránsito Libre (Vehículo 0 km)». Reintente; si '
+                    'sigue igual, avise a soporte (HDI pudo cambiar la lista) y cotice este vehículo directamente en '
+                    'el portal de HDI.') if self.vehiculo.es_cero_km else 'Reintente; si sigue igual, avise a soporte.',
+        )
+
     def _abrir_cotizador(self, home):
         """Productos > Autos individual > clave > Consultar -> ventana nueva."""
         home.get_by_text('Productos', exact=True).first.click()
@@ -285,8 +341,7 @@ class HdiBot(RegistroErrorMixin):
                 )
 
         tipo_placa = TIPO_PLACA_CERO_KM if self.vehiculo.es_cero_km else TIPO_PLACA_NORMAL
-        cot.get_by_text('Tipo de placa').first.click()
-        cot.get_by_text(tipo_placa, exact=True).first.click()
+        self._elegir_tipo_placa(cot, tipo_placa)
 
         escribir_verificado(cot, cot.locator('#id'), self.documento_portal, delay=60)
         escribir_verificado(cot, cot.locator('#placa'), self.placa_portal, delay=60)
