@@ -3,13 +3,77 @@ import re
 from core.pos.models import Client
 
 
+PESOS_DV_NIT = (3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71)
+
+
+def digito_verificacion_nit(numero):
+    """Dígito de verificación de un NIT con el cálculo de la DIAN (pesos primos de derecha a izquierda, módulo 11)."""
+    digitos = re.sub(r'\D', '', str(numero or ''))
+    if not digitos or len(digitos) > len(PESOS_DV_NIT):
+        return None
+    suma = sum(int(d) * p for d, p in zip(reversed(digitos), PESOS_DV_NIT))
+    resto = suma % 11
+    return str(resto if resto in (0, 1) else 11 - resto)
+
+
+def separar_nit(documento, dv=None):
+    """(número, dígito de verificación) de un NIT escrito de cualquier forma: «900.123.456-7», «900123456 7»,
+    «9001234567» o «900123456» (con el dígito en `dv`). Los portales de las aseguradoras piden el número SIN el dígito.
+    Diez dígitos sin separador solo se parten si empiezan por 8 o 9 (el rango de las empresas) y el último es el dígito
+    correcto de los nueve primeros: así nunca se recorta una cédula de 10 dígitos (empiezan por 1)."""
+    texto = str(documento or '').strip()
+    dv = (str(dv).strip() or None) if dv is not None else None
+    partes = re.split(r'\s*[-‐–—]\s*|\s+(?=\d$)', texto.replace('.', '').replace(',', ''))
+    if len(partes) == 2 and re.fullmatch(r'\d+', partes[0]) and re.fullmatch(r'\d', partes[1]):
+        return partes[0], partes[1]
+    numero = re.sub(r'\D', '', texto)
+    if not dv and re.fullmatch(r'[89]\d{9}', numero) and digito_verificacion_nit(numero[:9]) == numero[9]:
+        return numero[:9], numero[9]
+    return numero or texto, dv
+
+
+def normalizar_documento(document_type, dni, dv=None):
+    """(dni, dv) como se guardan en el cliente: para NIT, solo el número y el dígito aparte; los demás tipos, tal cual
+    (un pasaporte puede tener letras)."""
+    dni = str(dni or '').strip()
+    if (getattr(document_type, 'abbreviation', '') or '').upper() != 'NIT':
+        return dni, dv
+    return separar_nit(dni, dv)
+
+
+def buscar_cliente_por_documento(dni):
+    """El cliente con ese número. Para un NIT también encuentra los guardados antes con el dígito pegado («…-7»)."""
+    client = Client.objects.filter(dni=dni).first()
+    if client is None and re.fullmatch(r'\d{6,10}', dni or ''):
+        client = Client.objects.filter(dni__regex=rf'^{dni}\s*-\s*\d$').first()
+    return client
+
+
+def cliente_por_documento_escrito(valor):
+    """Para «Consultar» de la nueva solicitud: el cliente con el documento tal como lo escribió el asesor y, si tiene
+    forma de NIT con su dígito (900.123.456-7, 9001234567), el guardado con el número solo."""
+    valor = (valor or '').strip()
+    client = Client.objects.filter(dni=valor).first()
+    if client is None and re.fullmatch(r'\d{6,10}', valor):
+        client = buscar_cliente_por_documento(valor)
+    if client is None and re.fullmatch(r'[\d.\s]+(?:[-‐–—]\s*\d|\s\d)|[89]\d{9}', valor):
+        client = buscar_cliente_por_documento(separar_nit(valor)[0])
+    return client
+
+
 def get_or_update_client(cd, municipality=None):
     """Busca un Client por cédula y actualiza sus datos, o lo crea si no
     existe. `municipality` solo se toca si se pasa explícitamente, para no
     borrar la ciudad ya guardada de un cliente existente cuando el
-    formulario que llama a esto no la pide (ej. cambio de propietario)."""
-    client = Client.objects.filter(dni=cd['dni']).first()
+    formulario que llama a esto no la pide (ej. cambio de propietario).
+    Un NIT se guarda sin el dígito de verificación, que va en `dv`."""
+    dni, dv = normalizar_documento(cd['document_type'], cd['dni'], cd.get('dv'))
+    client = buscar_cliente_por_documento(dni)
     if client:
+        if client.dni != dni and not Client.objects.filter(dni=dni).exclude(pk=client.pk).exists():
+            client.dni = dni  # NIT guardado antes con el dígito pegado: queda solo el número
+        if dv:
+            client.dv = dv
         client.document_type = cd['document_type']
         client.names = cd['names']
         client.birthdate = cd['birthdate']
@@ -29,7 +93,8 @@ def get_or_update_client(cd, municipality=None):
         client.save()
     else:
         client = Client.objects.create(
-            dni=cd['dni'],
+            dni=dni,
+            dv=dv,
             document_type=cd['document_type'],
             names=cd['names'],
             birthdate=cd['birthdate'],

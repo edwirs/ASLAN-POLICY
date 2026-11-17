@@ -200,6 +200,19 @@ class ClientForm(forms.ModelForm):
             # El propietario solo aplica a empresas: si no es NIT no se guarda.
             cleaned['propietario_documento'] = None
             cleaned['propietario_nombre'] = None
+        elif cleaned.get('dni'):
+            # NIT escrito con su dígito pegado (900123456-7): el número queda solo y el dígito va en «DV». Los portales
+            # de las aseguradoras piden el número sin el dígito.
+            from core.policies.services.clientes import separar_nit  # import local: evita ciclo pos <-> policies
+            numero, dv = separar_nit(cleaned['dni'], cleaned.get('dv'))
+            if numero != cleaned['dni']:
+                if Client.objects.filter(dni=numero).exclude(pk=self.instance.pk).exists():
+                    self.add_error('dni', f'Ya existe un cliente con el NIT {numero}.')
+                cleaned['dni'] = numero
+                self.instance.dni = numero
+            if dv and not cleaned.get('dv'):
+                cleaned['dv'] = dv
+                self.instance.dv = dv
         return cleaned
 
     def save(self, commit=True):

@@ -378,7 +378,7 @@ class EquidadBot(RegistroErrorMixin):
         opcion = self._opcion_documento()
         page.locator('mat-select[formcontrolname="tipoDocumento"]').click()
         page.locator('mat-option').filter(has_text=re.compile(rf'^\s*{re.escape(opcion)}\s*$', re.I)).first.click(timeout=10000)
-        escribir_verificado(page, page.locator('input[formcontrolname="numeroDocumento"]'), self.tomador.dni, delay=45)
+        escribir_verificado(page, page.locator('input[formcontrolname="numeroDocumento"]'), self.documento_portal, delay=45)
         self._continuar(page).click(timeout=15000)
         self._esperar_visible(page, 'input[formcontrolname="primerNombre"]', 'Asegurado (documento)', timeout=40)
         page.wait_for_timeout(2000)  # el portal carga los datos de la persona justo después

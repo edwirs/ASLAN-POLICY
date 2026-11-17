@@ -62,7 +62,8 @@ logger = logging.getLogger(__name__)
 # varios montados a la vez, en distintos momentos, así que se cierran por ID
 # conocido en vez de "el primer modal visible" — que agarraba el equivocado).
 MODALES_HOME = ('modalBonos',)
-MODALES_COTIZADOR = ('modalAvisoBonos', 'modalAcomCercano')
+# modalBannerDepartamentos: imagen promocional (2026-11) con data-backdrop="static" que tapaba «Origen y uso».
+MODALES_COTIZADOR = ('modalAvisoBonos', 'modalAcomCercano', 'modalBannerDepartamentos')
 
 
 GENERO_LABEL = {'male': 'Masculino', 'female': 'Femenino'}

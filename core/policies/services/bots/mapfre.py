@@ -471,7 +471,7 @@ class MapfreBot(RegistroErrorMixin):
         self._elegir(page, marco, 'COD_NIVEL3', self.parametro('oficina'))
         asegurado = marco.locator('[id="COD_DOCUM_ASEG"]')
         asegurado.click()
-        asegurado.press_sequentially(self.tomador.dni, delay=50)
+        asegurado.press_sequentially(self.documento_portal, delay=50)
         asegurado.press('Tab')
         self._esperar_portal(page, marco)
         page.wait_for_timeout(2000)

@@ -11,7 +11,7 @@ from core.policies.forms import SolicitudCotizacionForm
 from core.policies.models import Aseguradora, AseguradoraCredencial, Cotizacion, TipoPoliza, Vehiculo
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.bots.runner import lanzar_bot_en_segundo_plano
-from core.policies.services.clientes import get_or_update_client
+from core.policies.services.clientes import cliente_por_documento_escrito, get_or_update_client
 from core.policies.services.polizas import aviso_estado, cambiar_estado, registrar_evento
 from core.policies.services.reenvio import reenviar
 from core.policies.services.proceso import (
@@ -21,7 +21,6 @@ from core.policies.services.proceso import (
     serializar_cotizacion,
     ultimas_por_aseguradora,
 )
-from core.pos.models import Client
 from core.security.mixins import GroupPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -74,7 +73,7 @@ def consultar_registro(request):
 
     try:
         if tipo == 'dni':
-            client = Client.objects.filter(dni=valor).first()
+            client = cliente_por_documento_escrito(valor)  # un NIT con su dígito (900123456-7) se busca por el número
             if client:
                 data = _client_lookup_data(client)
                 vehiculos = list(client.vehiculos.select_related('zona_circulacion').all())

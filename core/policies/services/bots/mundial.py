@@ -399,7 +399,7 @@ class MundialBot(RegistroErrorMixin):
         page.locator('#numDocumento').wait_for(timeout=40000)
         abreviatura = (self.tomador.document_type.abbreviation or '').upper()
         self._elegir_en_select(page, 0, DOCUMENTOS[abreviatura])
-        self._escribir(page.locator('#numDocumento'), self.tomador.dni, comparar='digitos')
+        self._escribir(page.locator('#numDocumento'), self.documento_portal, comparar='digitos')
         self._escribir(page.locator('#placa'), self.vehiculo.placa)  # siempre la real (ver nota del módulo)
         modelo = self._modelo_vigente() or self._dato_de_otras_fuentes(page, 'modelo')
         if not modelo:

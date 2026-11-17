@@ -452,7 +452,7 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
 
         page.get_by_label('Número de documento', exact=False).or_(
             page.get_by_placeholder('Número de documento', exact=False)
-        ).first.fill(self.tomador.dni)
+        ).first.fill(self.documento_portal)
 
         click_by_text(page, 'Buscar', role='button')
         wait_visible(page, 'Ubicación')

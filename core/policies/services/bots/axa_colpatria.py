@@ -470,7 +470,7 @@ class AxaColpatriaBot(RegistroErrorMixin):
             )
         self._elegir_en_combo(page, 'People_IdDocumentType', opcion_documento)
 
-        marco.locator('#People_DocumentNumber:visible').first.fill(self.tomador.dni)
+        marco.locator('#People_DocumentNumber:visible').first.fill(self.documento_portal)
         etiqueta_genero = 'MASCULINO' if (self.tomador.gender or 'male') == 'male' else 'FEMENINO'
         marco.locator('label:visible', has_text=etiqueta_genero).first.click()
         fecha = marco.locator('#People_BirthDate:visible').first

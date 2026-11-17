@@ -397,6 +397,14 @@ class RegistroErrorMixin:
         return self._contacto_portal
 
     @property
+    def documento_portal(self):
+        """Número de documento del tomador que se escribe en los portales: un NIT va SIN el dígito de verificación
+        (los cotizadores solo aceptan los 9 números), aunque el cliente se haya guardado con el dígito pegado
+        («900123456-7»: La Equidad y Seguros Mundial no dejaban escribirlo)."""
+        from core.policies.services.clientes import normalizar_documento  # import local: evita ciclo al cargar
+        return normalizar_documento(self.tomador.document_type, self.tomador.dni, self.tomador.dv)[0]
+
+    @property
     def placa_portal(self):
         """Placa que se escribe en el portal de la aseguradora: la real, o `PLACA_CERO_KM` si es 0 km."""
         return PLACA_CERO_KM if self.vehiculo.es_cero_km else self.vehiculo.placa
@@ -936,6 +944,23 @@ def close_known_modals(page, modal_ids, timeout=2000):
                 if box:
                     page.mouse.click(box['x'] + box['width'] - 20, box['y'] + 20)
                     cerrado = True
+            except Exception:
+                pass
+        if cerrado:
+            try:
+                modal.wait_for(timeout=1500, state='hidden')
+            except PlaywrightTimeoutError:
+                cerrado = False
+        if not cerrado:
+            # Último recurso para un aviso sin botón de cerrar (p. ej. un banner con data-backdrop="static" y
+            # data-keyboard="false"): se le pide a Bootstrap que lo oculte, igual que haría su propio botón.
+            try:
+                page.evaluate("""id => { const el = document.getElementById(id); if (!el) return;
+                    if (window.jQuery && jQuery.fn.modal) { jQuery(el).modal('hide'); return; }
+                    if (window.bootstrap && bootstrap.Modal) { bootstrap.Modal.getOrCreateInstance(el).hide(); } }""",
+                              modal_id)
+                modal.wait_for(timeout=3000, state='hidden')
+                cerrado = True
             except Exception:
                 pass
         cerrado_alguno = cerrado_alguno or cerrado

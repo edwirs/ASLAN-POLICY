@@ -36,6 +36,7 @@ from core.policies.services.bots.base import (  # noqa: E402
     BotAutenticacionError,
     BotCancelado,
     BotDatosError,
+    BotNoCotizableError,
     BotPortalError,
     BotTimeout,
     RegistroErrorMixin,
@@ -59,6 +60,11 @@ TIPO_PLACA_CERO_KM = 'Tránsito Libre (Vehículo 0 km)'
 # siempre la placa de 0 km común a todos los bots (`PLACA_CERO_KM`), no el dato de la solicitud.
 MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
          'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+# Tipos de documento que ofrece el cotizador de HDI (lista «Tipo de identificación», vista en el portal real el
+# 2026-11-17): Cédula de Ciudadanía, Cédula de extranjería, Pasaporte, Tarjeta de Identidad y Registro Civil. No hay NIT:
+# HDI no cotiza autos a nombre de una empresa por este cotizador.
+DOCUMENTOS_HDI = ('CC', 'CE', 'PA', 'TI', 'RC')
 
 
 class HdiBot(RegistroErrorMixin):
@@ -161,6 +167,7 @@ class HdiBot(RegistroErrorMixin):
             self.cotizacion.save(update_fields=['ejecutado_en'])
 
         try:
+            self._validar_documento()  # antes de abrir el portal: no se gasta una sesión en un caso que HDI no cotiza
             with sync_playwright() as playwright:
                 browser = self._lanzar_navegador(playwright, headless=self.headless)
                 contexto = browser.new_context(viewport={'width': 1366, 'height': 900})
@@ -237,6 +244,22 @@ class HdiBot(RegistroErrorMixin):
         cotizador.get_by_text('Nueva cotización').first.wait_for(timeout=40000)
         return cotizador
 
+    def _validar_documento(self):
+        abreviatura = (self.tomador.document_type.abbreviation or '').upper()
+        if abreviatura == 'NIT':
+            raise BotNoCotizableError(
+                'HDI no cotiza a nombre de una empresa (NIT): su cotizador solo acepta cédula de ciudadanía, cédula de '
+                'extranjería, pasaporte, tarjeta de identidad y registro civil.',
+                accion='Si el vehículo es de una empresa, solicite la cotización a HDI por su canal comercial; para este '
+                       'caso las demás aseguradoras sí se cotizan.',
+            )
+        if abreviatura not in DOCUMENTOS_HDI:
+            raise BotDatosError(
+                f'HDI no ofrece el tipo de documento «{self.tomador.document_type.name}» en su cotizador (solo cédula de '
+                'ciudadanía, cédula de extranjería, pasaporte, tarjeta de identidad y registro civil).',
+                accion='Cotice este caso directamente en el portal de HDI.',
+            )
+
     def _validacion_datos(self, cot):
         """Paso 1: identificación + tipo y número de placa."""
         cot.get_by_text('Nueva cotización').first.click()
@@ -251,8 +274,13 @@ class HdiBot(RegistroErrorMixin):
             try:
                 opcion.click(timeout=4000)
             except PlaywrightTimeoutError:
+                try:
+                    disponibles = ', '.join(t.strip() for t in cot.locator('ul li').all_inner_texts() if t.strip())
+                except Exception:
+                    disponibles = ''
                 raise BotDatosError(
-                    f'HDI no ofrece el tipo de documento "{nombre_tipo}" en el cotizador.',
+                    f'HDI no ofrece el tipo de documento "{nombre_tipo}" en el cotizador'
+                    + (f' (opciones del portal: {disponibles}).' if disponibles else '.'),
                     accion='Cotice este caso directamente en el portal de HDI; el cotizador automático solo maneja los tipos de documento que ese portal ofrece.',
                 )
 
@@ -260,7 +288,7 @@ class HdiBot(RegistroErrorMixin):
         cot.get_by_text('Tipo de placa').first.click()
         cot.get_by_text(tipo_placa, exact=True).first.click()
 
-        escribir_verificado(cot, cot.locator('#id'), self.tomador.dni, delay=60)
+        escribir_verificado(cot, cot.locator('#id'), self.documento_portal, delay=60)
         escribir_verificado(cot, cot.locator('#placa'), self.placa_portal, delay=60)
 
         validar = cot.get_by_role('button', name=re.compile(r'Validar', re.I)).first
