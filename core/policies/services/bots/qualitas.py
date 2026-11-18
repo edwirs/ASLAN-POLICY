@@ -62,6 +62,15 @@ logger = logging.getLogger(__name__)
 # varios montados a la vez, en distintos momentos, así que se cierran por ID
 # conocido en vez de "el primer modal visible" — que agarraba el equivocado).
 MODALES_HOME = ('modalBonos',)
+# Uso en «Origen y uso». Si la búsqueda del vehículo responde «Placa o código FASECOLDA no encontrado para este uso»
+# (modal #modalError01) es una camioneta: se vuelve a «Origen y uso» (Editar) y se elige «Pick ups personales».
+USO_PARTICULAR = 'Particular'
+USO_PICKUP = 'Pick ups personales'
+AVISO_NO_ENCONTRADO_USO = 'no encontrado para este uso'
+# «Editar» del paso «1. Origen y uso» en el panel de pasos de la izquierda: el contenedor más interno que tiene ese
+# título y un «Editar», sin el título del paso siguiente.
+XPATH_EDITAR_ORIGEN = ("xpath=//*[contains(normalize-space(.), 'Origen y uso') and not(contains(normalize-space(.), "
+                       "'Datos del veh')) and .//*[normalize-space(text())='Editar']]")
 # modalBannerDepartamentos: imagen promocional (2026-11) con data-backdrop="static" que tapaba «Origen y uso».
 MODALES_COTIZADOR = ('modalAvisoBonos', 'modalAcomCercano', 'modalBannerDepartamentos')
 
@@ -406,8 +415,45 @@ class QualitasBot(RegistroErrorMixin):
         aparición no es 100% predecible en el tiempo) — por eso el clic es
         resiliente y reintenta cerrando modales conocidos si lo bloquean."""
         click_resilient(page, 'Livianos', MODALES_COTIZADOR)
-        click_resilient(page, 'Particular', MODALES_COTIZADOR)
+        click_resilient(page, USO_PARTICULAR, MODALES_COTIZADOR)
         self._click_siguiente(page, 'Selecciona o busca los datos del vehículo')
+
+    def _cambiar_uso(self, page, uso):
+        """Vuelve a «Origen y uso» con su «Editar» (panel de pasos de la izquierda), elige `uso` y regresa a
+        «Datos del vehículo». El resto (Livianos) queda igual."""
+        logger.info('Qualitas: el vehículo no aparece como «%s»; se cambia el uso a «%s».', USO_PARTICULAR, uso)
+        contenedor = page.locator(XPATH_EDITAR_ORIGEN).last
+        editar = contenedor.get_by_text('Editar', exact=True).and_(page.locator(':visible')).first
+        if not contenedor.count() or not editar.count():
+            editar = page.get_by_text('Editar', exact=True).and_(page.locator(':visible')).first
+        editar.click(timeout=10000)
+        opcion = page.get_by_text(_accent_insensitive_pattern(uso)).and_(page.locator(':visible')).first
+        try:
+            opcion.wait_for(timeout=8000)
+        except PlaywrightTimeoutError:
+            click_resilient(page, 'Livianos', MODALES_COTIZADOR)  # por si «Livianos» quedó plegado
+        click_resilient(page, uso, MODALES_COTIZADOR)
+        self._click_siguiente(page, 'Selecciona o busca los datos del vehículo')
+
+    def _aviso_no_encontrado(self, page):
+        """Si está abierto el aviso «Placa o código FASECOLDA no encontrado para este uso», lo cierra y devuelve True."""
+        modal = page.locator('#modalError01')
+        try:
+            if not (modal.count() and modal.first.is_visible()):
+                return False
+            if AVISO_NO_ENCONTRADO_USO not in normalizar_texto(modal.first.inner_text(timeout=2000)):
+                return False
+            salir = modal.first.get_by_role('button', name=re.compile(r'^\s*Salir\s*$', re.I))
+            if salir.count():
+                salir.first.click(timeout=5000)
+            else:
+                close_known_modals(page, ('modalError01',), timeout=3000)
+            page.wait_for_timeout(800)
+            remove_stray_backdrops(page)
+            return True
+        except Exception:
+            logger.warning('Qualitas: no se pudo revisar el aviso de vehículo no encontrado.', exc_info=True)
+            return False
 
     def _datos_vehiculo(self, page):
         """Búsqueda por placa y captura de los datos que trae el portal.
@@ -420,35 +466,16 @@ class QualitasBot(RegistroErrorMixin):
         "Enter para buscar", así que se usa ese patrón en vez de adivinar
         un botón.
         """
-        campo_placa = page.get_by_label('Búsqueda por placa', exact=False).or_(
-            page.get_by_placeholder('Búsqueda por placa', exact=False)
-        ).first
-        # El tiempo que tarda en volverse visible tras "Origen y uso" varía
-        # bastante entre corridas (visto: a veces listo en segundos, a veces
-        # sigue oculto pasados 15s) — se le da más margen en vez de asumir
-        # que el paso anterior ya dejó todo renderizado.
-        campo_placa.wait_for(timeout=30000, state='visible')
-        campo_placa.fill(self.placa_portal)
-        if self.vehiculo.es_cero_km:
-            # Un 0 km no está registrado en Qualitas: buscar por placa responde «Placa o código FASECOLDA no
-            # encontrado». La placa de 0 km (`PLACA_CERO_KM`) solo se deja escrita (sin Enter) porque el campo es
-            # obligatorio, y el vehículo se busca por su código Fasecolda (el año se completa solo).
-            campo_placa.press('Tab')
-            self._buscar_por_fasecolda(page)
-        else:
-            campo_placa.press('Enter')
-
-        # "Fasecolda" ya está en pantalla como etiqueta de campo aunque la
-        # búsqueda no haya devuelto nada todavía, así que no sirve como señal
-        # de éxito. Se espera a que el combo "Año" deje de estar vacío.
-        campo_anio = page.get_by_label('Año', exact=False).first
-        for _ in range(20):
-            try:
-                if campo_anio.input_value(timeout=1000):
-                    break
-            except Exception:
-                pass
-            time.sleep(0.5)
+        if not self._buscar_vehiculo(page):
+            # «Placa o código FASECOLDA no encontrado para este uso»: es una camioneta (uso «Pick ups personales»).
+            self._cambiar_uso(page, USO_PICKUP)
+            if not self._buscar_vehiculo(page):
+                raise BotDatosError(
+                    'Qualitas no encontró el vehículo ni como «Particular» ni como «Pick ups personales»: «Placa o '
+                    'código FASECOLDA no encontrado para este uso».',
+                    accion='Revise la placa y el código Fasecolda de la solicitud. Si están bien, cotice este vehículo '
+                           'directamente en el portal de Qualitas (puede requerir otro tipo de vehículo).',
+                )
 
         def leer_select(selector):
             """Texto de la opción seleccionada de un <select>. Se leen por su id
@@ -560,6 +587,42 @@ class QualitasBot(RegistroErrorMixin):
             return page.get_by_text(patron).first.locator('xpath=..').locator('input:not([type="hidden"])').first
         except Exception:
             return None
+
+    def _buscar_vehiculo(self, page):
+        """Busca el vehículo (por placa o, si es 0 km, por Fasecolda). True si el portal lo trajo (el «Año» se llena);
+        False si respondió «… no encontrado para este uso» (el aviso queda cerrado)."""
+        campo_placa = page.get_by_label('Búsqueda por placa', exact=False).or_(
+            page.get_by_placeholder('Búsqueda por placa', exact=False)
+        ).first
+        # El tiempo que tarda en volverse visible tras "Origen y uso" varía
+        # bastante entre corridas (visto: a veces listo en segundos, a veces
+        # sigue oculto pasados 15s) — se le da más margen en vez de asumir
+        # que el paso anterior ya dejó todo renderizado.
+        campo_placa.wait_for(timeout=30000, state='visible')
+        campo_placa.fill(self.placa_portal)
+        if self.vehiculo.es_cero_km:
+            # Un 0 km no está registrado en Qualitas: buscar por placa responde «Placa o código FASECOLDA no
+            # encontrado». La placa de 0 km (`PLACA_CERO_KM`) solo se deja escrita (sin Enter) porque el campo es
+            # obligatorio, y el vehículo se busca por su código Fasecolda (el año se completa solo).
+            campo_placa.press('Tab')
+            self._buscar_por_fasecolda(page)
+        else:
+            campo_placa.press('Enter')
+
+        # "Fasecolda" ya está en pantalla como etiqueta de campo aunque la
+        # búsqueda no haya devuelto nada todavía, así que no sirve como señal
+        # de éxito. Se espera a que el combo "Año" deje de estar vacío.
+        campo_anio = page.get_by_label('Año', exact=False).first
+        for _ in range(20):
+            try:
+                if campo_anio.input_value(timeout=1000):
+                    return True
+            except Exception:
+                pass
+            if self._aviso_no_encontrado(page):
+                return False
+            time.sleep(0.5)
+        return not self._aviso_no_encontrado(page)
 
     def _buscar_por_fasecolda(self, page):
         """0 km: busca el vehículo por código Fasecolda (campo «Código Fasecolda (Enter para buscar)»)."""
