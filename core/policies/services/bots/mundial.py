@@ -245,30 +245,46 @@ class MundialBot(RegistroErrorMixin):
                 return
         raise BotPortalError('No se pudo escribir el valor esperado en un campo del portal tras varios intentos.')
 
-    def _elegir_en_select(self, page, indice, opcion, buscar=None):
+    def _elegir_en_select(self, page, indice, opcion, buscar=None, campo='este campo'):
         """Selector de Ant Design (nz-select) número `indice`: lo abre, opcionalmente busca y elige la opción cuyo
-        texto coincide (sin tildes) con `opcion` (función o texto)."""
+        texto coincide (sin tildes) con `opcion` (función o texto). `buscar` puede ser una lista de textos, del más
+        largo al más corto: el buscador del portal distingue tildes («Cajica» no encuentra «Cajicá»), así que si uno no
+        trae la opción se borra y se prueba el siguiente («Caji»)."""
         page.locator('nz-select').nth(indice).click()
         page.wait_for_timeout(500)
-        if buscar:
-            page.keyboard.type(buscar, delay=110)
-            page.wait_for_timeout(2200)
         opciones = page.locator('.ant-select-item-option')
-        for _ in range(10):
-            if opciones.count():
-                break
-            page.wait_for_timeout(500)
-        textos = [t.strip() for t in opciones.all_inner_texts()]
         coincide = opcion if callable(opcion) else (lambda t: normalizar_texto(t) == normalizar_texto(opcion))
-        for i, t in enumerate(textos):
-            if coincide(t):
-                opciones.nth(i).click()
+        terminos = ([buscar] if isinstance(buscar, str) else list(buscar or [])) or [None]
+        textos = []
+        for termino in terminos:
+            if termino:
+                page.keyboard.press('Control+a')
+                page.keyboard.press('Meta+a')
+                page.keyboard.press('Backspace')
+                page.keyboard.type(termino, delay=110)
+                page.wait_for_timeout(2200)
+            for _ in range(10):
+                if opciones.count():
+                    break
                 page.wait_for_timeout(500)
-                return t
+            textos = [t.strip() for t in opciones.all_inner_texts()]
+            for k, t in enumerate(textos):
+                if coincide(t):
+                    opciones.nth(k).click()
+                    page.wait_for_timeout(500)
+                    return t
+        buscado = f' buscando «{" / ".join(t for t in terminos if t)}»' if any(terminos) else ''
         raise BotDatosError(
-            f'Seguros Mundial no ofrece la opción esperada en este campo (opciones: {", ".join(textos[:8]) or "ninguna"}).',
+            f'Seguros Mundial no ofrece la opción esperada en {campo}{buscado} '
+            f'(opciones: {", ".join(textos[:8]) or "ninguna"}).',
             accion='Revise el dato en la solicitud y reenvíe a Seguros Mundial.',
         )
+
+    def _busquedas_zona(self):
+        """Textos para buscar la zona de circulación: los 6 primeros caracteres del municipio y, si no trae la opción,
+        4 y 3 (para dejar fuera la letra con tilde: «Cajica» → «Caji» encuentra «Cajicá»; «Chia» → «Chi», «Chía»)."""
+        municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
+        return list(dict.fromkeys(t for t in (municipio[:6], municipio[:4], municipio[:3]) if t))
 
     def _opcion_zona(self):
         """Función que reconoce, entre las opciones «Municipio - Departamento», la de la zona de circulación.
@@ -435,8 +451,7 @@ class MundialBot(RegistroErrorMixin):
                        'en la solicitud.',
             )
         self._escribir(page.locator('#modelo'), str(modelo), comparar='digitos')
-        municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
-        self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
+        self._elegir_en_select(page, 1, self._opcion_zona(), buscar=self._busquedas_zona(), campo='«Zona de circulación»')
 
         page.get_by_role('button', name=re.compile(r'COMENZAR COTIZACI', re.I)).click()
         cero_km_hecho = False
@@ -623,8 +638,7 @@ class MundialBot(RegistroErrorMixin):
         for i in range(calendarios.count()):
             self._elegir_fecha(page, self.tomador.birthdate, calendarios.nth(i))
             page.wait_for_timeout(400)
-        municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
-        self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
+        self._elegir_en_select(page, 1, self._opcion_zona(), buscar=self._busquedas_zona(), campo='la ciudad de residencia')
         self._datos_empresa(page)
         # Dirección, celular y correo de contacto: los de la empresa (contacto para los portales), nunca los del cliente.
         datos = self.contacto_portal()
