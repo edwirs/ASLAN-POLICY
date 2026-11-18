@@ -50,6 +50,10 @@ SEGUNDOS_PARA_CAPTCHA = 240
 SEGUNDOS_PARA_CODIGO = 300
 
 
+# Opción NIT de las listas «Tip. Doc. Tomador» y «Tip. Doc. Asegurado» (vista en el portal real el 2026-10-28).
+TIPO_NIT_MAPFRE = 'NIT (NT)'
+
+
 class MapfreBot(RegistroErrorMixin):
     """Cotiza en Mapfre. Uso: MapfreBot(cotizacion, headless=False).run()"""
 
@@ -391,6 +395,44 @@ class MapfreBot(RegistroErrorMixin):
             raise BotPortalError('Mapfre no cargó el área de trabajo (iFramePpal) del portal.')
         return marco
 
+    @property
+    def es_empresa(self):
+        return (self.tomador.document_type.abbreviation or '').upper() == 'NIT'
+
+    @property
+    def razon_social(self):
+        return ' '.join((self.tomador.names or '').split())
+
+    def _escribir_campo(self, page, marco, campo, valor, digitos=False):
+        """Reemplaza el texto de un campo del formulario, pasa al siguiente (Tab) y confirma que quedó."""
+        caja = marco.locator(f'[id="{campo}"]')
+        caja.click()
+        caja.press('Control+a')
+        caja.press('Meta+a')
+        caja.press('Backspace')
+        caja.press_sequentially(valor, delay=45)
+        caja.press('Tab')
+        self._esperar_portal(page, marco)
+        page.wait_for_timeout(1000)
+        actual = caja.input_value()
+        if (re.sub(r'\D', '', actual) != re.sub(r'\D', '', valor)) if digitos else (' '.join(actual.split()).upper() != valor.upper()):
+            raise BotPortalError(f'Mapfre no dejó escrito el dato esperado en el campo {campo}.')
+
+    def _tomador_empresa(self, page, marco):
+        """Tomador NIT: el «Nro. Id. Tomador» que trae Mapfre del RUNT debe ser el NIT registrado en la plataforma; si es
+        otro, se pone el nuestro (tipo «NIT (NT)»). Si con eso Mapfre no trae el nombre, va la razón social."""
+        nit = self.documento_portal
+        traido = re.sub(r'\D', '', marco.locator('[id="COD_DOCUM"]').input_value())
+        if traido in (nit, nit + (self.tomador.dv or '')) or (len(traido) == len(nit) + 1 and traido.startswith(nit)):
+            return  # mismo NIT (con o sin dígito de verificación)
+        logger.info('Mapfre: el tomador del RUNT no es el NIT registrado; se escribe el de la plataforma.')
+        nombre_antes = marco.locator('[id="NOM_TERCERO"]').input_value().strip()
+        self._elegir(page, marco, 'TIP_DOCUM', TIPO_NIT_MAPFRE)
+        self._escribir_campo(page, marco, 'COD_DOCUM', nit, digitos=True)
+        nombre = marco.locator('[id="NOM_TERCERO"]').input_value().strip()
+        if not nombre or nombre == nombre_antes:
+            self._escribir_campo(page, marco, 'NOM_TERCERO', self.razon_social)
+
     def _elegir(self, page, marco, campo, texto, obligatorio=True):
         """Lista de PrimeFaces (selectOneMenu): se abre, se filtra si tiene buscador y se pulsa la opción."""
         marco.locator(f'[id="{campo}"]').click()
@@ -470,17 +512,23 @@ class MapfreBot(RegistroErrorMixin):
                                  + (f': «{mensajes[0]}»' if mensajes else '.'))
 
         self._elegir(page, marco, 'COD_NIVEL3', self.parametro('oficina'))
+        if self.es_empresa:
+            self._tomador_empresa(page, marco)
+            self._elegir(page, marco, 'TIP_DOCUM_ASEG', TIPO_NIT_MAPFRE)
         asegurado = marco.locator('[id="COD_DOCUM_ASEG"]')
         asegurado.click()
         asegurado.press_sequentially(self.documento_portal, delay=50)
         asegurado.press('Tab')
         self._esperar_portal(page, marco)
         page.wait_for_timeout(2000)
+        if self.es_empresa:
+            # Nombre Asegurado = la razón social registrada en la plataforma, no la que traiga Mapfre.
+            self._escribir_campo(page, marco, 'NOM_TERCERO_ASEG', self.razon_social)
         genero = {'male': 'MASCULINO', 'female': 'FEMENINO'}.get(self.tomador.gender)
-        if genero:
+        if genero and not self.es_empresa:  # una empresa no tiene género (el campo puede quedar bloqueado)
             self._elegir(page, marco, 'MCA_SEXO', genero, obligatorio=False)
         nacimiento = marco.locator('[id="FEC_NACIMIENTO_input"]')
-        if self.tomador.birthdate and not nacimiento.input_value():
+        if self.tomador.birthdate and not nacimiento.input_value() and nacimiento.is_enabled():
             nacimiento.click()
             nacimiento.press_sequentially(self.tomador.birthdate.strftime('%d%m%Y'), delay=50)
             nacimiento.press('Tab')
