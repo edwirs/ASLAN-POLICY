@@ -62,6 +62,21 @@ NIVELES = ('NINGUNA', 'ESENCIAL', 'VIP', 'PLUS')
 
 # Tipo de documento del sistema (abreviatura) -> opción del combo del cotizador.
 DOCUMENTOS = {'CC': 'Cedula Ciudadanía', 'NIT': 'Nit'}
+# Tomador NIT: índices (entre todos los <input> del marco) de los campos visibles y vacíos cuya etiqueta habla de
+# razón social o nombre de la empresa. No se conoce aún el id del campo en el portal (2026-11-18).
+JS_CAMPOS_RAZON_SOCIAL = r"""() => {
+    const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const etiqueta = e => {
+        const l = (e.id && document.querySelector(`label[for="${e.id}"]`)) || (e.closest('.form-group, div') || {}).querySelector?.('label');
+        return ((l && l.innerText) || e.placeholder || e.name || e.id || '').trim();
+    };
+    const out = [];
+    document.querySelectorAll('input').forEach((e, i) => {
+        if (!vis(e) || e.readOnly || e.disabled || e.value || !['text', ''].includes(e.type)) return;
+        if (/raz[oó]n\s*social|business\s*name|company\s*name|companyname|razonsocial|nombre\s+(de\s+la\s+)?empresa/i.test(etiqueta(e))) out.push(i);
+    });
+    return out;
+}"""
 
 # Nombre del departamento (normalizado) -> opción de «Zona de circulación» cuando difiere.
 ZONAS_ABREVIADAS = {
@@ -472,21 +487,59 @@ class AxaColpatriaBot(RegistroErrorMixin):
         self._elegir_en_combo(page, 'People_IdDocumentType', opcion_documento)
 
         marco.locator('#People_DocumentNumber:visible').first.fill(self.documento_portal)
+        es_empresa = abreviatura == 'NIT'
+        page.wait_for_timeout(1500)  # con NIT el formulario cambia (razón social en lugar de género y nacimiento)
         etiqueta_genero = 'MASCULINO' if (self.tomador.gender or 'male') == 'male' else 'FEMENINO'
-        marco.locator('label:visible', has_text=etiqueta_genero).first.click()
-        fecha = marco.locator('#People_BirthDate:visible').first
-        fecha.fill(self.tomador.birthdate.strftime('%Y/%m/%d'))  # formato del portal: año/mes/día
-        fecha.dispatch_event('change')
-        fecha.press('Tab')
-        page.keyboard.press('Escape')
+        genero = marco.locator('label:visible', has_text=etiqueta_genero)
+        if genero.count() or not es_empresa:
+            genero.first.click()
+        fecha = marco.locator('#People_BirthDate:visible')
+        if fecha.count() or not es_empresa:
+            fecha = fecha.first
+            fecha.fill(self.tomador.birthdate.strftime('%Y/%m/%d'))  # formato del portal: año/mes/día
+            fecha.dispatch_event('change')
+            fecha.press('Tab')
+            page.keyboard.press('Escape')
+        if es_empresa:
+            self._razon_social(page)
 
         cero_km = 'SI' if self.vehiculo.es_cero_km else 'NO'
         marco.locator('label:visible', has_text=re.compile(rf'^\s*{cero_km}\s*$')).first.click()
         marco.locator('#VehiculeData_Plaque:visible').first.fill(self.placa_portal)
         self._rellenar_email(page)
 
-        marco.locator('#btnContinuar:visible').first.click()
+        self._pulsar_continuar(page, 'Datos personales y placa')
         self._esperar_vehiculo(page, 'Datos personales y placa')
+
+    def _razon_social(self, page):
+        """Tomador NIT: si el portal pide la razón social (o el nombre) y viene vacía, va la registrada en la solicitud."""
+        marco = self._marco(page)
+        razon = ' '.join((self.tomador.names or '').split()).upper()
+        indices = marco.evaluate(JS_CAMPOS_RAZON_SOCIAL) or []
+        for i in indices:
+            campo = marco.locator('input').nth(i)
+            campo.fill(razon)
+            campo.dispatch_event('change')
+        if indices:
+            logger.info('AXA Colpatria: se escribió la razón social del tomador NIT.')
+
+    def _pulsar_continuar(self, page, paso, espera=15):
+        """«Continuar» del formulario. Si sigue deshabilitado (falta algún dato) no se insiste en el clic: se dice qué
+        campos quedaron vacíos o inválidos."""
+        marco = self._marco(page)
+        boton = marco.locator('#btnContinuar:visible').first
+        for _ in range(espera):
+            if 'disabled' not in (boton.get_attribute('class') or '') and boton.is_enabled():
+                boton.click()
+                return
+            page.wait_for_timeout(1000)
+        faltan = self._avisos_formulario(marco)
+        raise BotDatosError(
+            f'AXA Colpatria dejó deshabilitado «Continuar» en el paso «{paso}»: falta o es inválido algún dato'
+            + (f' ({"; ".join(faltan)}).' if faltan else '.'),
+            accion='Revise los datos del tomador en la solicitud (para una empresa, la razón social) y reenvíe. Si se '
+                   'repite, avise a soporte con este mensaje: el portal puede pedir un campo nuevo.',
+        )
 
     def _rellenar_email(self, page):
         """Si el portal pide el correo (personas que no conoce), va el de la empresa (contacto para los portales); el del
