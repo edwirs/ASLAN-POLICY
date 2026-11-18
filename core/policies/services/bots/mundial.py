@@ -11,8 +11,8 @@ Flujo (mapeado con una sesión real exploratoria, no a ciegas):
      comercial, y luego un segundo modal pide el código Fasecolda.
   4. Información del vehículo: se captura (modelo, marca, clase, tipo, color, motor, chasis, serie, valor comercial,
      código Fasecolda y combustible) y se confirma con SI.
-  5. Información del propietario: género, fecha de nacimiento (calendario), ciudad de residencia, y datos fijos de
-     contacto; se marcan las dos autorizaciones y los canales E-mail y WhatsApp.
+  5. Información del propietario: género, fechas de nacimiento (propietario y conductor, calendarios), ciudad de
+     residencia y datos fijos de contacto; se marcan las dos autorizaciones y los canales E-mail y WhatsApp.
   6. Coberturas básicas y adicionales: se deja todo como viene y se continúa.
   7. Resumen: se captura hasta cuándo vale la cotización y el valor de «Pago de contado» (= TOTAL A PAGAR).
 
@@ -514,9 +514,10 @@ class MundialBot(RegistroErrorMixin):
                 self.cotizacion.valor_asegurado = precio
                 self.cotizacion.save(update_fields=['valor_asegurado'])
 
-    def _elegir_fecha(self, page, fecha):
+    def _elegir_fecha(self, page, fecha, campo):
         """Calendario de Ant Design: año (por décadas) › mes › día. El campo no admite teclear."""
-        campo = page.locator('input[placeholder="Seleccionar fecha"]')
+        if campo.input_value() == fecha.isoformat():
+            return
         campo.click()
         panel = page.locator('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)').last
         panel.locator('.ant-picker-header-year-btn').click(timeout=10000)
@@ -540,13 +541,36 @@ class MundialBot(RegistroErrorMixin):
                       has_text=re.compile(rf'^\s*{fecha.day}\s*$')).first.click(timeout=8000)
         page.wait_for_timeout(700)
         if campo.input_value() != fecha.isoformat():
-            raise BotPortalError('Seguros Mundial no dejó registrada la fecha de nacimiento del tomador en el calendario.')
+            raise BotPortalError(f'Seguros Mundial no dejó registrada la fecha de nacimiento {self._nombre_fecha(campo)} en el calendario.')
+
+    @staticmethod
+    def _nombre_fecha(campo):
+        """«del propietario», «del conductor»…: según el contenedor del calendario (#fnReprPropietario,
+        #fechaNacimientoConductorPropietario)."""
+        try:
+            contenedor = campo.evaluate("e => (e.closest('[id]') || {}).id || ''").lower()
+        except Exception:
+            contenedor = ''
+        if 'conductor' in contenedor:
+            return 'del conductor'
+        if 'repr' in contenedor:
+            return 'del propietario o representante'
+        return 'del tomador'
 
     def _informacion_propietario(self, page):
         page.locator('#direccionPropietario').wait_for(timeout=40000)
         etiqueta_genero = 'Hombre' if (self.tomador.gender or 'male') == 'male' else 'Mujer'
         page.locator('.alz-cont-radios', has_text=etiqueta_genero).locator('label.alz-radio').first.click()
-        self._elegir_fecha(page, self.tomador.birthdate)
+        # Fechas de nacimiento: Mundial pasó de un calendario a dos (propietario o representante, #fnReprPropietario, y
+        # conductor, #fechaNacimientoConductorPropietario). Se llenan todos los visibles con la fecha del tomador.
+        if not self.tomador.birthdate:
+            raise BotDatosError('Falta la fecha de nacimiento del tomador para Seguros Mundial.',
+                                accion='Escríbala en la solicitud (datos del tomador) y reenvíe a Seguros Mundial.')
+        calendarios = page.locator('input[placeholder="Seleccionar fecha"]:visible')
+        calendarios.first.wait_for(timeout=15000)
+        for i in range(calendarios.count()):
+            self._elegir_fecha(page, self.tomador.birthdate, calendarios.nth(i))
+            page.wait_for_timeout(400)
         municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
         # Dirección, celular y correo de contacto: los de la empresa (contacto para los portales), nunca los del cliente.
