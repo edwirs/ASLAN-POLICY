@@ -404,9 +404,15 @@ class RegistroErrorMixin:
     def documento_portal(self):
         """Número de documento del tomador que se escribe en los portales: un NIT va SIN el dígito de verificación
         (los cotizadores solo aceptan los 9 números), aunque el cliente se haya guardado con el dígito pegado
-        («900123456-7»: La Equidad y Seguros Mundial no dejaban escribirlo)."""
-        from core.policies.services.clientes import normalizar_documento  # import local: evita ciclo al cargar
-        return normalizar_documento(self.tomador.document_type, self.tomador.dni, self.tomador.dv)[0]
+        («900123456-7»: La Equidad y Seguros Mundial no dejaban escribirlo).
+        Se calcula una vez en el schema de la empresa: dentro de sync_playwright la conexión queda en «public» y leer
+        ahí el tipo de documento fallaba («relation "pos_documenttype" does not exist», Mapfre)."""
+        if getattr(self, '_documento_portal', None) is None:
+            from core.policies.services.clientes import normalizar_documento  # import local: evita ciclo al cargar
+            with schema_context(self.schema_name):
+                self._documento_portal = normalizar_documento(self.tomador.document_type, self.tomador.dni,
+                                                              self.tomador.dv)[0]
+        return self._documento_portal
 
     @property
     def placa_portal(self):
