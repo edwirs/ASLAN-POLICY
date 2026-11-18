@@ -83,6 +83,7 @@ class QualitasBot(RegistroErrorMixin):
         # Dentro de sync_playwright Django usa otra conexión (schema public): el
         # bloque de Playwright re-entra a este schema para poder escribir en la BD.
         self.schema_name = connection.schema_name
+        self._precargar_relaciones()
 
     def _get_credencial(self):
         credencial = self.cotizacion.aseguradora.credenciales.filter(is_active=True).order_by('-id').first()
@@ -639,25 +640,34 @@ class QualitasBot(RegistroErrorMixin):
             else:
                 campo.fill(valor, timeout=timeout)
 
-        # Contacto de la empresa (contacto para los portales), nunca el del cliente.
-        datos = self.contacto_portal()
-        if not datos['correo'] or not datos['celular']:
-            raise BotDatosError('Falta el correo o el celular de contacto de la empresa para Qualitas.',
-                                accion='Complételos en Configuraciones › Aseguradoras › «Contacto para los portales» y reenvíe.')
-        # El formulario se arma por partes: visto el 2026-11-18 que se quedó en «Valor Asegurado Min. … - Max.» sin
-        # mostrar contacto ni asegurado por más de 20 s. Se le da más tiempo y, si no llega, se dice qué pasó.
-        contacto = page.get_by_text(_accent_insensitive_pattern('Correo electrónico')).and_(page.locator(':visible')).first
-        try:
-            contacto.wait_for(timeout=60000)
-        except PlaywrightTimeoutError:
+        def visible(label, timeout):
+            """Si el campo con esa etiqueta aparece (visible) en el paso: Qualitas va quitando campos del formulario."""
+            etiqueta = page.get_by_text(_accent_insensitive_pattern(label)).and_(page.locator(':visible')).first
+            try:
+                etiqueta.wait_for(timeout=timeout)
+                return True
+            except PlaywrightTimeoutError:
+                return False
+
+        # El formulario se arma por partes; «tipo de persona» es lo único que siempre trae (el 2026-11-18 el correo y el
+        # teléfono de contacto ya no aparecían). Si en un minuto no llega, se dice qué pasó.
+        if not visible('tipo de persona es el asegurado', 60000):
             raise BotPortalError(
-                'Qualitas no terminó de cargar «Datos de cotización»: el formulario se quedó en el rango del valor '
-                'asegurado y en un minuto no mostró los datos de contacto ni los del asegurado.',
+                'Qualitas no terminó de cargar «Datos de cotización»: en un minuto no mostró los datos del asegurado.',
                 accion='Suele ser lentitud del portal de Qualitas: reenvíe la solicitud. Si se repite con el mismo '
                        'vehículo, avise a soporte (el bot guardó la foto de la pantalla).',
             )
-        llenar_lento('Correo electrónico', datos['correo'])
-        llenar_lento('Teléfono móvil', datos['celular'])
+
+        # Contacto de la empresa (contacto para los portales), nunca el del cliente. Solo si el portal aún lo pide.
+        if visible('Correo electrónico', 2000) or visible('Teléfono móvil', 1000):
+            datos = self.contacto_portal()
+            if not datos['correo'] or not datos['celular']:
+                raise BotDatosError('Falta el correo o el celular de contacto de la empresa para Qualitas.',
+                                    accion='Complételos en Configuraciones › Aseguradoras › «Contacto para los portales» y reenvíe.')
+            if visible('Correo electrónico', 1000):
+                llenar_lento('Correo electrónico', datos['correo'])
+            if visible('Teléfono móvil', 1000):
+                llenar_lento('Teléfono móvil', datos['celular'])
 
         # El <select id="selectTypePerson"> real solo tiene las opciones
         # "Natural" / "Jurídica" (no "Persona Natural"/"Persona Jurídica" —
@@ -667,15 +677,18 @@ class QualitasBot(RegistroErrorMixin):
 
         llenar_lento('Nombre de asegurado', self.tomador.names)
 
+        # Género y fecha de nacimiento: aparecen (o no) después de elegir el tipo de persona.
         genero_label = GENERO_LABEL.get(self.tomador.gender)
-        if genero_label:
+        if genero_label and visible('Género', 4000):
             try:
                 select_generic(page, 'Género', genero_label, timeout=5000)
             except Exception:
                 pass  # el campo puede no habilitarse en todos los casos (ej. persona jurídica)
 
-        fecha_nacimiento = self.tomador.birthdate.strftime('%d/%m/%Y')
-        llenar_lento('Fecha de nacimiento', fecha_nacimiento, escribir_real=True)
+        if self.tomador.birthdate and visible('Fecha de nacimiento', 4000):
+            llenar_lento('Fecha de nacimiento', self.tomador.birthdate.strftime('%d/%m/%Y'), escribir_real=True)
+        else:
+            logger.info('Qualitas: «Datos de cotización» no pidió fecha de nacimiento.')
 
         self._click_siguiente(page, 'Asistencia en viaje')
 
