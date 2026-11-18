@@ -69,6 +69,7 @@ class MapfreBot(RegistroErrorMixin):
         # Dentro de sync_playwright Django usa otra conexión (schema public): el trabajador de la sesión compartida
         # construye el bot ahí dentro, por eso puede pasar el schema explícito.
         self.schema_name = schema_name or connection.schema_name
+        self._precargar_relaciones()
 
     def _get_credencial(self):
         credencial = self.cotizacion.aseguradora.credenciales.filter(is_active=True).order_by('-id').first()

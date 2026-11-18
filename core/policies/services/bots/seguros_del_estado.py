@@ -66,6 +66,7 @@ class SegurosDelEstadoBot(RegistroErrorMixin):
         # Dentro de sync_playwright Django usa otra conexión (schema public): el
         # bloque de Playwright re-entra a este schema para poder escribir en la BD.
         self.schema_name = connection.schema_name
+        self._precargar_relaciones()
 
     def _get_credencial(self):
         credencial = self.cotizacion.aseguradora.credenciales.filter(is_active=True).order_by('-id').first()

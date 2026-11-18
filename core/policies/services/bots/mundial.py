@@ -126,6 +126,7 @@ class MundialBot(RegistroErrorMixin):
         # Dentro de sync_playwright Django usa otra conexión (schema public):
         # toda escritura a BD desde un paso del bot re-entra a este schema.
         self.schema_name = connection.schema_name
+        self._precargar_relaciones()
         self._credenciales_enviadas = False
 
     def _get_credencial(self):

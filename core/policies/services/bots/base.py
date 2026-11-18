@@ -400,6 +400,19 @@ class RegistroErrorMixin:
                 self._contacto_portal = contacto(getattr(self, 'credencial', None), self.cotizacion.aseguradora.name)
         return self._contacto_portal
 
+    def _precargar_relaciones(self):
+        """Llamar al final del __init__ de cada bot (allí la conexión aún está en el schema de la empresa). Deja cargados
+        el tipo de documento, la zona de circulación y los municipios con su departamento: dentro de sync_playwright la
+        conexión queda en «public» y leerlos ahí fallaba («relation "pos_municipio" does not exist», Mapfre)."""
+        with schema_context(self.schema_name):
+            zona = self.vehiculo.zona_circulacion
+            if zona is not None:
+                zona.departamento
+            self.tomador.document_type
+            if self.tomador.municipality_id:
+                self.tomador.municipality.departamento
+            self.cotizacion.aseguradora
+
     @property
     def documento_portal(self):
         """Número de documento del tomador que se escribe en los portales: un NIT va SIN el dígito de verificación
