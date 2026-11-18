@@ -35,7 +35,6 @@ from core.policies.services.bots.base import (  # noqa: E402
     BotAutenticacionError,
     BotCancelado,
     BotDatosError,
-    BotNoCotizableError,
     BotPortalError,
     BotTimeout,
     RegistroErrorMixin,
@@ -82,6 +81,8 @@ MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto
 # 2026-11-17): Cédula de Ciudadanía, Cédula de extranjería, Pasaporte, Tarjeta de Identidad y Registro Civil. No hay NIT:
 # HDI no cotiza autos a nombre de una empresa por este cotizador.
 DOCUMENTOS_HDI = ('CC', 'CE', 'PA', 'TI', 'RC')
+# Tomador NIT: HDI no cotiza empresas, así que se cotiza a nombre del PROPIETARIO de la empresa (cédula y nombre que la
+# solicitud pide cuando el tomador es NIT), con tipo «Cédula de Ciudadanía».
 
 
 class HdiBot(RegistroErrorMixin):
@@ -242,7 +243,7 @@ class HdiBot(RegistroErrorMixin):
         try:
             page.get_by_text('Productos', exact=True).first.wait_for(timeout=25000)
         except PlaywrightTimeoutError:
-            raise BotAutenticacionError('No se pudo iniciar sesión en HDI: después de ingresar no apareció el menú principal (¿contraseña vencida o cuenta bloqueada?).')
+            raise BotAutenticacionError('No se pudo iniciar sesión en HDI: después de ingresar no apareció el menú principal (revise la contraseña guardada y si la cuenta está bloqueada).')
 
     def _tipo_placa_mostrado(self, cot):
         """Texto que muestra la lista «Tipo de placa» (la opción elegida), o '' si no se pudo leer."""
@@ -299,15 +300,41 @@ class HdiBot(RegistroErrorMixin):
         cotizador.get_by_text('Nueva cotización').first.wait_for(timeout=40000)
         return cotizador
 
+    @property
+    def es_empresa(self):
+        return (self.tomador.document_type.abbreviation or '').upper() == 'NIT'
+
+    @property
+    def abreviatura_portal(self):
+        """Tipo de documento con que se cotiza en HDI: el del tomador, o CC (la del propietario) si es NIT."""
+        return 'CC' if self.es_empresa else (self.tomador.document_type.abbreviation or '').upper()
+
+    @property
+    def documento_portal(self):
+        """NIT: la cédula del propietario de la empresa (solo números). Si no, el documento del tomador."""
+        if self.es_empresa:
+            return re.sub(r'\D', '', self.tomador.propietario_documento or '')
+        return super().documento_portal
+
+    @property
+    def nombre_persona(self):
+        """Nombre con que se cotiza: el del propietario de la empresa si el tomador es NIT."""
+        if self.es_empresa:
+            return ' '.join((self.tomador.propietario_nombre or '').split())
+        return self.tomador.names
+
     def _validar_documento(self):
         abreviatura = (self.tomador.document_type.abbreviation or '').upper()
-        if abreviatura == 'NIT':
-            raise BotNoCotizableError(
-                'HDI no cotiza a nombre de una empresa (NIT): su cotizador solo acepta cédula de ciudadanía, cédula de '
-                'extranjería, pasaporte, tarjeta de identidad y registro civil.',
-                accion='Si el vehículo es de una empresa, solicite la cotización a HDI por su canal comercial; para este '
-                       'caso las demás aseguradoras sí se cotizan.',
-            )
+        if self.es_empresa:
+            faltan = [n for n, v in (('la cédula', self.documento_portal), ('el nombre', self.nombre_persona)) if not v]
+            if faltan:
+                raise BotDatosError(
+                    'HDI no cotiza a nombre de una empresa (NIT): se cotiza con la cédula y el nombre del propietario, '
+                    f'y en la solicitud falta {" y ".join(faltan)} del propietario de la empresa.',
+                    accion='En la solicitud (tomador con NIT) escriba «Cédula del propietario» y «Nombre del propietario '
+                           'de la empresa» y reenvíe a HDI.',
+                )
+            return
         if abreviatura not in DOCUMENTOS_HDI:
             raise BotDatosError(
                 f'HDI no ofrece el tipo de documento «{self.tomador.document_type.name}» en su cotizador (solo cédula de '
@@ -320,8 +347,7 @@ class HdiBot(RegistroErrorMixin):
         cot.get_by_text('Nueva cotización').first.click()
         cot.locator('#id').wait_for(timeout=20000)
 
-        abreviatura = (self.tomador.document_type.abbreviation or '').upper()
-        if abreviatura != 'CC':
+        if self.abreviatura_portal != 'CC':
             # HDI abre en "Cédula de Ciudadanía"; para otros tipos se elige por nombre.
             cot.locator('button[name="idType"]').click()
             nombre_tipo = self.tomador.document_type.name
@@ -589,7 +615,7 @@ class HdiBot(RegistroErrorMixin):
         llena lo que HDI no trae ya cargado/bloqueado."""
         nombre = cot.locator('input[name="primerNombrePersona"]')
         nombre.wait_for(timeout=40000)
-        primer_nombre, primer_apellido = dividir_nombre(self.tomador.names)
+        primer_nombre, primer_apellido = dividir_nombre(self.nombre_persona)
         apellido = cot.locator('input[name="primerApellidoPersona"]')
         for campo, valor in ((nombre, primer_nombre), (apellido, primer_apellido)):
             if campo.is_enabled() and not campo.input_value():
