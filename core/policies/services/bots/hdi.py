@@ -82,8 +82,16 @@ MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto
 # 2026-11-17): Cédula de Ciudadanía, Cédula de extranjería, Pasaporte, Tarjeta de Identidad y Registro Civil. No hay NIT:
 # HDI no cotiza autos a nombre de una empresa por este cotizador.
 DOCUMENTOS_HDI = ('CC', 'CE', 'PA', 'TI', 'RC')
-# Aviso con que HDI rechaza en la validación un vehículo que ya tiene póliza (vista en el portal real el 2026-11-18).
-AVISO_NO_COTIZABLE_HDI = re.compile(r'Este veh[ií]culo no puede ser cotizado[^\n]*', re.I)
+# Avisos con que HDI rechaza el caso en la validación (vistos en el portal real el 2026-11-18): son reglas de HDI, no
+# fallas. (patrón, qué hacer).
+AVISOS_NO_COTIZABLE_HDI = (
+    (re.compile(r'Este veh[ií]culo no puede ser cotizado[^\n]*', re.I),
+     'El vehículo ya tiene en HDI una póliza vigente o en trámite (puede ser de otro intermediario). Las demás '
+     'aseguradoras sí se cotizan.'),
+    (re.compile(r'Riesgo fuera de pol[ií]ticas[^\n]*(?:\n\s*Los datos que ingresaste[^\n]*)?', re.I),
+     'HDI no asegura este vehículo o esta persona según sus políticas de suscripción (no dice el motivo). Las demás '
+     'aseguradoras sí se cotizan.'),
+)
 # Tomador NIT: HDI no cotiza empresas, así que se cotiza a nombre del PROPIETARIO de la empresa (cédula y nombre que la
 # solicitud pide cuando el tomador es NIT), con tipo «Cédula de Ciudadanía».
 
@@ -399,15 +407,11 @@ class HdiBot(RegistroErrorMixin):
             cuerpo = cot.evaluate('document.body.innerText')
             if 'fueron validados con éxito' in cuerpo:
                 break
-            aviso = AVISO_NO_COTIZABLE_HDI.search(cuerpo)
-            if aviso:
-                # Regla de HDI, no una falla: «Este vehículo no puede ser cotizado, actualmente cuenta con una póliza
-                # en proceso o vigente».
-                raise BotNoCotizableError(
-                    f'HDI no cotiza este vehículo: «{" ".join(aviso.group(0).split()).rstrip(".")}».',
-                    accion='El vehículo ya tiene en HDI una póliza vigente o en trámite (puede ser de otro '
-                           'intermediario). Las demás aseguradoras sí se cotizan.',
-                )
+            for patron, accion in AVISOS_NO_COTIZABLE_HDI:
+                aviso = patron.search(cuerpo)
+                if aviso:
+                    raise BotNoCotizableError(
+                        f'HDI no cotiza este caso: «{" ".join(aviso.group(0).split()).rstrip(".")}».', accion=accion)
             cot.wait_for_timeout(1000)
         else:
             raise BotPortalError(
