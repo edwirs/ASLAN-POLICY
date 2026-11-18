@@ -12,7 +12,7 @@ Flujo (mapeado con una sesión real exploratoria, no a ciegas):
   4. Información del vehículo: se captura (modelo, marca, clase, tipo, color, motor, chasis, serie, valor comercial,
      código Fasecolda y combustible) y se confirma con SI.
   5. Información del propietario: género, fechas de nacimiento (propietario y conductor, calendarios), ciudad de
-     residencia y datos fijos de contacto; se marcan las dos autorizaciones y los canales E-mail y WhatsApp.
+     residencia, representante legal y conductor si es empresa (NIT), y datos fijos de contacto; se marcan las dos autorizaciones y los canales E-mail y WhatsApp.
   6. Coberturas básicas y adicionales: se deja todo como viene y se continúa.
   7. Resumen: se captura hasta cuándo vale la cotización y el valor de «Pago de contado» (= TOTAL A PAGAR).
 
@@ -74,6 +74,28 @@ DOCUMENTOS = {
 # Datos fijos que el negocio pide para TODAS las cotizaciones (la credencial puede traer los suyos).
 
 MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+# Empresa (NIT): en «Información del propietario» Mundial pide además el representante legal (nombre y número de
+# documento) y el conductor («Nombre Completo»). Se llenan con la cédula y el nombre del propietario de la empresa que
+# trae la solicitud. Etiqueta del campo -> dato.
+CAMPOS_EMPRESA = (
+    (re.compile(r'nombre\s+del\s+representante', re.I), 'nombre'),
+    (re.compile(r'^\s*n[uú]mero\s+de\s+documento', re.I), 'documento'),
+    (re.compile(r'^\s*nombre\s+completo', re.I), 'nombre'),
+)
+# Campos de texto visibles y vacíos con su etiqueta (índice entre TODOS los <input> de la página, para `nth`).
+JS_CAMPOS_VACIOS = """() => {
+    const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const out = [];
+    document.querySelectorAll('input').forEach((e, i) => {
+        if (!vis(e) || e.readOnly || e.disabled || e.value || !['text', 'tel', 'number', ''].includes(e.type)) return;
+        const lab = (e.id && document.querySelector(`label[for="${e.id}"]`))
+            || (e.parentElement && e.parentElement.querySelector('label'));
+        const etiqueta = ((lab ? lab.innerText : '') || e.placeholder || '').replace(/[\\s*]+/g, ' ').trim();
+        if (etiqueta) out.push({i, etiqueta});
+    });
+    return out;
+}"""
 
 ETIQUETAS_VEHICULO = ('Modelo', 'Marca', 'Clase', 'Tipo', 'Color', 'Motor', 'Chasis', 'Serie', 'Valor comercial',
                       'Zona de circulación', 'Código fasecolda', 'Tipo de combustible')
@@ -557,6 +579,35 @@ class MundialBot(RegistroErrorMixin):
             return 'del propietario o representante'
         return 'del tomador'
 
+    def _datos_empresa(self, page):
+        """Tomador NIT: representante legal y conductor con la cédula y el nombre del propietario de la empresa."""
+        if not re.search(r'\bNIT\b', self.tomador.document_type.name or '', re.I):
+            return
+        pendientes = [(c, dato) for c in (page.evaluate(JS_CAMPOS_VACIOS) or [])
+                      for patron, dato in CAMPOS_EMPRESA if patron.search(c['etiqueta'])]
+        if not pendientes:
+            return
+        valores = {
+            'nombre': ' '.join((self.tomador.propietario_nombre or '').split()),
+            'documento': re.sub(r'\D', '', self.tomador.propietario_documento or ''),
+        }
+        faltan = sorted({dato for _, dato in pendientes if not valores[dato]})
+        if faltan:
+            raise BotDatosError(
+                'Seguros Mundial pide para una empresa el representante legal y el conductor, y en la solicitud falta '
+                + ' y '.join({'nombre': 'el nombre', 'documento': 'la cédula'}[d] for d in faltan)
+                + ' del propietario de la empresa.',
+                accion='En la solicitud (tomador con NIT) escriba «Cédula del propietario» y «Nombre del propietario '
+                       'de la empresa» y reenvíe a Seguros Mundial.',
+            )
+        vistos = set()
+        for campo, dato in pendientes:
+            if campo['i'] in vistos:
+                continue
+            vistos.add(campo['i'])
+            self._escribir(page.locator('input').nth(campo['i']), valores[dato],
+                           comparar='digitos' if dato == 'documento' else 'texto')
+
     def _informacion_propietario(self, page):
         page.locator('#direccionPropietario').wait_for(timeout=40000)
         etiqueta_genero = 'Hombre' if (self.tomador.gender or 'male') == 'male' else 'Mujer'
@@ -573,6 +624,7 @@ class MundialBot(RegistroErrorMixin):
             page.wait_for_timeout(400)
         municipio = nombre_para_portal(self.vehiculo.zona_circulacion.nombre)
         self._elegir_en_select(page, 1, self._opcion_zona(), buscar=municipio[:6])
+        self._datos_empresa(page)
         # Dirección, celular y correo de contacto: los de la empresa (contacto para los portales), nunca los del cliente.
         datos = self.contacto_portal()
         contacto = (datos['direccion'], datos['celular'], datos['correo'])
