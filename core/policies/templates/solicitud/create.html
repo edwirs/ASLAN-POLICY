@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="{% static 'solicitud/css/create.css' %}?v=7">
     <link rel="stylesheet" href="{% static 'solicitud/css/proceso.css' %}?v=2">
     <script>window.PROCESO_URLS = {verificacion: "{% url 'solicitud_verificar_cotizacion' %}", valorManual: "{% url 'vehiculo_comparativo_valores' 0 %}", puedeValorManual: {{ perms.policies.add_valor_externo|yesno:'true,false' }}};</script>
-    <script src="{% static 'solicitud/js/proceso.js' %}?v=4"></script>
+    <script src="{% static 'solicitud/js/proceso.js' %}?v=5"></script>
     <script src="{% static 'solicitud/js/form.js' %}?v=9"></script>
 {% endblock %}
 
@@ -294,7 +294,7 @@
             <div class="modal-body aseg-modal-body">
                 <div class="cero-km-icon"><i class="fa-solid fa-building-shield"></i></div>
                 <h4 id="modalAseguradorasLabel">¿Con qué aseguradoras quieres cotizar?</h4>
-                <p class="text-muted mb-3">Todas las activas vienen seleccionadas (salvo las que piden cambiar la contraseña). Desmarca las que no quieras incluir en esta solicitud.</p>
+                <p class="text-muted mb-3">Todas las activas vienen seleccionadas, salvo Seguros del Estado (actívala si la quieres incluir) y las que piden cambiar la contraseña. Desmarca las que no quieras incluir en esta solicitud.</p>
                 {% if aseguradoras_activas %}
                     <div class="aseg-list" id="listaAseguradoras">
                         {% for aseguradora in aseguradoras_activas %}
@@ -308,7 +308,7 @@
                                 </span>
                                 <span class="form-check form-switch m-0">
                                     <input class="form-check-input aseg-switch" type="checkbox" role="switch"
-                                           id="aseg_{{ aseguradora.id }}" value="{{ aseguradora.id }}" {% if not aseguradora.clave_pendiente %}checked{% endif %}>
+                                           id="aseg_{{ aseguradora.id }}" value="{{ aseguradora.id }}" {% if not aseguradora.desmarcada %}checked{% endif %}>
                                 </span>
                             </label>
                         {% endfor %}

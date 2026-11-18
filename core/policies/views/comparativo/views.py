@@ -58,7 +58,7 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'correo_url': reverse('vehiculo_comparativo_correo', args=[vehiculo.pk]),
             'vehiculo_id': vehiculo.pk,
             'soat': soat(vehiculo),
-            'pendientes_valor_json': json.dumps(pendientes_de_valor(vehiculo, filas)).replace('<', '\\u003c'),
+            'pendientes_valor_json': json.dumps(pendientes_de_valor(vehiculo, resultado)).replace('<', '\\u003c'),
             'soat_url': reverse('vehiculo_comparativo_soat', args=[vehiculo.pk]),
             'poliza_vigente': vehiculo.polizas.filter(estado='generada', fecha_renovacion__gte=timezone.localdate())
                                             .select_related('aseguradora').order_by('-fecha_renovacion').first(),
@@ -161,6 +161,11 @@ class ComparativoValoresView(StrictPermissionMixin, View):
             if aseguradora_id in vistas:
                 return JsonResponse({'error': f'{aseguradora.name} está repetida: registra un solo valor por aseguradora'}, status=400)
             vistas.add(aseguradora_id)
+            if fila.get('sin_condiciones') in (True, 'true', '1', 1):
+                # Entró al portal y la aseguradora no cotizó (no tiene condiciones): se registra sin valor.
+                nuevos.append(ValorExterno(vehiculo=vehiculo, aseguradora=aseguradora, valor=None, sin_condiciones=True,
+                                           asesor=request.user))
+                continue
             valor = _leer_valor(fila.get('valor'))
             if valor is None:
                 return JsonResponse({'error': f'{aseguradora.name}: el valor debe ser un número mayor que cero'}, status=400)
@@ -330,7 +335,7 @@ class ComparativoValorManualView(StrictPermissionMixin, View):
         if actual is None:
             return JsonResponse({'error': 'Ese valor ya no existe: recargue el comparativo.'}, status=404)
         aseguradora = actual.aseguradora
-        anterior = dinero(actual.valor)
+        anterior = 'Sin condiciones' if actual.sin_condiciones else dinero(actual.valor)
         accion = request.POST.get('action')
         if accion == 'editar':
             valor = _leer_valor(request.POST.get('valor'))

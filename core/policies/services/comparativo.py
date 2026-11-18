@@ -64,13 +64,13 @@ def aseguradoras_valor_manual(vehiculo, filas=None):
             if a.name not in BOTS_DISPONIBLES or a.pk not in del_bot]
 
 
-def pendientes_de_valor(vehiculo, filas=None):
+def pendientes_de_valor(vehiculo, resultado=None):
     """Aseguradoras activas que no tienen NINGÚN valor en el comparativo (ni del bot ni registrado a mano): las sin bot
     que nadie ha informado y las con bot que fallaron o no se cotizaron (p. ej. un bot que no respondió y se olvidó
-    cotizar a mano). No incluye las que tienen el bot trabajando todavía. [{'id', 'nombre'}] en orden alfabético."""
+    cotizar a mano). No incluye las que tienen el bot trabajando todavía ni las marcadas «sin condiciones» a mano. [{'id', 'nombre'}] en orden alfabético."""
     from core.policies.services.proceso import EN_CURSO  # import local: evita ciclo al cargar el módulo
-    filas = construir(vehiculo)['filas'] if filas is None else filas
-    con_valor = {f['aseguradora_id'] for f in filas}
+    resultado = construir(vehiculo) if resultado is None else resultado
+    con_valor = {f['aseguradora_id'] for f in resultado['filas']} | resultado['sin_condiciones_ids']
     trabajando = {c.aseguradora_id for c in ultimas_por_aseguradora(vehiculo) if c.estado_bot in EN_CURSO}
     return [{'id': a.pk, 'nombre': a.name} for a in Aseguradora.objects.filter(is_active=True).order_by('name')
             if a.pk not in con_valor and a.pk not in trabajando]
@@ -115,9 +115,13 @@ def construir(vehiculo):
                 'valor': v.valor,
                 'origen': 'manual',
                 'fecha': v.created_at,
+                'sin_condiciones': v.sin_condiciones,
             }
 
-    filas = sorted(candidatas.values(), key=lambda f: (f['valor'], f['aseguradora']))
+    # «Sin condiciones» registrado a mano (el asesor entró al portal y no le dieron cotización): no compite por valor,
+    # se lista abajo con ese motivo y se puede quitar.
+    marcadas = sorted((f for f in candidatas.values() if f.get('sin_condiciones')), key=lambda f: f['aseguradora'])
+    filas = sorted((f for f in candidatas.values() if not f.get('sin_condiciones')), key=lambda f: (f['valor'], f['aseguradora']))
     minimo = filas[0]['valor'] if filas else Decimal('0')
     maximo = filas[-1]['valor'] if filas else Decimal('0')
     for posicion, fila in enumerate(filas, start=1):
@@ -134,7 +138,9 @@ def construir(vehiculo):
     # antes de que el cliente se cambiara con nosotros.
     poliza = (Poliza.objects.filter(vehiculo=vehiculo, estado='generada', fecha_renovacion__gte=timezone.localdate())
               .select_related('aseguradora').order_by('-created_at').first())
-    sin_valor = []
+    sin_valor = [{'aseguradora': f['aseguradora'], 'motivo': SIN_CONDICIONES, 'actual': False, 'manual': True,
+                  'valor_externo_id': f['valor_externo_id'], 'aseguradora_id': f['aseguradora_id']} for f in marcadas]
+    con_valor |= {f['aseguradora'] for f in marcadas}
     ultimas = {c.aseguradora.name: c for c in ultimas_por_aseguradora(vehiculo)}
     nombres_activos = {a.name for a in activas.values()}
     for nombre in BOTS_DISPONIBLES:
@@ -159,7 +165,8 @@ def construir(vehiculo):
         sin_valor.append({'aseguradora': nombre, 'motivo': motivo, 'actual': motivo == 'Aseguradora actual del vehículo'})
     sin_valor.sort(key=lambda s: not s['actual'])  # la aseguradora actual, primero
     actual = next((s['aseguradora'] for s in sin_valor if s['actual']), None) or (poliza.aseguradora.name if poliza else None)
-    return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual}
+    return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual,
+            'sin_condiciones_ids': {f['aseguradora_id'] for f in marcadas}}
 
 
 def _tono(texto):

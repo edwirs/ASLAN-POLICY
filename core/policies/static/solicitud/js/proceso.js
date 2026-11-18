@@ -226,7 +226,10 @@ var ProcesoCotizacion = (function () {
         if (!c.a_mano || !puedeAMano()) { return ''; }
         aMano[c.id] = c;
         var html = '<div class="pc-a-mano">';
-        if (c.a_mano.valor) {
+        if (c.a_mano.valor && c.a_mano.valor.sin_condiciones) {
+            html += '<div class="pc-a-mano-valor"><i class="fa-solid fa-ban"></i> <b>Sin condiciones</b>: la aseguradora no cotizó ' +
+                '<small>' + esc(c.a_mano.valor.fecha) + ' · ' + esc(c.a_mano.valor.por) + '</small></div>';
+        } else if (c.a_mano.valor) {
             var et = c.a_mano.etiquetas || ['Valor 1', 'Valor 2'], v = c.a_mano.valor;
             html += '<div class="pc-a-mano-valor"><i class="fa-solid fa-hand"></i> Cotizada a mano: ' +
                 (v.valor_2 ? esc(et[0]) + ' <b>' + dinero(v.valor) + '</b> · ' + esc(et[1]) + ' <b>' + dinero(v.valor_2) + '</b>'
@@ -234,7 +237,7 @@ var ProcesoCotizacion = (function () {
                 ' <small>' + esc(v.fecha) + ' · ' + esc(v.por) + '</small></div>';
         }
         html += '<button type="button" class="btn btn-sm btn-outline-primary pc-abrir-a-mano" data-id="' + c.id + '">' +
-            '<i class="fa-solid fa-hand-pointer"></i> ' + (c.a_mano.valor ? 'Corregir valor a mano' : 'Cotizar a mano en el portal') + '</button></div>';
+            '<i class="fa-solid fa-hand-pointer"></i> ' + (c.a_mano.valor ? 'Corregir a mano' : 'Cotizar a mano en el portal') + '</button></div>';
         return html;
     }
 
@@ -257,7 +260,10 @@ var ProcesoCotizacion = (function () {
             '<div class="input-group pc-am-valor"><span class="input-group-text">$</span><input type="text" inputmode="numeric" autocomplete="off" class="form-control pc-am-v2" placeholder="Ej: 1.450.000"></div></div>' +
             '</div>' +
             '<small class="text-muted">El <b class="pc-am-et1b">Valor 1</b> entra al comparativo, al correo y al PDF como valor «Cotizado a mano». ' +
-            'El <b class="pc-am-et2b">Valor 2</b> queda registrado junto a él.</small></div></div>' +
+            'El <b class="pc-am-et2b">Valor 2</b> queda registrado junto a él.</small>' +
+            '<div class="form-check mt-2"><input class="form-check-input pc-am-sin" type="checkbox" id="pcAmSin">' +
+            '<label class="form-check-label" for="pcAmSin"><b>Sin condiciones</b>: la aseguradora no dio cotización para este vehículo</label></div>' +
+            '</div></div>' +
             '</div>' +
             '<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>' +
             '<button type="button" class="btn btn-success pc-am-guardar"><i class="fa-solid fa-check"></i> Registrar valor</button></div>' +
@@ -273,6 +279,7 @@ var ProcesoCotizacion = (function () {
             var hecho = function () { $d.addClass('copiado'); setTimeout(function () { $d.removeClass('copiado'); }, 1200); };
             if (navigator.clipboard) { navigator.clipboard.writeText(texto).then(hecho); } else { hecho(); }
         });
+        $m.on('change', '.pc-am-sin', function () { $m.find('.pc-am-valor input').prop('disabled', this.checked); });
         $m.on('click', '.pc-am-guardar', guardarAMano);
         $m.on('keydown', '.pc-am-valor input', function (e) { if (e.key === 'Enter') { guardarAMano(); } });
     }
@@ -294,6 +301,7 @@ var ProcesoCotizacion = (function () {
         var miles = function (n) { return n ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''; };
         $m.find('.pc-am-v1').val(c.a_mano.valor ? miles(c.a_mano.valor.valor) : '');
         $m.find('.pc-am-v2').val(c.a_mano.valor ? miles(c.a_mano.valor.valor_2) : '');
+        $m.find('.pc-am-sin').prop('checked', !!(c.a_mano.valor && c.a_mano.valor.sin_condiciones)).trigger('change');
         aMano.modal.show();
     }
 
@@ -302,15 +310,19 @@ var ProcesoCotizacion = (function () {
         var et = c.a_mano.etiquetas || ['Valor 1', 'Valor 2'];
         var valor = $m.find('.pc-am-v1').val().replace(/\D/g, '');
         var valor2 = $m.find('.pc-am-v2').val().replace(/\D/g, '');
-        if (!valor || parseInt(valor, 10) <= 0) { toastr.error('Escribe el ' + et[0] + ' que te dio el portal.'); $m.find('.pc-am-v1').focus(); return; }
+        var sinCondiciones = $m.find('.pc-am-sin').is(':checked');
+        var fila = sinCondiciones ? {aseguradora: c.a_mano.aseguradora_id, sin_condiciones: true}
+                                  : {aseguradora: c.a_mano.aseguradora_id, valor: valor, valor_2: valor2};
+        if (!sinCondiciones && (!valor || parseInt(valor, 10) <= 0)) { toastr.error('Escribe el ' + et[0] + ' que te dio el portal.'); $m.find('.pc-am-v1').focus(); return; }
         var $b = $m.find('.pc-am-guardar').prop('disabled', true);
         $.ajax({
             url: window.PROCESO_URLS.valorManual.replace('/0/', '/' + c.vehiculo_id + '/'), type: 'POST', dataType: 'json',
-            headers: {'X-CSRFToken': csrftoken}, data: {valores: JSON.stringify([{aseguradora: c.a_mano.aseguradora_id, valor: valor, valor_2: valor2}])}
+            headers: {'X-CSRFToken': csrftoken}, data: {valores: JSON.stringify([fila])}
         }).done(function (r) {
             if (r.error) { toastr.error(r.error); return; }
             aMano.modal.hide();
-            toastr.success('Valor de ' + c.aseguradora + ' registrado: ya está en el comparativo.');
+            toastr.success(sinCondiciones ? c.aseguradora + ' quedó como «Sin condiciones» en el comparativo.'
+                                          : 'Valor de ' + c.aseguradora + ' registrado: ya está en el comparativo.');
             $(document).trigger('valorManual:guardado', [c]);
         }).fail(function (xhr) {
             toastr.error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo registrar el valor.');

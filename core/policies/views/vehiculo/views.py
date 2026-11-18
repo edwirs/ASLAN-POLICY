@@ -71,16 +71,19 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
                 con_valor_bot = set(Cotizacion.objects.filter(vehiculo__in=vehiculos, estado_bot='completado')
                                     .values_list('vehiculo_id', 'aseguradora_id').distinct())
                 con_bot = {a.name: a.pk for a in Aseguradora.objects.filter(is_active=True, name__in=list(BOTS_DISPONIBLES))}
-                registradas = {}
-                for vehiculo_id, aseguradora_id in (ValorExterno.objects.filter(vehiculo__in=vehiculos)
-                                                    .values_list('vehiculo_id', 'aseguradora_id').distinct()):
+                # «Sin condiciones» registrado a mano cuenta como respondida (no se vuelve a pedir), pero no como valor.
+                registradas, con_valor_manual = {}, set()
+                for vehiculo_id, aseguradora_id, sin_cond in (ValorExterno.objects.filter(vehiculo__in=vehiculos)
+                                                              .values_list('vehiculo_id', 'aseguradora_id', 'sin_condiciones').distinct()):
                     registradas.setdefault(vehiculo_id, set()).add(aseguradora_id)
+                    if not sin_cond:
+                        con_valor_manual.add(vehiculo_id)
                 etapas = etapas_por_vehiculo(vehiculos)
                 for vehiculo in vehiculos:
                     item = _fila(vehiculo)
                     item['etapa'] = etapas[vehiculo.pk]
                     item['ultima_cotizacion'] = etapas[vehiculo.pk]['ultima_cotizacion']
-                    item['tiene_valor_externo'] = bool(registradas.get(vehiculo.pk))
+                    item['tiene_valor_externo'] = vehiculo.pk in con_valor_manual
                     item['proceso'] = resumenes[vehiculo.pk]
                     # A qué aseguradoras se les puede registrar valor a mano: sin bot, o con bot que no trajo valor.
                     completadas = {d['aseguradora'] for d in resumenes[vehiculo.pk]['detalle'] if d['estado_bot'] == 'completado'}

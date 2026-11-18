@@ -44,8 +44,11 @@ def etapas_por_vehiculo(vehiculos, hoy=None):
                                                .values_list('vehiculo_id', 'estado_bot', 'created_at', 'ejecutado_en')):
         cotizaciones.setdefault(vid, []).append((estado_bot, creada, (ejecutada or creada) >= limite_curso))
     externos = {}
-    for vid, creada in ValorExterno.objects.filter(vehiculo_id__in=ids).values_list('vehiculo_id', 'created_at'):
+    externos_con_valor = {}  # «sin condiciones» cuenta como cotizado, pero no como valor
+    for vid, creada, sin_cond in ValorExterno.objects.filter(vehiculo_id__in=ids).values_list('vehiculo_id', 'created_at', 'sin_condiciones'):
         externos.setdefault(vid, []).append(creada)
+        if not sin_cond:
+            externos_con_valor.setdefault(vid, []).append(creada)
     polizas = {}
     for p in (Poliza.objects.filter(vehiculo_id__in=ids).exclude(estado='cancelada').select_related('aseguradora')
               .only('id', 'vehiculo_id', 'fecha_renovacion', 'created_at', 'plan', 'aseguradora__name')):
@@ -94,7 +97,7 @@ def etapas_por_vehiculo(vehiculos, hoy=None):
         else:
             desde = ultima_poliza.created_at if ultima_poliza else None
             con_valor = (any(e == 'completado' and (desde is None or c > desde) for e, c, _ in cots)
-                         or any(desde is None or c > desde for c in exts))
+                         or any(desde is None or c > desde for c in externos_con_valor.get(v.pk, [])))
             dias = (hoy - timezone.localtime(ultima_cot, TZ_NEGOCIO).date()).days
             if con_valor:
                 etapa = 'esperando'

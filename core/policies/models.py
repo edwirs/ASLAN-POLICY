@@ -324,7 +324,10 @@ class ValorExterno(models.Model):
     en el comparativo cuenta el más reciente de cada aseguradora."""
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='valores_externos', verbose_name='Vehículo')
     aseguradora = models.ForeignKey(Aseguradora, on_delete=models.PROTECT, related_name='valores_externos', verbose_name='Aseguradora')
-    valor = models.DecimalField(max_digits=14, decimal_places=0, verbose_name='Valor final')
+    # Vacío cuando `sin_condiciones`: el asesor entró al portal y la aseguradora no dio cotización.
+    valor = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='Valor final')
+    sin_condiciones = models.BooleanField(default=False, verbose_name='Sin condiciones',
+                                          help_text='La aseguradora no cotizó: no tiene condiciones para este vehículo.')
     # Segundo valor del portal al cotizar a mano (Seguros del Estado: Elite = `valor`, Integral = `valor_2`). El
     # comparativo usa siempre `valor`.
     valor_2 = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='Segundo valor')
@@ -334,7 +337,7 @@ class ValorExterno(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
 
     def __str__(self):
-        return f'{self.vehiculo.placa} - {self.aseguradora}: ${self.valor}'
+        return f'{self.vehiculo.placa} - {self.aseguradora}: ' + ('sin condiciones' if self.sin_condiciones else f'${self.valor}')
 
     class Meta:
         verbose_name = 'Valor de aseguradora sin bot'

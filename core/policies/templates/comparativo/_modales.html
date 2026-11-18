@@ -88,23 +88,29 @@
             </div>
             <div class="modal-body">
                 {% if aseguradoras_manual %}
-                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
+                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si la aseguradora no dio cotización, marca «Sin condiciones». Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
                     <div class="cmp-pendientes" id="cmpPendientes" hidden></div>
                     <div id="cmpFilas"></div>
                     <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-2" id="cmpOtra"><i class="fa-solid fa-plus"></i> Agregar otra</button>
                     <template id="cmpPlantilla">
                         <div class="row g-2 align-items-center cmp-fila mb-2">
-                            <div class="col-md-6">
+                            <div class="col-md-5">
                                 <select class="form-select cmp-aseguradora">
                                     <option value="">Seleccione la aseguradora…</option>
                                     {% for a, con_bot in aseguradoras_manual %}<option value="{{ a.pk }}">{{ a.name }}{% if con_bot %} (cotizada a mano: el bot no pudo){% endif %}</option>{% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
                                     <input type="text" inputmode="numeric" autocomplete="off" class="form-control cmp-valor" placeholder="Valor final">
                                 </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-check mb-0" title="La aseguradora no dio cotización: no tiene condiciones para este vehículo">
+                                    <input class="form-check-input cmp-sin-cond" type="checkbox">
+                                    <span class="form-check-label small">Sin condiciones</span>
+                                </label>
                             </div>
                             <div class="col-md-1 text-end">
                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-circle cmp-quitar" title="Quitar"><i class="fa-solid fa-trash"></i></button>

@@ -100,13 +100,13 @@ def _resumen(vehiculo):
         completas = [c for c in recientes if c.estado_bot == 'completado' and c.prima_total and c.prima_total > 0]
         mejor = min(completas, key=lambda c: c.prima_total, default=None)
         externos = list(vehiculo.valores_externos.filter(created_at__gte=ultima.created_at - timedelta(days=30)).select_related('aseguradora'))
-        mejor_ext = min(externos, key=lambda e: e.valor, default=None)
+        mejor_ext = min((e for e in externos if not e.sin_condiciones and e.valor), key=lambda e: e.valor, default=None)
         if mejor_ext and (mejor is None or mejor_ext.valor < mejor.prima_total):
             mejor_valor = {'aseguradora': mejor_ext.aseguradora.name, 'valor': float(mejor_ext.valor)}
         else:
             mejor_valor = {'aseguradora': mejor.aseguradora.name, 'valor': float(mejor.prima_total)} if mejor else None
         ronda = {'fecha': etapa['ultima_cotizacion'], 'ciudad': str(ultima.zona_circulacion or vehiculo.zona_circulacion),
-                 'con_valor': len({c.aseguradora_id for c in completas} | {e.aseguradora_id for e in externos}),
+                 'con_valor': len({c.aseguradora_id for c in completas} | {e.aseguradora_id for e in externos if not e.sin_condiciones}),
                  'consultadas': len({c.aseguradora_id for c in recientes} | {e.aseguradora_id for e in externos}), 'mejor': mejor_valor}
     return {'etapa': etapa, 'poliza': poliza, 'ronda': ronda}
 

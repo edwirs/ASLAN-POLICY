@@ -63,8 +63,10 @@ DOCUMENTOS = {
     'TI': 'TARJETA DE IDENTIDAD',
     'NIT': 'NIT',
 }
-# Campo «Razón social» del asegurado cuando es NIT (su formcontrolname no se ha visto: se ubica por el nombre del
-# control o por su placeholder/etiqueta).
+# NIT: tras «Continuar» el portal muestra «Ingrese los datos del asegurado» con la «Razón social» que él mismo carga
+# del NIT (no pide nombres, género ni nacimiento). Se reconoce la pantalla por ese texto.
+SELECTOR_PANTALLA_EMPRESA = 'text=/Raz[oó]n social/i'
+# Campo de la razón social, si el portal lo deja editable y vacío (respaldo: su formcontrolname no se ha visto).
 SELECTOR_RAZON_SOCIAL = ('input[formcontrolname*="razon" i], input[formcontrolname*="social" i], '
                          'input[placeholder*="Razón social" i], input[placeholder*="Razon social" i], '
                          'input[aria-label*="Razón social" i], mat-form-field:has-text("Razón social") input')
@@ -386,8 +388,8 @@ class EquidadBot(RegistroErrorMixin):
         page.locator('mat-option').filter(has_text=re.compile(rf'^\s*{re.escape(opcion)}\s*$', re.I)).first.click(timeout=10000)
         escribir_verificado(page, page.locator('input[formcontrolname="numeroDocumento"]'), self.documento_portal, delay=45)
         self._continuar(page).click(timeout=15000)
-        # Persona: nombres, género y nacimiento. Empresa (NIT): solo «Razón social» (visto el 2026-11-18).
-        selector = SELECTOR_RAZON_SOCIAL if self.es_empresa else 'input[formcontrolname="primerNombre"]'
+        # Persona: nombres, género y nacimiento. Empresa (NIT): solo la «Razón social» que carga el portal.
+        selector = SELECTOR_PANTALLA_EMPRESA if self.es_empresa else 'input[formcontrolname="primerNombre"]'
         self._esperar_visible(page, selector, 'Asegurado (documento)', timeout=40)
         page.wait_for_timeout(2000)  # el portal carga los datos de la persona justo después
 
@@ -400,10 +402,16 @@ class EquidadBot(RegistroErrorMixin):
         return (self.tomador.document_type.abbreviation or '').upper() == 'NIT'
 
     def _datos_empresa(self, page):
-        """Asegurado NIT: «Razón social» = la registrada en la solicitud (si el portal la trae vacía)."""
-        campo = page.locator(SELECTOR_RAZON_SOCIAL).first
+        """Asegurado NIT: el portal carga la razón social del NIT y solo se da «Continuar». Únicamente si dejara un
+        campo de razón social editable y vacío se escribe la registrada en la solicitud."""
         razon = ' '.join((self.tomador.names or '').split()).upper()
-        if campo.is_enabled() and not campo.input_value().strip():
+        continuar = self._continuar(page)
+        for _ in range(20):  # la razón social llega un momento después; mientras tanto «Continuar» sigue deshabilitado
+            if continuar.is_enabled():
+                break
+            page.wait_for_timeout(500)
+        campo = page.locator(SELECTOR_RAZON_SOCIAL).first
+        if campo.count() and campo.is_visible() and campo.is_editable() and not campo.input_value().strip():
             escribir_verificado(page, campo, razon, delay=45)
         continuar = self._continuar(page)
         if not continuar.is_enabled():

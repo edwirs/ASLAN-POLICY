@@ -94,7 +94,8 @@ def a_mano(c):
         'portal_url': credencial.portal_url if credencial else None,
         'datos': [{'etiqueta': e, 'valor': val} for e, val in datos if val],
         'etiquetas': list(etiquetas_a_mano(c.aseguradora.name)),
-        'valor': {'valor': float(manual.valor), 'valor_2': float(manual.valor_2) if manual.valor_2 else None,
+        'valor': {'valor': float(manual.valor) if manual.valor is not None else None,
+                  'valor_2': float(manual.valor_2) if manual.valor_2 else None, 'sin_condiciones': manual.sin_condiciones,
                   'fecha': timezone.localtime(manual.created_at).strftime('%d/%m/%Y %H:%M'),
                   'por': manual.asesor.names or manual.asesor.username} if manual else None,
     }

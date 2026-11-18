@@ -24,6 +24,8 @@ from core.policies.services.proceso import (
 from core.security.mixins import GroupPermissionMixin
 
 MODULE_NAME = 'Cotizador'
+# Aseguradoras que el modal «¿Con qué aseguradoras quieres cotizar?» muestra sin marcar (se activan a mano).
+DESMARCADAS_POR_DEFECTO = {'Seguros del Estado'}
 
 
 def aseguradoras_con_bot():
@@ -314,5 +316,7 @@ class SolicitudCotizacionCreateView(GroupPermissionMixin, TemplateView):
             aseguradora__in=activas, is_active=True, requiere_cambio_clave=True).values_list('aseguradora_id', flat=True))
         for a in activas:
             a.clave_pendiente = a.pk in pendientes  # el modal la deja sin marcar y avisa por qué
+            # El modal la deja sin marcar: se incluye solo si el asesor la activa a mano.
+            a.desmarcada = a.clave_pendiente or a.name in DESMARCADAS_POR_DEFECTO
         context['aseguradoras_activas'] = activas
         return context

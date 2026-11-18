@@ -102,8 +102,7 @@ def opciones_poliza(vehiculo):
                 grupo['opciones'].append({'id': f'c{cotizacion.pk}|{nombre}', 'plan': nombre, 'valor': float(valor),
                                           'comparado': nombre == fila['etiqueta'], 'cuotas': _cuotas_del_plan(nombre)})
         else:
-            externo = ValorExterno.objects.filter(vehiculo=vehiculo, aseguradora_id=fila['aseguradora_id']).order_by('-id').first()
-            grupo['opciones'].append({'id': f'e{externo.pk}', 'plan': '', 'valor': float(externo.valor), 'comparado': True, 'cuotas': None})
+            grupo['opciones'].append({'id': f'e{fila["valor_externo_id"]}', 'plan': '', 'valor': float(fila['valor']), 'comparado': True, 'cuotas': None})
         grupo['opciones'].sort(key=lambda o: (not o['comparado'], o['valor']))
         grupos.append(grupo)
     return grupos
@@ -129,7 +128,8 @@ def resolver_opcion(vehiculo, opcion):
                 'valor_sin_iva': cotizacion.valor_sin_iva if mismos else 0, 'valor_comision': cotizacion.valor_comision if mismos else 0,
                 'descuentos': cotizacion.descuentos if mismos else 0, 'fecha_descuento': cotizacion.fecha_descuento if mismos else None}
     if opcion.startswith('e') and opcion[1:].isdigit():
-        externo = ValorExterno.objects.select_related('aseguradora').filter(pk=opcion[1:], vehiculo=vehiculo).first()
+        externo = (ValorExterno.objects.select_related('aseguradora')
+                   .filter(pk=opcion[1:], vehiculo=vehiculo, sin_condiciones=False, valor__gt=0).first())
         if externo is None:
             raise ValueError('Ese valor ya no está disponible.')
         return {'aseguradora': externo.aseguradora, 'cotizacion': None, 'plan': '', 'prima_total': externo.valor, 'tipo_poliza': None,

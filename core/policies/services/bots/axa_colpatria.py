@@ -78,6 +78,28 @@ JS_CAMPOS_RAZON_SOCIAL = r"""() => {
     return out;
 }"""
 
+# Tomador NIT: al escribir el NIT el portal habilita la sección «Representante legal» (tipo y número de documento,
+# fecha de nacimiento). Sus ids no se han visto (2026-11-18): se listan los campos visibles de esa sección con su
+# índice entre todos los input/select del marco, su id y su etiqueta, y se reconocen por la etiqueta.
+JS_CAMPOS_REPRESENTANTE = r"""() => {
+    const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const propio = c => c.type !== 'hidden' && vis(c) && !/^(input_)?(People_|VehiculeData_)/.test(c.id || '');
+    const titulo = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,legend,label,span,div,p,strong,b')]
+        .find(e => vis(e) && /representante\s+legal/i.test(e.textContent || '') && (e.textContent || '').trim().length < 80);
+    if (!titulo) return null;
+    let caja = titulo;
+    while (caja && caja !== document.body && ![...caja.querySelectorAll('input,select')].some(propio)) caja = caja.parentElement;
+    if (!caja) return null;
+    const etiqueta = e => {
+        const l = (e.id && document.querySelector(`label[for="${e.id}"]`)) || (e.closest('.form-group') || {}).querySelector?.('label');
+        return ((l && l.innerText) || e.placeholder || e.getAttribute('aria-label') || '').trim();
+    };
+    const todos = [...document.querySelectorAll('input,select')];
+    return [...caja.querySelectorAll('input,select')].filter(propio).map(c => ({
+        i: todos.indexOf(c), id: c.id || '', name: c.name || '', tag: c.tagName.toLowerCase(), type: c.type || '',
+        etiqueta: etiqueta(c), valor: c.value || ''}));
+}"""
+
 # Nombre del departamento (normalizado) -> opción de «Zona de circulación» cuando difiere.
 ZONAS_ABREVIADAS = {
     'cundinamarca': 'C/MARCA',
@@ -486,9 +508,14 @@ class AxaColpatriaBot(RegistroErrorMixin):
             )
         self._elegir_en_combo(page, 'People_IdDocumentType', opcion_documento)
 
-        marco.locator('#People_DocumentNumber:visible').first.fill(self.documento_portal)
+        # NIT: solo los números, sin el dígito de verificación (aunque el campo diga «con código de verificación»).
+        documento = marco.locator('#People_DocumentNumber:visible').first
+        documento.fill(self.documento_portal)
         es_empresa = abreviatura == 'NIT'
-        page.wait_for_timeout(1500)  # con NIT el formulario cambia (razón social en lugar de género y nacimiento)
+        if es_empresa:
+            documento.dispatch_event('change')
+            documento.press('Tab')
+        page.wait_for_timeout(1500)  # con NIT el formulario cambia (representante legal en lugar de género y nacimiento)
         etiqueta_genero = 'MASCULINO' if (self.tomador.gender or 'male') == 'male' else 'FEMENINO'
         genero = marco.locator('label:visible', has_text=etiqueta_genero)
         if genero.count() or not es_empresa:
@@ -501,6 +528,7 @@ class AxaColpatriaBot(RegistroErrorMixin):
             fecha.press('Tab')
             page.keyboard.press('Escape')
         if es_empresa:
+            self._representante_legal(page)
             self._razon_social(page)
 
         cero_km = 'SI' if self.vehiculo.es_cero_km else 'NO'
@@ -510,6 +538,69 @@ class AxaColpatriaBot(RegistroErrorMixin):
 
         self._pulsar_continuar(page, 'Datos personales y placa')
         self._esperar_vehiculo(page, 'Datos personales y placa')
+
+    def _representante_legal(self, page, espera=12):
+        """Tomador NIT: en «Representante legal» van la cédula de quien la solicitud registra como propietario de la
+        empresa y la fecha de nacimiento registrada."""
+        cedula = re.sub(r'\D', '', self.tomador.propietario_documento or '')
+        if not cedula:
+            raise BotDatosError(
+                'AXA Colpatria pide el representante legal de la empresa (NIT) y en la solicitud falta la cédula del '
+                'propietario de la empresa.',
+                accion='En la solicitud (tomador con NIT) escriba «Cédula del propietario» y reenvíe a AXA Colpatria.',
+            )
+        marco = self._marco(page)
+        campos = None
+        for _ in range(espera * 2):
+            campos = marco.evaluate(JS_CAMPOS_REPRESENTANTE)
+            if campos:
+                break
+            page.wait_for_timeout(500)
+        if not campos:
+            logger.warning('AXA Colpatria: no apareció la sección «Representante legal» del tomador NIT.')
+            return
+
+        def texto(c):
+            return f"{c['id']} {c['name']} {c['etiqueta']}"
+
+        tipo = next((c for c in campos if re.search(r'tipo|DocumentType|IdDocument', texto(c), re.I)), None)
+        fecha = (next((c for c in campos if re.search(r'birth|nacim', texto(c), re.I)), None)
+                 or next((c for c in campos if re.search(r'fecha', texto(c), re.I)), None))
+        numero = next((c for c in campos if c is not tipo and c is not fecha and c['tag'] == 'input'
+                       and re.search(r'n[uú]mero|document|identifica|c[eé]dula', texto(c), re.I)), None)
+        nombre = next((c for c in campos if c not in (tipo, fecha, numero) and c['tag'] == 'input'
+                       and re.search(r'nombre|name', texto(c), re.I)), None)
+        if numero is None:
+            vistos = '; '.join(f"{c['etiqueta'] or '(sin etiqueta)'} [{c['id'] or c['name'] or c['tag']}]" for c in campos)
+            raise BotDatosError(
+                f'AXA Colpatria mostró la sección «Representante legal» pero no se reconoció el campo del número de '
+                f'documento (campos vistos: {vistos}).',
+                accion='Cotice este caso a mano en el portal y avise a soporte con este mensaje para ajustar el bot.',
+            )
+        todos = marco.locator('input,select')
+        if tipo and not re.search(r'c[eé]dula', tipo['valor'], re.I):
+            if tipo['tag'] == 'select':
+                opcion = next((o for o in todos.nth(tipo['i']).locator('option').all_inner_texts()
+                               if re.search(r'c[eé]dula\s+(de\s+)?ciudadan', o, re.I)), None)
+                if opcion:
+                    todos.nth(tipo['i']).select_option(label=opcion)
+            elif tipo['id'].startswith('input_'):  # combo de jQuery UI, igual que el del tomador
+                self._elegir_en_combo(page, tipo['id'][len('input_'):], DOCUMENTOS['CC'])
+        campo = todos.nth(numero['i'])
+        campo.fill(cedula)
+        campo.dispatch_event('change')
+        if nombre and not nombre['valor'] and self.tomador.propietario_nombre:
+            campo = todos.nth(nombre['i'])
+            campo.fill(' '.join(self.tomador.propietario_nombre.split()).upper())
+            campo.dispatch_event('change')
+        if fecha:
+            campo = todos.nth(fecha['i'])
+            campo.fill(self.tomador.birthdate.strftime('%Y/%m/%d'))  # mismo formato que la del tomador: año/mes/día
+            campo.dispatch_event('change')
+            campo.press('Tab')
+            page.keyboard.press('Escape')
+        logger.info('AXA Colpatria: representante legal con la cédula del propietario (campos: %s).',
+                    ', '.join(c['id'] or c['name'] for c in campos))
 
     def _razon_social(self, page):
         """Tomador NIT: si el portal pide la razón social (o el nombre) y viene vacía, va la registrada en la solicitud."""

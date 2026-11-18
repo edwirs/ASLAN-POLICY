@@ -61,6 +61,11 @@ var comparativoModales = {
             var digitos = this.value.replace(/\D/g, '');
             this.value = digitos ? digitos.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
         });
+        // «Sin condiciones»: la aseguradora no cotizó, no hay valor que escribir.
+        $('#cmpFilas').on('change', '.cmp-sin-cond', function () {
+            var $valor = $(this).closest('.cmp-fila').find('.cmp-valor').prop('disabled', this.checked);
+            if (this.checked) { $valor.val(''); }
+        });
         $('#cmpAceptar').on('click', function () { self.guardar($(this)); });
     },
 
@@ -218,11 +223,13 @@ var comparativoModales = {
         $('#cmpFilas .cmp-fila').each(function (i) {
             var aseguradora = $(this).find('.cmp-aseguradora').val();
             var valor = $(this).find('.cmp-valor').val().replace(/\D/g, '');
-            if (!aseguradora && !valor) {
+            var sinCondiciones = $(this).find('.cmp-sin-cond').is(':checked');
+            if (!aseguradora && !valor && !sinCondiciones) {
                 return;  // fila vacía: se ignora
             }
             if (!aseguradora) { error = 'Elige la aseguradora de la fila ' + (i + 1); return false; }
-            if (!valor || parseInt(valor, 10) <= 0) { error = 'Escribe un valor mayor que cero en la fila ' + (i + 1); return false; }
+            if (sinCondiciones) { filas.push({aseguradora: aseguradora, sin_condiciones: true}); return; }
+            if (!valor || parseInt(valor, 10) <= 0) { error = 'Escribe un valor mayor que cero (o marca «Sin condiciones») en la fila ' + (i + 1); return false; }
             filas.push({aseguradora: aseguradora, valor: valor});
         });
         if (!error && !filas.length) {
