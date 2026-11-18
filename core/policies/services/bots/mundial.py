@@ -105,6 +105,50 @@ MODALES_JS = """() => [...new Set([...document.querySelectorAll('.ant-modal, [ro
     .map(e => (e.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 400)))]"""
 
 
+# Modal del paso «Nueva cotización» cuando el propietario del RUNT no es el tomador (visto el 2026-11-18).
+AVISO_POSEEDOR = 'no coincide con la registrada en el runt'
+# Marca (data-aslan-campo) los campos de texto del modal del poseedor según su etiqueta. Devuelve los que encontró.
+JS_MARCAR_CAMPOS_POSEEDOR = r"""modal => {
+    const campos = [['numero', /n[uú]mero\s+de\s+documento/i], ['apellidos', /\bapellidos?\b/i], ['nombres', /\bnombres?\b/i]];
+    const hallados = [];
+    const libres = n => [...n.querySelectorAll('input')].filter(x => !x.closest('nz-select') && x.type !== 'hidden');
+    const inputs = libres(modal).filter(i => i.getBoundingClientRect().width > 0);
+    const etiquetaDe = i => {
+        if (i.id) { const l = modal.querySelector(`label[for="${i.id}"]`); if (l && l.innerText.trim()) return l.innerText.trim(); }
+        // Sube hasta el primer contenedor con texto, sin pasar a uno que ya tenga otro campo.
+        let n = i.parentElement;
+        for (let k = 0; k < 5 && n && n !== modal; k++, n = n.parentElement) {
+            if (libres(n).some(x => x !== i)) break;
+            const t = (n.innerText || '').trim();
+            if (t) return t;
+        }
+        return (i.placeholder || i.getAttribute('aria-label') || '').trim();
+    };
+    for (const i of inputs) {
+        const t = etiquetaDe(i);
+        for (const [clave, patron] of campos) {
+            if (!hallados.includes(clave) && patron.test(t)) { i.setAttribute('data-aslan-campo', clave); hallados.push(clave); break; }
+        }
+    }
+    // Sin etiquetas reconocibles: en el orden del formulario (número, nombres, apellidos).
+    if (!hallados.length && inputs.length >= 3) {
+        ['numero', 'nombres', 'apellidos'].forEach((c, k) => { inputs[k].setAttribute('data-aslan-campo', c); hallados.push(c); });
+    }
+    return hallados;
+}"""
+
+
+
+def _nombres_apellidos(nombre):
+    """(nombres, apellidos) de un nombre completo escrito «nombres apellidos»: con 4 o más palabras, 2 nombres; con 3,
+    1 nombre y 2 apellidos; con 2, uno y uno."""
+    partes = (nombre or '').split()
+    if len(partes) <= 1:
+        return (nombre or '', nombre or '')
+    n = 2 if len(partes) >= 4 else 1
+    return ' '.join(partes[:n]), ' '.join(partes[n:])
+
+
 def _limpio(texto):
     return re.sub(r'\s+', ' ', texto or '').strip()
 
@@ -455,11 +499,15 @@ class MundialBot(RegistroErrorMixin):
 
         page.get_by_role('button', name=re.compile(r'COMENZAR COTIZACI', re.I)).click()
         cero_km_hecho = False
+        poseedor_hecho = False
         for _ in range(240):  # hasta ~2 min: el portal valida contra el RUNT y puede tardar
             if 'informacion-vehiculo' in self._hash(page):
                 return
             modales = [normalizar_texto(m) for m in self._modales(page)]
-            if any('tu vehiculo es 0 km' in m for m in modales):
+            if any(AVISO_POSEEDOR in m for m in modales) and not poseedor_hecho:
+                self._poseedor_actual(page)
+                poseedor_hecho = True
+            elif any('tu vehiculo es 0 km' in m for m in modales):
                 if not self.vehiculo.es_cero_km:
                     raise BotDatosError(
                         'Seguros Mundial preguntó si el vehículo es 0 km, pero la solicitud no está marcada como 0 km '
@@ -473,6 +521,58 @@ class MundialBot(RegistroErrorMixin):
                 self._revisar_avisos(page, 'Nueva cotización', ignorar=('codigo fasecolda', 'valor factura'))
             page.wait_for_timeout(500)
         raise BotPortalError('Seguros Mundial no mostró la información del vehículo después de 2 minutos.')
+
+    def _datos_poseedor(self):
+        """(tipo de documento en Mundial, número, nombres, apellidos) del poseedor/tenedor actual: el tomador o, si es
+        una empresa (NIT), su propietario (cédula y nombre de la solicitud; decisión del usuario 2026-11-18)."""
+        if (self.tomador.document_type.abbreviation or '').upper() == 'NIT':
+            numero = _digitos(self.tomador.propietario_documento)
+            nombre = ' '.join((self.tomador.propietario_nombre or '').split())
+            if not (numero and nombre):
+                raise BotDatosError(
+                    'El propietario del vehículo en el RUNT no es la empresa y Seguros Mundial pide el poseedor actual: '
+                    'se usa el propietario de la empresa, y en la solicitud falta su cédula o su nombre.',
+                    accion='En la solicitud (tomador con NIT) escriba «Cédula del propietario» y «Nombre del propietario '
+                           'de la empresa» y reenvíe a Seguros Mundial.',
+                )
+            tipo = DOCUMENTOS['CC']
+        else:
+            numero = self.documento_portal
+            nombre = ' '.join((self.tomador.names or '').split())
+            tipo = DOCUMENTOS.get((self.tomador.document_type.abbreviation or '').upper(), DOCUMENTOS['CC'])
+        return (tipo, numero) + _nombres_apellidos(nombre)
+
+    def _poseedor_actual(self, page):
+        """Modal «La información ingresada del propietario no coincide con la registrada en el RUNT…»: pide el
+        poseedor/tenedor actual (tipo y número de documento, nombres, apellidos) y GUARDAR."""
+        tipo, numero, nombres, apellidos = self._datos_poseedor()
+        modal = page.locator('.ant-modal-wrap, .ant-modal, [role=dialog]').filter(
+            has_text=re.compile(r'no coincide con la registrada en el RUNT', re.I)).last
+        modal.wait_for(timeout=10000)
+        # Tipo de documento: la lista (nz-select) del modal.
+        lista = modal.locator('nz-select').first
+        if lista.count():
+            lista.click()
+            page.wait_for_timeout(600)
+            opcion = page.locator('.ant-select-item-option:visible').filter(
+                has_text=re.compile(rf'^\s*{re.escape(tipo)}\s*$', re.I)).first
+            try:
+                opcion.click(timeout=6000)
+            except PlaywrightTimeoutError:
+                page.keyboard.press('Escape')
+                raise BotPortalError(f'Seguros Mundial no ofrece «{tipo}» en el tipo de documento del poseedor actual.')
+            page.wait_for_timeout(500)
+        marcados = modal.evaluate(JS_MARCAR_CAMPOS_POSEEDOR)
+        faltan = [c for c in ('numero', 'nombres', 'apellidos') if c not in (marcados or [])]
+        if faltan:
+            raise BotPortalError('Seguros Mundial pidió el poseedor actual, pero el bot no reconoció sus campos '
+                                 f'({", ".join(faltan)}).')
+        self._escribir(modal.locator('[data-aslan-campo="numero"]'), numero, comparar='digitos')
+        self._escribir(modal.locator('[data-aslan-campo="nombres"]'), nombres)
+        self._escribir(modal.locator('[data-aslan-campo="apellidos"]'), apellidos)
+        modal.get_by_role('button', name=re.compile(r'^\s*GUARDAR\s*$', re.I)).click()
+        page.wait_for_timeout(1500)
+        logger.info('Seguros Mundial: se registró el poseedor actual (el propietario del RUNT es otro).')
 
     def _cero_km(self, page):
         """Modal «¿Tu vehículo es 0 Km?»: pasa a SI, valor comercial y, en el segundo modal, código Fasecolda."""
