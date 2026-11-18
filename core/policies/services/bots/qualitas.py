@@ -644,6 +644,18 @@ class QualitasBot(RegistroErrorMixin):
         if not datos['correo'] or not datos['celular']:
             raise BotDatosError('Falta el correo o el celular de contacto de la empresa para Qualitas.',
                                 accion='Complételos en Configuraciones › Aseguradoras › «Contacto para los portales» y reenvíe.')
+        # El formulario se arma por partes: visto el 2026-11-18 que se quedó en «Valor Asegurado Min. … - Max.» sin
+        # mostrar contacto ni asegurado por más de 20 s. Se le da más tiempo y, si no llega, se dice qué pasó.
+        contacto = page.get_by_text(_accent_insensitive_pattern('Correo electrónico')).and_(page.locator(':visible')).first
+        try:
+            contacto.wait_for(timeout=60000)
+        except PlaywrightTimeoutError:
+            raise BotPortalError(
+                'Qualitas no terminó de cargar «Datos de cotización»: el formulario se quedó en el rango del valor '
+                'asegurado y en un minuto no mostró los datos de contacto ni los del asegurado.',
+                accion='Suele ser lentitud del portal de Qualitas: reenvíe la solicitud. Si se repite con el mismo '
+                       'vehículo, avise a soporte (el bot guardó la foto de la pantalla).',
+            )
         llenar_lento('Correo electrónico', datos['correo'])
         llenar_lento('Teléfono móvil', datos['celular'])
 
