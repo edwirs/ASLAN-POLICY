@@ -337,7 +337,7 @@ class AxaColpatriaBot(RegistroErrorMixin):
             page.wait_for_timeout(1000)
         raise BotAutenticacionError(
             'No se pudo iniciar sesión en AXA Colpatria: después de ingresar no apareció la selección de perfil '
-            '(¿contraseña vencida o cuenta bloqueada?).')
+            '(revise la contraseña guardada y si la cuenta está bloqueada).')
 
     @staticmethod
     def _error_de_servidor(page):

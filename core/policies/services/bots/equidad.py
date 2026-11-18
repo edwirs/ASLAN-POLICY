@@ -345,7 +345,7 @@ class EquidadBot(RegistroErrorMixin):
             page.wait_for_timeout(1000)
         raise BotAutenticacionError(
             'No se pudo iniciar sesión en La Equidad: después de ingresar no apareció la lista de productos '
-            '(¿contraseña vencida o cuenta bloqueada?).')
+            '(revise la contraseña guardada y si la cuenta está bloqueada).')
 
     @staticmethod
     def _mensaje_visible(page):

@@ -256,7 +256,10 @@ def clasificar_error(exc, aseguradora, paso, alerta=None, pantalla=None):
     if pantalla:
         detalle += f'\n\nPantalla del portal al fallar:\n{pantalla[-600:]}'
 
-    fragmento = None if isinstance(exc, BotClaveVencidaError) else pide_cambio_de_clave(exc, alerta, pantalla)
+    # De un error del propio bot solo cuenta lo que cita del portal (entre «»): sus pistas para el asesor (p. ej.
+    # «revise la contraseña») no son el portal pidiendo el cambio. Así pasó en AXA con «¿contraseña vencida…?».
+    texto_exc = ' '.join(re.findall(r'«([^»]*)»', str(exc))) if isinstance(exc, BotError) else exc
+    fragmento = None if isinstance(exc, BotClaveVencidaError) else pide_cambio_de_clave(texto_exc, alerta, pantalla)
     if fragmento:
         # El portal pide cambiar la contraseña (suele verse como un timeout o «no se pudo iniciar sesión»).
         tipo = 'clave_vencida'

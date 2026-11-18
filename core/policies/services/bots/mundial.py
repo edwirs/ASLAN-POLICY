@@ -409,7 +409,7 @@ class MundialBot(RegistroErrorMixin):
             page.wait_for_timeout(1000)
         raise BotAutenticacionError(
             'No se pudo iniciar sesión en Seguros Mundial: después de ingresar no apareció la selección de línea de '
-            'negocio (¿contraseña vencida o cuenta bloqueada?).')
+            'negocio (revise la contraseña guardada y si la cuenta está bloqueada).')
 
     def _elegir_producto(self, page):
         for texto in (LINEA, PRODUCTO, ACCION):
