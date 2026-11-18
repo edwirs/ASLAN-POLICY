@@ -63,6 +63,11 @@ DOCUMENTOS = {
     'TI': 'TARJETA DE IDENTIDAD',
     'NIT': 'NIT',
 }
+# Campo «Razón social» del asegurado cuando es NIT (su formcontrolname no se ha visto: se ubica por el nombre del
+# control o por su placeholder/etiqueta).
+SELECTOR_RAZON_SOCIAL = ('input[formcontrolname*="razon" i], input[formcontrolname*="social" i], '
+                         'input[placeholder*="Razón social" i], input[placeholder*="Razon social" i], '
+                         'input[aria-label*="Razón social" i], mat-form-field:has-text("Razón social") input')
 
 LEE_VEHICULO_JS = """() => Object.fromEntries(
     ['marca', 'modelo', 'referencia', 'uso', 'zona', 'valorAsegurado', 'accesorio', 'blindaje']
@@ -381,16 +386,39 @@ class EquidadBot(RegistroErrorMixin):
         page.locator('mat-option').filter(has_text=re.compile(rf'^\s*{re.escape(opcion)}\s*$', re.I)).first.click(timeout=10000)
         escribir_verificado(page, page.locator('input[formcontrolname="numeroDocumento"]'), self.documento_portal, delay=45)
         self._continuar(page).click(timeout=15000)
-        self._esperar_visible(page, 'input[formcontrolname="primerNombre"]', 'Asegurado (documento)', timeout=40)
+        # Persona: nombres, género y nacimiento. Empresa (NIT): solo «Razón social» (visto el 2026-11-18).
+        selector = SELECTOR_RAZON_SOCIAL if self.es_empresa else 'input[formcontrolname="primerNombre"]'
+        self._esperar_visible(page, selector, 'Asegurado (documento)', timeout=40)
         page.wait_for_timeout(2000)  # el portal carga los datos de la persona justo después
 
     def _campo_vacio(self, page, nombre):
         campo = page.locator(f'input[formcontrolname="{nombre}"]')
         return campo.is_enabled() and not campo.input_value().strip()
 
+    @property
+    def es_empresa(self):
+        return (self.tomador.document_type.abbreviation or '').upper() == 'NIT'
+
+    def _datos_empresa(self, page):
+        """Asegurado NIT: «Razón social» = la registrada en la solicitud (si el portal la trae vacía)."""
+        campo = page.locator(SELECTOR_RAZON_SOCIAL).first
+        razon = ' '.join((self.tomador.names or '').split()).upper()
+        if campo.is_enabled() and not campo.input_value().strip():
+            escribir_verificado(page, campo, razon, delay=45)
+        continuar = self._continuar(page)
+        if not continuar.is_enabled():
+            raise BotDatosError(
+                f'La Equidad dejó deshabilitado «Continuar» en los datos del asegurado (razón social «{razon}»).',
+                accion='Revise la razón social del tomador en la solicitud y reenvíe a La Equidad.',
+            )
+        continuar.click()
+        self._esperar_visible(page, 'input[formcontrolname="placa"]', 'Asegurado (datos de la empresa)', timeout=30)
+
     def _datos_personales(self, page):
         """El portal trae los datos de las personas que ya conoce; solo se completan
         los que vengan vacíos con los registrados al inicio de la solicitud."""
+        if self.es_empresa:
+            return self._datos_empresa(page)
         primer_nombre, primer_apellido = dividir_nombre(self.tomador.names)
         for nombre, valor in (('primerNombre', primer_nombre), ('primerApellido', primer_apellido)):
             if self._campo_vacio(page, nombre):
