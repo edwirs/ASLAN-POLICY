@@ -207,3 +207,6 @@ td.cmp-col-mejor { box-shadow: inset 1px 0 0 var(--cmp-good-strong), inset -1px 
     .cmp-fila-dato { break-inside: avoid; }
     .cmp-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* «Sin condiciones» marcado en una fila de valores manuales: el valor final queda inhabilitado y se nota */
+.cmp-fila .input-group:has(.cmp-valor:disabled) { opacity: .4; }
+.cmp-fila .cmp-valor:disabled { cursor: not-allowed; }
