@@ -78,28 +78,35 @@ JS_CAMPOS_RAZON_SOCIAL = r"""() => {
     return out;
 }"""
 
-# Tomador NIT: al escribir el NIT el portal habilita la sección «Representante legal» (tipo y número de documento,
-# fecha de nacimiento). Sus ids no se han visto (2026-11-18): se listan los campos visibles de esa sección con su
-# índice entre todos los input/select del marco, su id y su etiqueta, y se reconocen por la etiqueta.
+# Campos de la sección «Representante legal» (tomador NIT). Se ubican por posición: los visibles entre el título de la
+# sección y lo que sigue (código Fasecolda, placa, «Continuar»). No se filtra por prefijo de id: los del representante
+# también pueden empezar por «People_» (así falló el 2026-11-18); solo se excluyen los dos del tomador por su id exacto.
 JS_CAMPOS_REPRESENTANTE = r"""() => {
     const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    const propio = c => c.type !== 'hidden' && vis(c) && !/^(input_)?(People_|VehiculeData_)/.test(c.id || '');
-    const titulo = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,legend,label,span,div,p,strong,b')]
-        .find(e => vis(e) && /representante\s+legal/i.test(e.textContent || '') && (e.textContent || '').trim().length < 80);
-    if (!titulo) return null;
-    let caja = titulo;
-    while (caja && caja !== document.body && ![...caja.querySelectorAll('input,select')].some(propio)) caja = caja.parentElement;
-    if (!caja) return null;
+    const DEL_TOMADOR = /^(input_)?People_(IdDocumentType|DocumentNumber)$/;
+    const DESPUES = '#codFasecSi, #codFasecNo, #btnContinuar, [id^="VehiculeData_"], [id^="input_VehiculeData_"]';
+    const titulos = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,legend,label,span,div,p,strong,b')]
+        .filter(e => vis(e) && /representante\s+legal/i.test(e.textContent || '') && (e.textContent || '').trim().length < 120);
+    if (!titulos.length) return null;
+    // El más interno (el título en sí, no la caja que lo contiene).
+    const titulo = titulos.reduce((a, b) => ((b.textContent || '').trim().length < (a.textContent || '').trim().length ? b : a));
+    const desde = titulo.getBoundingClientRect().bottom - 2;
+    const limites = [...document.querySelectorAll(DESPUES)].filter(vis).map(e => e.getBoundingClientRect().top).filter(t => t > desde);
+    const hasta = limites.length ? Math.min(...limites) : Infinity;
     const etiqueta = e => {
         const l = (e.id && document.querySelector(`label[for="${e.id}"]`)) || (e.closest('.form-group') || {}).querySelector?.('label');
         return ((l && l.innerText) || e.placeholder || e.getAttribute('aria-label') || '').trim();
     };
     const todos = [...document.querySelectorAll('input,select')];
-    return [...caja.querySelectorAll('input,select')].filter(propio).map(c => ({
+    return todos.filter(c => {
+        if (!vis(c) || /^(hidden|button|submit|radio|checkbox)$/i.test(c.type || '') || DEL_TOMADOR.test(c.id || '')) return false;
+        const t = c.getBoundingClientRect().top;
+        return t > desde && t < hasta;
+    }).map(c => { const r = c.getBoundingClientRect(); return {
         i: todos.indexOf(c), id: c.id || '', name: c.name || '', tag: c.tagName.toLowerCase(), type: c.type || '',
-        etiqueta: etiqueta(c), valor: c.value || ''}));
+        etiqueta: etiqueta(c), valor: c.value || '', top: Math.round(r.top), left: Math.round(r.left),
+        combo: !!(c.id && c.id.startsWith('input_') && document.getElementById('a_' + c.id.slice(6)))}; });
 }"""
-
 # Nombre del departamento (normalizado) -> opción de «Zona de circulación» cuando difiere.
 ZONAS_ABREVIADAS = {
     'cundinamarca': 'C/MARCA',
@@ -480,12 +487,13 @@ class AxaColpatriaBot(RegistroErrorMixin):
     # Cotizador: paso 1
     # ------------------------------------------------------------------
 
-    def _elegir_en_combo(self, page, base, texto):
-        """Combos de jQuery UI del cotizador: se abren con la flecha (`a_<id>`) y la lista es `ul.ui-autocomplete`."""
+    def _elegir_en_combo(self, page, base, texto, patron=None):
+        """Combos de jQuery UI del cotizador: se abren con la flecha (`a_<id>`) y la lista es `ul.ui-autocomplete`.
+        `patron` (opcional) reconoce la opción si su texto puede variar; si no, debe ser exactamente `texto`."""
         marco = self._marco(page)
         marco.locator(f'#a_{base}').click(timeout=15000)
         page.wait_for_timeout(700)
-        patron = re.compile(rf'^\s*{re.escape(texto)}\s*$', re.I)
+        patron = patron or re.compile(rf'^\s*{re.escape(texto)}\s*$', re.I)
         opcion = marco.locator('ul.ui-autocomplete:visible li').filter(has_text=patron).first
         try:
             opcion.click(timeout=6000)
@@ -563,13 +571,21 @@ class AxaColpatriaBot(RegistroErrorMixin):
         def texto(c):
             return f"{c['id']} {c['name']} {c['etiqueta']}"
 
-        tipo = next((c for c in campos if re.search(r'tipo|DocumentType|IdDocument', texto(c), re.I)), None)
-        fecha = (next((c for c in campos if re.search(r'birth|nacim', texto(c), re.I)), None)
-                 or next((c for c in campos if re.search(r'fecha', texto(c), re.I)), None))
-        numero = next((c for c in campos if c is not tipo and c is not fecha and c['tag'] == 'input'
-                       and re.search(r'n[uú]mero|document|identifica|c[eé]dula', texto(c), re.I)), None)
-        nombre = next((c for c in campos if c not in (tipo, fecha, numero) and c['tag'] == 'input'
-                       and re.search(r'nombre|name', texto(c), re.I)), None)
+        def es_texto(c):
+            return c['tag'] == 'input' and not c['combo'] and c['type'] in ('text', 'tel', 'number', '')
+
+        # Por id/etiqueta y, si no se reconocen, por forma y posición (en pantalla: «Documento» = lista + número en la
+        # misma línea; debajo, «Fecha de nacimiento» con una fecha año/mes/día).
+        tipo = (next((c for c in campos if re.search(r'tipo|DocumentType|IdDocument', texto(c), re.I)), None)
+                or next((c for c in campos if c['combo'] or c['tag'] == 'select'), None))
+        fecha = (next((c for c in campos if c is not tipo and re.search(r'birth|nacim', texto(c), re.I)), None)
+                 or next((c for c in campos if c is not tipo and re.search(r'fecha|date', texto(c), re.I)), None)
+                 or next((c for c in campos if c is not tipo and re.match(r'^\d{4}/\d{1,2}/\d{1,2}$', c['valor'])), None))
+        libres = [c for c in campos if c not in (tipo, fecha) and es_texto(c)]
+        numero = (next((c for c in libres if re.search(r'n[uú]mero|document|identifica|c[eé]dula', texto(c), re.I)), None)
+                  or (next((c for c in libres if abs(c['top'] - tipo['top']) < 20 and c['left'] > tipo['left']), None) if tipo else None)
+                  or (libres[0] if libres else None))
+        nombre = next((c for c in libres if c is not numero and re.search(r'nombre|name', texto(c), re.I)), None)
         if numero is None:
             vistos = '; '.join(f"{c['etiqueta'] or '(sin etiqueta)'} [{c['id'] or c['name'] or c['tag']}]" for c in campos)
             raise BotDatosError(
@@ -584,8 +600,9 @@ class AxaColpatriaBot(RegistroErrorMixin):
                                if re.search(r'c[eé]dula\s+(de\s+)?ciudadan', o, re.I)), None)
                 if opcion:
                     todos.nth(tipo['i']).select_option(label=opcion)
-            elif tipo['id'].startswith('input_'):  # combo de jQuery UI, igual que el del tomador
-                self._elegir_en_combo(page, tipo['id'][len('input_'):], DOCUMENTOS['CC'])
+            elif tipo['combo']:  # combo de jQuery UI, igual que el del tomador
+                self._elegir_en_combo(page, tipo['id'][len('input_'):], DOCUMENTOS['CC'],
+                                      patron=re.compile(r'^\s*c[eé]dula\s+(de\s+)?ciudadan[ií]a\s*$', re.I))
         campo = todos.nth(numero['i'])
         campo.fill(cedula)
         campo.dispatch_event('change')
