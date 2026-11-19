@@ -59,8 +59,11 @@ def datos_usados(c):
     return [{'etiqueta': e, 'valor': val} for e, val in datos]
 
 
-# Nombres de los dos valores que se piden al cotizar a mano. El primero es el que entra al comparativo.
-ETIQUETAS_A_MANO = {'Seguros del Estado': ('Valor Elite', 'Valor Integral')}
+# Aseguradoras cuyos dos valores a mano son dos planes: en el comparativo, el resumen y el correo salen como dos filas
+# («Seguros del Estado Elite» con `valor` y «Seguros del Estado Integral» con `valor_2`).
+PLANES_A_MANO = {'Seguros del Estado': ('Elite', 'Integral')}
+# Nombres de los dos valores que se piden al cotizar a mano. Fuera de PLANES_A_MANO solo el primero entra al comparativo.
+ETIQUETAS_A_MANO = {nombre: tuple(f'Valor {plan}' for plan in planes) for nombre, planes in PLANES_A_MANO.items()}
 ETIQUETAS_A_MANO_DEFECTO = ('Valor 1', 'Valor 2')
 
 

@@ -88,7 +88,7 @@
             </div>
             <div class="modal-body">
                 {% if aseguradoras_manual %}
-                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si la aseguradora no dio cotización, marca «Sin condiciones». Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
+                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si la aseguradora no dio cotización, marca «Sin condiciones». Para Seguros del Estado van dos valores: Elite e Integral (el Integral es opcional). Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
                     <div class="cmp-pendientes" id="cmpPendientes" hidden></div>
                     <div id="cmpFilas"></div>
                     <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-2" id="cmpOtra"><i class="fa-solid fa-plus"></i> Agregar otra</button>
@@ -97,12 +97,13 @@
                             <div class="col-md-5">
                                 <select class="form-select cmp-aseguradora">
                                     <option value="">Seleccione la aseguradora…</option>
-                                    {% for a, con_bot in aseguradoras_manual %}<option value="{{ a.pk }}">{{ a.name }}{% if con_bot %} (cotizada a mano: el bot no pudo){% endif %}</option>{% endfor %}
+                                    {% for a, con_bot, planes in aseguradoras_manual %}<option value="{{ a.pk }}"{% if planes %} data-planes="{{ planes }}"{% endif %}>{{ a.name }}{% if con_bot %} (cotizada a mano: el bot no pudo){% endif %}</option>{% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-4">
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
+                                    <span class="input-group-text cmp-plan-1" hidden></span>
                                     <input type="text" inputmode="numeric" autocomplete="off" class="form-control cmp-valor" placeholder="Valor final">
                                 </div>
                             </div>
@@ -114,6 +115,14 @@
                             </div>
                             <div class="col-md-1 text-end">
                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-circle cmp-quitar" title="Quitar"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                            {# Segundo plan (Seguros del Estado Integral): solo se ve si la aseguradora elegida tiene dos planes #}
+                            <div class="col-md-4 offset-md-5 cmp-valor-2" hidden>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <span class="input-group-text cmp-plan-2"></span>
+                                    <input type="text" inputmode="numeric" autocomplete="off" class="form-control cmp-valor cmp-valor2" placeholder="Opcional">
+                                </div>
                             </div>
                         </div>
                     </template>

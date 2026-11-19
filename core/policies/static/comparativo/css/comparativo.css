@@ -170,6 +170,12 @@
 .cmp-tono-no { color: var(--cmp-bad); background-color: var(--cmp-bad-soft); }
 .cmp-sin-dato { color: var(--cmp-muted); }
 td.cmp-col-mejor { box-shadow: inset 1px 0 0 var(--cmp-good-strong), inset -1px 0 0 var(--cmp-good-strong); }
+/* Segunda opción más económica: naranja, como en el «Ranking de valores» */
+.cmp-cinta-segunda { background: #f59e0b; }
+.dark-mode .cmp-cinta-segunda { color: #3b2203; }
+.cmp-resumen-tabla thead th.cmp-col-segunda { background: var(--cmp-amber-soft); overflow: hidden; }
+.cmp-resumen-tabla thead .cmp-col-segunda .cmp-precio { color: var(--cmp-amber); }
+td.cmp-col-segunda { box-shadow: inset 1px 0 0 var(--cmp-amber-strong), inset -1px 0 0 var(--cmp-amber-strong); }
 
 /* «Solo diferencias»: oculta las filas idénticas en todas las aseguradoras. */
 .cmp-solo-diferencias .cmp-igual { display: none; }

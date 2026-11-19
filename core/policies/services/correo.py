@@ -31,7 +31,7 @@ from django.utils.html import strip_tags
 from core.policies.models import CorreoAdjunto, CorreoEnviado, Cotizacion, FirmaCorreo, PlantillaCorreo, ValorExterno
 from core.policies.services.bots.base import normalizar_texto
 from core.policies.services import horario_habil
-from core.policies.services.comparativo import construir, dinero, soat
+from core.policies.services.comparativo import construir, dinero, primeras_aseguradoras, soat
 from core.policies.services.polizas import registrar_evento
 
 # (nombre, qué es) — se muestran como botones en el editor de la plantilla.
@@ -358,8 +358,7 @@ def bloque_comparativo(vehiculo, plantilla, filas=None):
                       f'{str(round(f["diferencia_pct"], 1)).replace(".", ",")}% más</span>')
         cuerpo.append(
             f'<tr><td align="center" width="32" style="{td}">{_posicion(f["posicion"], mejor, segunda)}</td>'
-            f'<td style="{td}"><span style="font-size:12px;font-weight:bold;color:{TEXTO};">{escape(f["aseguradora"])}</span>'
-            f'<br><span style="font-size:11px;color:{GRIS};">{escape(f["etiqueta"])}</span></td>'
+            f'<td style="{td}"><span style="font-size:12px;font-weight:bold;color:{TEXTO};">{escape(f["aseguradora"])}</span></td>'
             f'<td align="right" style="{td}white-space:nowrap;"><span style="font-size:13px;font-weight:bold;color:{VERDE if mejor else AMBAR_TEXTO if segunda else TEXTO};">'
             f'{f["valor_fmt"]}</span>{_barra(f["barra"], mejor, segunda)}</td>'
             f'<td align="right" class="solo-ancho" style="{td}font-size:12px;color:{TEXTO};white-space:nowrap;">{diferencia}</td>'
@@ -386,7 +385,7 @@ def _imagen(src, alto_texto, ancho=600):
 def promocion_visible(plantilla, filas):
     if not plantilla or not plantilla.promocion_activa or not (plantilla.promocion_texto or plantilla.promocion_imagen):
         return False
-    return plantilla.promocion_aseguradora_id is None or plantilla.promocion_aseguradora.name in {f['aseguradora'] for f in filas}
+    return plantilla.promocion_aseguradora_id is None or plantilla.promocion_aseguradora_id in {f['aseguradora_id'] for f in filas}
 
 
 def bloque_promocion(plantilla, filas, src):
@@ -461,7 +460,7 @@ def cotizaciones_a_adjuntar(filas, placa):
     """Los MAS_BARATAS primeros del ranking y su PDF. Los valores manuales (cotizados por el asesor o por un externo)
     llevan el PDF que sube el asesor; los de bot, el que el bot descargó del portal (o el que suba el asesor si no pudo).
     `tipo` + `ref_id` identifican de dónde es el PDF: 'manual' = ValorExterno, 'bot' = Cotizacion."""
-    primeras = filas[:MAS_BARATAS]
+    primeras = primeras_aseguradoras(filas, MAS_BARATAS)
     manuales = {v.pk: v.documento for v in ValorExterno.objects.filter(pk__in=[f['valor_externo_id'] for f in primeras if f.get('valor_externo_id')])}
     portal = {c.pk: c.pdf for c in Cotizacion.objects.filter(pk__in=[f['cotizacion_id'] for f in primeras if f.get('cotizacion_id')])}
     resultado = []
@@ -471,14 +470,14 @@ def cotizaciones_a_adjuntar(filas, placa):
         documento = (manuales if manual else portal).get(ref_id)
         resultado.append({
             'posicion': fila['posicion'],
-            'aseguradora': fila['aseguradora'],
+            'aseguradora': fila['aseguradora_nombre'],
             'valor_fmt': fila['valor_fmt'],
             'manual': manual,
             'tipo': 'manual' if manual else 'bot',
             'ref_id': ref_id,
             'valor_externo_id': fila.get('valor_externo_id'),
             'tiene_pdf': bool(documento),
-            'archivo': nombre_pdf_cotizacion(placa, fila['aseguradora']),
+            'archivo': nombre_pdf_cotizacion(placa, fila['aseguradora_nombre']),
             'documento': documento or None,
         })
     return resultado

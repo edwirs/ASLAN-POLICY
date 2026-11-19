@@ -5,10 +5,10 @@
         <tr>
             <th class="cmp-col-etiqueta"><span>Cobertura</span></th>
             {% for c in resumen.columnas %}
-                <th class="cmp-col {% if c.es_mejor %}cmp-col-mejor{% endif %}">
-                    {% if c.es_mejor %}<span class="cmp-cinta"><i class="fa-solid fa-trophy"></i></span>{% endif %}
+                <th class="cmp-col {% if c.es_mejor %}cmp-col-mejor{% elif c.es_segunda %}cmp-col-segunda{% endif %}">
+                    {% if c.es_mejor %}<span class="cmp-cinta"><i class="fa-solid fa-trophy"></i></span>
+                    {% elif c.es_segunda %}<span class="cmp-cinta cmp-cinta-segunda"><i class="fa-solid fa-medal"></i></span>{% endif %}
                     <div class="cmp-aseg">{{ c.aseguradora }}</div>
-                    <div class="cmp-producto">{% if c.producto %}Plan {{ c.producto }}{% else %}{{ c.etiqueta }}{% endif %}</div>
                     <div class="cmp-precio">{{ c.valor_fmt }}</div>
                 </th>
             {% endfor %}
@@ -21,7 +21,7 @@
                 <tr class="cmp-fila-dato{% if f.igual %} cmp-igual{% endif %}">
                     <th class="cmp-col-etiqueta" scope="row">{{ f.etiqueta }}</th>
                     {% for celda in f.celdas %}
-                        <td class="cmp-celda cmp-tono-{{ celda.tono }}{% if forloop.first %} cmp-col-mejor{% endif %}">
+                        <td class="cmp-celda cmp-tono-{{ celda.tono }}{% if forloop.first %} cmp-col-mejor{% elif forloop.counter == 2 %} cmp-col-segunda{% endif %}">
                             {% if celda.tono == 'vacio' %}<span class="cmp-sin-dato">—</span>
                             {% else %}
                                 {% if celda.tono == 'si' %}<i class="fa-solid fa-circle-check"></i>{% elif celda.tono == 'no' %}<i class="fa-solid fa-circle-xmark"></i>{% endif %}

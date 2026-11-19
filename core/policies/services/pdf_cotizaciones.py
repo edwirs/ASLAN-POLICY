@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from core.policies.models import Cotizacion
-from core.policies.services.comparativo import construir
+from core.policies.services.comparativo import construir, primeras_aseguradoras
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def limpiar_vencidos():
     for cotizacion in candidatas:
         vehiculo_id = cotizacion.vehiculo_id
         if vehiculo_id not in conservar:
-            filas = construir(cotizacion.vehiculo)['filas'][:MAS_BARATAS]
+            filas = primeras_aseguradoras(construir(cotizacion.vehiculo)['filas'], MAS_BARATAS)
             conservar[vehiculo_id] = {f['cotizacion_id'] for f in filas if f.get('cotizacion_id')}
         if cotizacion.pk in conservar[vehiculo_id]:
             continue

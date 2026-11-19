@@ -54,7 +54,7 @@ var comparativoModales = {
             if (!$vacia.length) { self.agregarFila(false); $vacia = $('#cmpFilas .cmp-aseguradora').last(); }
             $vacia.val(id);
             self.refrescar();
-            $vacia.closest('.cmp-fila').find('.cmp-valor').trigger('focus');
+            $vacia.closest('.cmp-fila').find('.cmp-valor').first().trigger('focus');
         });
         // Miles con punto mientras se escribe: 1234567 → 1.234.567
         $('#cmpFilas').on('input', '.cmp-valor', function () {
@@ -194,7 +194,20 @@ var comparativoModales = {
     },
 
     // Una aseguradora elegida en una fila no aparece en las listas de las otras; y se actualiza la línea de pendientes.
+    // Aseguradora con dos planes (Seguros del Estado: Elite e Integral): un valor por plan, cada uno con su nombre.
+    pintarPlanes: function ($fila) {
+        var planes = String($fila.find('.cmp-aseguradora option:selected').data('planes') || '').split('|').filter(Boolean);
+        var dos = planes.length === 2;
+        $fila.find('.cmp-plan-1').text(dos ? planes[0] : '').prop('hidden', !dos);
+        $fila.find('.cmp-plan-2').text(dos ? planes[1] : '');
+        $fila.find('.cmp-valor').first().attr('placeholder', dos ? 'Valor ' + planes[0] : 'Valor final');
+        var $segundo = $fila.find('.cmp-valor-2').prop('hidden', !dos);
+        if (!dos) { $segundo.find('input').val(''); }
+    },
+
     refrescar: function () {
+        var self = this;
+        $('#cmpFilas .cmp-fila').each(function () { self.pintarPlanes($(this)); });
         var $selects = $('#cmpFilas .cmp-aseguradora');
         $selects.each(function () {
             var propia = this.value;
@@ -222,7 +235,9 @@ var comparativoModales = {
         var self = this, filas = [], error = null;
         $('#cmpFilas .cmp-fila').each(function (i) {
             var aseguradora = $(this).find('.cmp-aseguradora').val();
-            var valor = $(this).find('.cmp-valor').val().replace(/\D/g, '');
+            var valor = $(this).find('.cmp-valor').not('.cmp-valor2').val().replace(/\D/g, '');
+            var $v2 = $(this).find('.cmp-valor-2:not([hidden]) .cmp-valor2');
+            var valor2 = $v2.length ? $v2.val().replace(/\D/g, '') : '';
             var sinCondiciones = $(this).find('.cmp-sin-cond').is(':checked');
             if (!aseguradora && !valor && !sinCondiciones) {
                 return;  // fila vacía: se ignora
@@ -230,7 +245,9 @@ var comparativoModales = {
             if (!aseguradora) { error = 'Elige la aseguradora de la fila ' + (i + 1); return false; }
             if (sinCondiciones) { filas.push({aseguradora: aseguradora, sin_condiciones: true}); return; }
             if (!valor || parseInt(valor, 10) <= 0) { error = 'Escribe un valor mayor que cero (o marca «Sin condiciones») en la fila ' + (i + 1); return false; }
-            filas.push({aseguradora: aseguradora, valor: valor});
+            var fila = {aseguradora: aseguradora, valor: valor};
+            if (valor2) { fila.valor_2 = valor2; }  // Seguros del Estado: el Integral (opcional)
+            filas.push(fila);
         });
         if (!error && !filas.length) {
             error = 'Elige una aseguradora e indica su valor';

@@ -14,7 +14,7 @@ from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.comparativo import aseguradoras_sin_bot
 from core.policies.services.etapas import ETAPAS, etapa_de, etapas_por_vehiculo
 from core.policies.services.polizas import registrar_evento
-from core.policies.services.proceso import EN_CURSO, resumen_por_vehiculo
+from core.policies.services.proceso import EN_CURSO, PLANES_A_MANO, resumen_por_vehiculo
 from core.security.mixins import GroupPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -135,7 +135,8 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
         context['puede_comparar'] = user.has_perm('policies.view_comparativo')
         context['puede_registrar_valores'] = user.has_perm('policies.add_valor_externo')
         context['puede_registrar_poliza'] = user.has_perm('policies.add_poliza') and modulo_activo(self.request, 'cartera')
-        context['aseguradoras_manual'] = [(a, a.name in BOTS_DISPONIBLES) for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
+        context['aseguradoras_manual'] = [(a, a.name in BOTS_DISPONIBLES, '|'.join(PLANES_A_MANO.get(a.name, ())))
+                                          for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
         context['guardar_url_plantilla'] = reverse('vehiculo_comparativo_valores', args=[0])
         context['comparativo_url_plantilla'] = reverse('vehiculo_comparativo', args=[0])
         context['soat_url_plantilla'] = reverse('vehiculo_comparativo_soat', args=[0])

@@ -102,7 +102,10 @@ def opciones_poliza(vehiculo):
                 grupo['opciones'].append({'id': f'c{cotizacion.pk}|{nombre}', 'plan': nombre, 'valor': float(valor),
                                           'comparado': nombre == fila['etiqueta'], 'cuotas': _cuotas_del_plan(nombre)})
         else:
-            grupo['opciones'].append({'id': f'e{fila["valor_externo_id"]}', 'plan': '', 'valor': float(fila['valor']), 'comparado': True, 'cuotas': None})
+            # Seguros del Estado Integral: segundo valor del mismo registro («e<id>|2»).
+            sufijo = '|2' if fila.get('campo') == 'valor_2' else ''
+            grupo['opciones'].append({'id': f'e{fila["valor_externo_id"]}{sufijo}', 'plan': fila.get('plan', ''), 'valor': float(fila['valor']),
+                                      'comparado': True, 'cuotas': None})
         grupo['opciones'].sort(key=lambda o: (not o['comparado'], o['valor']))
         grupos.append(grupo)
     return grupos
@@ -127,12 +130,20 @@ def resolver_opcion(vehiculo, opcion):
                 'tipo_poliza': cotizacion.tipo_poliza, 'zona_circulacion_id': cotizacion.zona_circulacion_id or vehiculo.zona_circulacion_id,
                 'valor_sin_iva': cotizacion.valor_sin_iva if mismos else 0, 'valor_comision': cotizacion.valor_comision if mismos else 0,
                 'descuentos': cotizacion.descuentos if mismos else 0, 'fecha_descuento': cotizacion.fecha_descuento if mismos else None}
-    if opcion.startswith('e') and opcion[1:].isdigit():
+    externo_id, _, sufijo = opcion[1:].partition('|')
+    if opcion.startswith('e') and externo_id.isdigit() and sufijo in ('', '2'):
         externo = (ValorExterno.objects.select_related('aseguradora')
-                   .filter(pk=opcion[1:], vehiculo=vehiculo, sin_condiciones=False, valor__gt=0).first())
+                   .filter(pk=externo_id, vehiculo=vehiculo, sin_condiciones=False, valor__gt=0).first())
         if externo is None:
             raise ValueError('Ese valor ya no está disponible.')
-        return {'aseguradora': externo.aseguradora, 'cotizacion': None, 'plan': '', 'prima_total': externo.valor, 'tipo_poliza': None,
+        from core.policies.services.proceso import PLANES_A_MANO  # import local: proceso importa los bots
+        planes = PLANES_A_MANO.get(externo.aseguradora.name)
+        plan, prima = (planes[0] if planes else ''), externo.valor
+        if sufijo == '2':
+            if not planes or not externo.valor_2:
+                raise ValueError('Ese valor ya no está disponible.')
+            plan, prima = planes[1], externo.valor_2
+        return {'aseguradora': externo.aseguradora, 'cotizacion': None, 'plan': plan, 'prima_total': prima, 'tipo_poliza': None,
                 'zona_circulacion_id': vehiculo.zona_circulacion_id, 'valor_sin_iva': 0, 'valor_comision': 0, 'descuentos': 0,
                 'fecha_descuento': None}
     raise ValueError('Elige la opción que escogió el cliente.')

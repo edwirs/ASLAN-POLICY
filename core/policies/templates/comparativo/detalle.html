@@ -4,8 +4,8 @@
 {% block body_class %}sidebar-collapse{% endblock %}
 
 {% block assets %}
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=9">
-    <script src="{% static 'comparativo/js/modales.js' %}?v=6"></script>
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=10">
+    <script src="{% static 'comparativo/js/modales.js' %}?v=7"></script>
     <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=4">
     <script src="{% static 'comparativo/js/correo.js' %}?v=6"></script>
 {% endblock %}
@@ -166,9 +166,9 @@
                             {% if puede_registrar_valores %}
                                 <td class="text-center text-nowrap">
                                     {% if f.origen == 'manual' %}
-                                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill cmp-valor-editar" data-id="{{ f.valor_externo_id }}"
+                                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill cmp-valor-editar" data-id="{{ f.valor_externo_id }}" data-campo="{{ f.campo }}"
                                                 data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor|floatformat:0 }}" data-bs-toggle="tooltip" title="Corregir el valor de {{ f.aseguradora }}"><i class="fa-solid fa-pen"></i></button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ f.valor_externo_id }}"
+                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ f.valor_externo_id }}" data-campo="{{ f.campo }}"{% if f.plan and f.campo == 'valor' and f.valor_2 %} data-aviso="También se quita el valor Integral (van en el mismo registro)."{% endif %}
                                                 data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor_fmt }}" data-bs-toggle="tooltip" title="Eliminar el valor de {{ f.aseguradora }}"><i class="fa-solid fa-trash"></i></button>
                                     {% else %}<span class="text-muted" title="Los valores del bot no se editan">—</span>
                                     {% endif %}
@@ -271,16 +271,16 @@
                 showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
                 didOpen: function () { $(Swal.getInput()).on('input', function () { this.value = miles(this.value); }); },
                 inputValidator: function (v) { return parseInt(String(v).replace(/\D/g, ''), 10) > 0 ? null : 'Escriba un valor mayor que cero'; }
-            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'editar', valor: r.value}); } });
+            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'editar', valor: r.value, campo: $b.data('campo') || 'valor'}); } });
         });
         $('.cmp-valor-eliminar').on('click', function () {
             var $b = $(this);
             bootstrap.Tooltip.getOrCreateInstance(this).hide();
             Swal.fire({
                 icon: 'warning', title: '¿Eliminar el valor de ' + $b.data('aseguradora') + '?',
-                html: 'Se quita <b>' + $b.data('valor') + '</b> del comparativo. Puede volver a agregarlo con «Agregar valores».',
+                html: 'Se quita <b>' + $b.data('valor') + '</b> del comparativo. ' + ($b.data('aviso') ? $('<div>').text($b.data('aviso')).html() + ' ' : '') + 'Puede volver a agregarlo con «Agregar valores».',
                 showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
-            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'eliminar'}); } });
+            }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'eliminar', campo: $b.data('campo') || 'valor'}); } });
         });
         $('#cmpEditarSoat').on('click', function () {
             var $b = $(this);

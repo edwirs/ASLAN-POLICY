@@ -14,6 +14,7 @@ from django.views.generic import TemplateView, View
 from core.policies.models import Aseguradora, CorreoEnviado, Cotizacion, PlantillaCorreo, ValorExterno, Vehiculo
 from core.policies.services import correo, horario_habil
 from core.policies.services.polizas import registrar_evento
+from core.policies.services.proceso import PLANES_A_MANO
 from core.pos.models import Company
 from core.policies.services.bots import BOTS_DISPONIBLES
 from core.policies.services.comparativo import aseguradoras_valor_manual, construir, dinero, indicadores, pendientes_de_valor, resumen_cliente, soat
@@ -50,7 +51,9 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'aseguradora_actual': resultado['actual'],
             'mas_barata': filas[0] if filas else None,
             'puede_registrar_valores': self.request.user.has_perm('policies.add_valor_externo'),
-            'aseguradoras_manual': [(a, a.name in BOTS_DISPONIBLES) for a in aseguradoras_valor_manual(vehiculo, filas)],
+            # (aseguradora, tiene bot, planes «Elite|Integral» si se registran dos valores: Seguros del Estado)
+            'aseguradoras_manual': [(a, a.name in BOTS_DISPONIBLES, '|'.join(PLANES_A_MANO.get(a.name, ())))
+                                    for a in aseguradoras_valor_manual(vehiculo, filas)],
             'guardar_url': reverse('vehiculo_comparativo_valores', args=[vehiculo.pk]),
             'comparativo_url': reverse('vehiculo_comparativo', args=[vehiculo.pk]),
             'imprimir_url': reverse('vehiculo_comparativo_imprimir', args=[vehiculo.pk]),
@@ -359,20 +362,33 @@ class ComparativoValorManualView(StrictPermissionMixin, View):
         aseguradora = actual.aseguradora
         anterior = 'Sin condiciones' if actual.sin_condiciones else dinero(actual.valor)
         accion = request.POST.get('action')
+        # Seguros del Estado: la fila «Integral» es el segundo valor (`valor_2`) del mismo registro.
+        planes = PLANES_A_MANO.get(aseguradora.name)
+        segundo = request.POST.get('campo') == 'valor_2' and bool(planes) and actual.valor_2 is not None
+        nombre = f'{aseguradora.name} {planes[1 if segundo else 0]}' if planes and not actual.sin_condiciones else aseguradora.name
+        if segundo:
+            anterior = dinero(actual.valor_2)
         if accion == 'editar':
             valor = _leer_valor(request.POST.get('valor'))
             if valor is None:
                 return JsonResponse({'error': 'El valor debe ser un número mayor que cero.'}, status=400)
-            if valor == actual.valor:
+            if valor == (actual.valor_2 if segundo else actual.valor):
                 return JsonResponse({'ok': True})
-            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=valor, valor_2=actual.valor_2,
+            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora,
+                                        valor=actual.valor if segundo else valor, valor_2=valor if segundo else actual.valor_2,
                                         asesor=request.user, documento=actual.documento.name or None)
-            registrar_evento(vehiculo, 'valor', f'{aseguradora.name}: {anterior}', f'{aseguradora.name}: {dinero(valor)}',
+            registrar_evento(vehiculo, 'valor', f'{nombre}: {anterior}', f'{nombre}: {dinero(valor)}',
                              'Valor manual corregido en el comparativo', request.user)
+        elif accion == 'eliminar' and segundo:
+            # Quitar solo el Integral: queda el Elite (registro nuevo, el anterior es historial).
+            ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=actual.valor, valor_2=None,
+                                        asesor=request.user, documento=actual.documento.name or None)
+            registrar_evento(vehiculo, 'valor', f'{nombre}: {anterior}', 'Eliminado',
+                             'Valor manual eliminado del comparativo', request.user)
         elif accion == 'eliminar':
             with transaction.atomic():
                 ValorExterno.objects.filter(vehiculo=vehiculo, aseguradora=aseguradora).delete()
-                registrar_evento(vehiculo, 'valor', f'{aseguradora.name}: {anterior}', 'Eliminado',
+                registrar_evento(vehiculo, 'valor', f'{nombre}: {anterior}', 'Eliminado',
                                  'Valor manual eliminado del comparativo', request.user)
         else:
             return JsonResponse({'error': 'No ha seleccionado ninguna opción'}, status=400)
