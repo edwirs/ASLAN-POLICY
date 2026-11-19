@@ -107,6 +107,14 @@ JS_CAMPOS_REPRESENTANTE = r"""() => {
         etiqueta: etiqueta(c), valor: c.value || '', top: Math.round(r.top), left: Math.round(r.left),
         combo: !!(c.id && c.id.startsWith('input_') && document.getElementById('a_' + c.id.slice(6)))}; });
 }"""
+# Diagnóstico si no se encuentra el número del representante: todos los campos de documento de la página (también los
+# ocultos o deshabilitados), con su estado.
+JS_IDS_DOCUMENTO = r"""() => [...document.querySelectorAll('input,select')]
+    .filter(e => /document|identif|cedula|dni/i.test((e.id || '') + ' ' + (e.name || '')))
+    .map(e => { const r = e.getBoundingClientRect();
+        return (e.id || e.name) + ' (' + [r.width > 0 && r.height > 0 ? 'visible' : 'oculto', e.disabled ? 'deshabilitado' : '',
+            e.readOnly ? 'solo lectura' : '', e.type].filter(Boolean).join(', ') + ')'; })"""
+
 # Nombre del departamento (normalizado) -> opción de «Zona de circulación» cuando difiere.
 ZONAS_ABREVIADAS = {
     'cundinamarca': 'C/MARCA',
@@ -549,7 +557,9 @@ class AxaColpatriaBot(RegistroErrorMixin):
 
     def _representante_legal(self, page, espera=12):
         """Tomador NIT: en «Representante legal» van la cédula de quien la solicitud registra como propietario de la
-        empresa y la fecha de nacimiento registrada."""
+        empresa y la fecha de nacimiento registrada. Visto en el portal (2026-11-19): el tipo es el combo
+        `input_People_IdDocumentType2` y la fecha `People_BirthDate`; la casilla del número no aparece hasta elegir el
+        tipo, por eso primero se elige «Cédula de Ciudadanía» y después se busca el número."""
         cedula = re.sub(r'\D', '', self.tomador.propietario_documento or '')
         if not cedula:
             raise BotDatosError(
@@ -574,25 +584,22 @@ class AxaColpatriaBot(RegistroErrorMixin):
         def es_texto(c):
             return c['tag'] == 'input' and not c['combo'] and c['type'] in ('text', 'tel', 'number', '')
 
-        # Por id/etiqueta y, si no se reconocen, por forma y posición (en pantalla: «Documento» = lista + número en la
-        # misma línea; debajo, «Fecha de nacimiento» con una fecha año/mes/día).
-        tipo = (next((c for c in campos if re.search(r'tipo|DocumentType|IdDocument', texto(c), re.I)), None)
-                or next((c for c in campos if c['combo'] or c['tag'] == 'select'), None))
-        fecha = (next((c for c in campos if c is not tipo and re.search(r'birth|nacim', texto(c), re.I)), None)
-                 or next((c for c in campos if c is not tipo and re.search(r'fecha|date', texto(c), re.I)), None)
-                 or next((c for c in campos if c is not tipo and re.match(r'^\d{4}/\d{1,2}/\d{1,2}$', c['valor'])), None))
-        libres = [c for c in campos if c not in (tipo, fecha) and es_texto(c)]
-        numero = (next((c for c in libres if re.search(r'n[uú]mero|document|identifica|c[eé]dula', texto(c), re.I)), None)
-                  or (next((c for c in libres if abs(c['top'] - tipo['top']) < 20 and c['left'] > tipo['left']), None) if tipo else None)
-                  or (libres[0] if libres else None))
-        nombre = next((c for c in libres if c is not numero and re.search(r'nombre|name', texto(c), re.I)), None)
-        if numero is None:
-            vistos = '; '.join(f"{c['etiqueta'] or '(sin etiqueta)'} [{c['id'] or c['name'] or c['tag']}]" for c in campos)
-            raise BotDatosError(
-                f'AXA Colpatria mostró la sección «Representante legal» pero no se reconoció el campo del número de '
-                f'documento (campos vistos: {vistos}).',
-                accion='Cotice este caso a mano en el portal y avise a soporte con este mensaje para ajustar el bot.',
-            )
+        def clasificar(campos):
+            # Por id/etiqueta y, si no se reconocen, por forma y posición (en pantalla: «Documento» = lista + número en
+            # la misma línea; debajo, «Fecha de nacimiento» con una fecha año/mes/día).
+            tipo = (next((c for c in campos if re.search(r'tipo|DocumentType|IdDocument', texto(c), re.I)), None)
+                    or next((c for c in campos if c['combo'] or c['tag'] == 'select'), None))
+            fecha = (next((c for c in campos if c is not tipo and re.search(r'birth|nacim', texto(c), re.I)), None)
+                     or next((c for c in campos if c is not tipo and re.search(r'fecha|date', texto(c), re.I)), None)
+                     or next((c for c in campos if c is not tipo and re.match(r'^\d{4}/\d{1,2}/\d{1,2}$', c['valor'])), None))
+            libres = [c for c in campos if c not in (tipo, fecha) and es_texto(c)]
+            numero = (next((c for c in libres if re.search(r'n[uú]mero|document|identifica|c[eé]dula', texto(c), re.I)), None)
+                      or (next((c for c in libres if abs(c['top'] - tipo['top']) < 20 and c['left'] > tipo['left']), None) if tipo else None)
+                      or (libres[0] if libres else None))
+            nombre = next((c for c in libres if c is not numero and re.search(r'nombre|name', texto(c), re.I)), None)
+            return tipo, fecha, numero, nombre
+
+        tipo, fecha, numero, nombre = clasificar(campos)
         todos = marco.locator('input,select')
         if tipo and not re.search(r'c[eé]dula', tipo['valor'], re.I):
             if tipo['tag'] == 'select':
@@ -603,6 +610,23 @@ class AxaColpatriaBot(RegistroErrorMixin):
             elif tipo['combo']:  # combo de jQuery UI, igual que el del tomador
                 self._elegir_en_combo(page, tipo['id'][len('input_'):], DOCUMENTOS['CC'],
                                       patron=re.compile(r'^\s*c[eé]dula\s+(de\s+)?ciudadan[ií]a\s*$', re.I))
+            # Al elegir el tipo el portal muestra (o habilita) la casilla del número: se vuelve a leer la sección.
+            for _ in range(espera * 2):
+                campos = marco.evaluate(JS_CAMPOS_REPRESENTANTE) or campos
+                tipo, fecha, numero, nombre = clasificar(campos)
+                if numero:
+                    break
+                page.wait_for_timeout(500)
+
+        if numero is None:
+            vistos = '; '.join(f"{c['etiqueta'] or '(sin etiqueta)'} [{c['id'] or c['name'] or c['tag']}]" for c in campos)
+            ocultos = marco.evaluate(JS_IDS_DOCUMENTO) or []
+            raise BotDatosError(
+                f'AXA Colpatria mostró la sección «Representante legal» pero no se reconoció el campo del número de '
+                f'documento (campos vistos: {vistos}; campos de documento en la página: {", ".join(ocultos) or "ninguno"}).',
+                accion='Cotice este caso a mano en el portal y avise a soporte con este mensaje para ajustar el bot.',
+            )
+        todos = marco.locator('input,select')
         campo = todos.nth(numero['i'])
         campo.fill(cedula)
         campo.dispatch_event('change')
