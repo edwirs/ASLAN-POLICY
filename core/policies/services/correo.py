@@ -283,7 +283,7 @@ def _dato(etiqueta, valor, borde='', color=None):
             f'<div style="font-size:12px;font-weight:bold;color:{color or TEXTO};margin-top:1px;">{escape(valor)}</div></td>')
 
 
-COLORES = {'Inicio vigencia póliza': ACENTO}  # datos de la tarjeta del vehículo con color propio
+COLORES = {'Inicio vigencia póliza': ACENTO, 'Aseguradora actual': ACENTO}  # datos de la tarjeta del vehículo con color propio
 
 
 def bloque_datos_vehiculo(vehiculo, actual=None):
@@ -304,24 +304,25 @@ def bloque_datos_vehiculo(vehiculo, actual=None):
     if poliza:
         dias = (poliza.fecha_renovacion - hoy).days
         pares += [
-            ('Aseguradora actual', poliza.aseguradora.name),
             ('Fecha de vigencia', poliza.fecha_renovacion.strftime('%d/%m/%Y')),
             ('Días de vigencia', f'{dias} días' if dias >= 0 else 'Vencida'),
             ('Valor prima actual', dinero(poliza.prima_total) if poliza.prima_total else ''),
         ]
-    elif actual:
-        pares.append(('Aseguradora actual', actual))
     datos_soat = soat(vehiculo, hoy)
     if datos_soat:
         pares += [('Valor SOAT', datos_soat['valor_fmt']), ('Días de vigencia SOAT', datos_soat['dias_texto']),
                   ('Fecha fin SOAT', datos_soat['vence_fmt'])]
     inicio = inicio_vigencia(vehiculo, poliza, hoy)
-    pares.append(('Inicio vigencia póliza', inicio['fecha_fmt']))  # de último y en azul, como «Vehículo» (ver COLORES)
+    # Fila propia al final y en azul, como «Vehículo» (ver COLORES): el inicio de vigencia y al frente la aseguradora actual
+    # (la de la póliza registrada o la que avisó el portal, p. ej. HDI: «cuenta con una póliza en proceso o vigente»).
+    ultimos = [('Inicio vigencia póliza', inicio['fecha_fmt']),
+               ('Aseguradora actual', poliza.aseguradora.name if poliza else (actual or ''))]
     pares = [(t, v) for t, v in pares if v]
+    ultimos = [(t, v) for t, v in ultimos if v]
+    grupos = [pares[i:i + 3] for i in range(0, len(pares), 3)] + ([ultimos] if ultimos else [])
     filas = []
-    for i in range(0, len(pares), 3):
+    for i, grupo in enumerate(grupos):
         borde = f'border-top:1px solid {BORDE};' if i else ''  # en las celdas: no todos los clientes pintan bordes de <tr>
-        grupo = pares[i:i + 3]
         celdas = ''.join(_dato(t, v, borde, COLORES.get(t)) for t, v in grupo) + f'<td width="33%" style="{borde}"></td>' * (3 - len(grupo))
         filas.append(f'<tr>{celdas}</tr>')
     rejilla = ''.join(filas)
