@@ -4,8 +4,8 @@
 {% block body_class %}sidebar-collapse{% endblock %}
 
 {% block assets %}
-    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=10">
-    <script src="{% static 'comparativo/js/modales.js' %}?v=7"></script>
+    <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=11">
+    <script src="{% static 'comparativo/js/modales.js' %}?v=8"></script>
     <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=4">
     <script src="{% static 'comparativo/js/correo.js' %}?v=6"></script>
 {% endblock %}
@@ -132,7 +132,7 @@
     {# ===== Ranking ===== #}
     <section class="cmp-seccion cmp-no-imprimir">
         <h2 class="cmp-seccion-titulo">Ranking de valores <small>de menor a mayor</small></h2>
-        {% if filas %}
+        {% if filas or sin_condiciones %}
             <div class="cmp-tabla-marco">
                 <table class="cmp-rank-tabla">
                     <thead>
@@ -168,9 +168,31 @@
                                     {% if f.origen == 'manual' %}
                                         <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill cmp-valor-editar" data-id="{{ f.valor_externo_id }}" data-campo="{{ f.campo }}"
                                                 data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor|floatformat:0 }}" data-bs-toggle="tooltip" title="Corregir el valor de {{ f.aseguradora }}"><i class="fa-solid fa-pen"></i></button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ f.valor_externo_id }}" data-campo="{{ f.campo }}"{% if f.plan and f.campo == 'valor' and f.valor_2 %} data-aviso="También se quita el valor Integral (van en el mismo registro)."{% endif %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ f.valor_externo_id }}" data-campo="{{ f.campo }}"{% if f.plan_2 and f.campo == 'valor' and f.valor_2 %} data-aviso="También se quita el valor {{ f.plan_2 }} (van en el mismo registro)."{% endif %}
                                                 data-aseguradora="{{ f.aseguradora }}" data-valor="{{ f.valor_fmt }}" data-bs-toggle="tooltip" title="Eliminar el valor de {{ f.aseguradora }}"><i class="fa-solid fa-trash"></i></button>
                                     {% else %}<span class="text-muted" title="Los valores del bot no se editan">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    {# Las que no cotizaron (sin condiciones): de últimas, en rojo claro #}
+                    {% for s in sin_condiciones %}
+                        <tr class="cmp-rank-sincond">
+                            <td class="text-center"><span class="cmp-pos"><i class="fa-solid fa-ban"></i></span></td>
+                            <td><b>{{ s.aseguradora }}</b></td>
+                            <td colspan="3" class="cmp-sincond-texto">{{ s.motivo }}</td>
+                            <td class="text-center">
+                                {% if s.manual %}<span class="cmp-chip cmp-chip-manual"><i class="fa-solid fa-hand"></i> Manual</span>
+                                {% else %}<span class="cmp-chip cmp-chip-bot"><i class="fa-solid fa-robot"></i> Bot</span>{% endif %}
+                            </td>
+                            <td class="cmp-fecha">—</td>
+                            {% if puede_registrar_valores %}
+                                <td class="text-center text-nowrap">
+                                    {% if s.manual %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill cmp-valor-eliminar" data-id="{{ s.valor_externo_id }}"
+                                                data-aseguradora="{{ s.aseguradora }}" data-valor="Sin condiciones" data-bs-toggle="tooltip" title="Quitar «Sin condiciones» de {{ s.aseguradora }}"><i class="fa-solid fa-trash"></i></button>
+                                    {% else %}<span class="text-muted" title="Lo informó el bot">—</span>
                                     {% endif %}
                                 </td>
                             {% endif %}
@@ -187,10 +209,10 @@
             </div>
         {% endif %}
 
-        {% if sin_valor %}
+        {% if sin_valor_otros %}
             <div class="cmp-sin-valor">
                 <span class="cmp-sin-valor-titulo"><i class="fa-solid fa-circle-info"></i> Sin valor para comparar</span>
-                {% for s in sin_valor %}
+                {% for s in sin_valor_otros %}
                     {% if s.actual %}
                         <span class="cmp-chip cmp-chip-actual" title="Su portal avisó que el vehículo ya está asegurado con ella"><i class="fa-solid fa-shield-halved"></i> <b>{{ s.aseguradora }}</b> · {{ s.motivo }}</span>
                     {% else %}

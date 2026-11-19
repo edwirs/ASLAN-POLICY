@@ -45,13 +45,16 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'tomador': vehiculo.tomador,
             'valor_comercial_fmt': dinero(vehiculo.valor_comercial) if vehiculo.valor_comercial else None,
             'filas': filas,
-            'resumen': resumen_cliente(filas),
+            'resumen': resumen_cliente(filas, resultado['sin_condiciones']),
             'indicadores': indicadores(filas),
             'sin_valor': resultado['sin_valor'],
+            'sin_condiciones': resultado['sin_condiciones'],
+            # Las sin condiciones van en la tabla; aquí quedan las demás (cotizando, aseguradora actual, sin cotizar…).
+            'sin_valor_otros': [s for s in resultado['sin_valor'] if s not in resultado['sin_condiciones']],
             'aseguradora_actual': resultado['actual'],
             'mas_barata': filas[0] if filas else None,
             'puede_registrar_valores': self.request.user.has_perm('policies.add_valor_externo'),
-            # (aseguradora, tiene bot, planes «Elite|Integral» si se registran dos valores: Seguros del Estado)
+            # (aseguradora, tiene bot, planes «Elite|Integral» si se registran dos valores: Seguros del Estado y AXA)
             'aseguradoras_manual': [(a, a.name in BOTS_DISPONIBLES, '|'.join(PLANES_A_MANO.get(a.name, ())))
                                     for a in aseguradoras_valor_manual(vehiculo, filas)],
             'guardar_url': reverse('vehiculo_comparativo_valores', args=[vehiculo.pk]),
@@ -173,7 +176,7 @@ class ComparativoValoresView(StrictPermissionMixin, View):
             if valor is None:
                 return JsonResponse({'error': f'{aseguradora.name}: el valor debe ser un número mayor que cero'}, status=400)
             valor_2 = None
-            if str(fila.get('valor_2') or '').strip():  # opcional: segundo valor al cotizar a mano (Integral en SdE)
+            if str(fila.get('valor_2') or '').strip():  # opcional: segundo valor al cotizar a mano (Integral en SdE, VIP en AXA)
                 valor_2 = _leer_valor(fila.get('valor_2'))
                 if valor_2 is None:
                     return JsonResponse({'error': f'{aseguradora.name}: el segundo valor debe ser un número mayor que cero'}, status=400)
@@ -362,7 +365,7 @@ class ComparativoValorManualView(StrictPermissionMixin, View):
         aseguradora = actual.aseguradora
         anterior = 'Sin condiciones' if actual.sin_condiciones else dinero(actual.valor)
         accion = request.POST.get('action')
-        # Seguros del Estado: la fila «Integral» es el segundo valor (`valor_2`) del mismo registro.
+        # Seguros del Estado / AXA: la fila «Integral» / «VIP» es el segundo valor (`valor_2`) del mismo registro.
         planes = PLANES_A_MANO.get(aseguradora.name)
         segundo = request.POST.get('campo') == 'valor_2' and bool(planes) and actual.valor_2 is not None
         nombre = f'{aseguradora.name} {planes[1 if segundo else 0]}' if planes and not actual.sin_condiciones else aseguradora.name
@@ -380,7 +383,7 @@ class ComparativoValorManualView(StrictPermissionMixin, View):
             registrar_evento(vehiculo, 'valor', f'{nombre}: {anterior}', f'{nombre}: {dinero(valor)}',
                              'Valor manual corregido en el comparativo', request.user)
         elif accion == 'eliminar' and segundo:
-            # Quitar solo el Integral: queda el Elite (registro nuevo, el anterior es historial).
+            # Quitar solo el segundo plan (Integral / VIP): queda el primero (registro nuevo, el anterior es historial).
             ValorExterno.objects.create(vehiculo=vehiculo, aseguradora=aseguradora, valor=actual.valor, valor_2=None,
                                         asesor=request.user, documento=actual.documento.name or None)
             registrar_evento(vehiculo, 'valor', f'{nombre}: {anterior}', 'Eliminado',

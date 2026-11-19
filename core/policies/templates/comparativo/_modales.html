@@ -88,7 +88,7 @@
             </div>
             <div class="modal-body">
                 {% if aseguradoras_manual %}
-                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si la aseguradora no dio cotización, marca «Sin condiciones». Para Seguros del Estado van dos valores: Elite e Integral (el Integral es opcional). Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
+                    <p class="text-muted">Elige la aseguradora e indica el valor final que te entregaron o que cotizaste a mano. Si la aseguradora no dio cotización, marca «Sin condiciones». Para Seguros del Estado (Elite e Integral) y AXA Colpatria (Plus y VIP) van dos valores; el segundo es opcional. Si ya había uno para esa aseguradora, el nuevo lo reemplaza en el comparativo.</p>
                     <div class="cmp-pendientes" id="cmpPendientes" hidden></div>
                     <div id="cmpFilas"></div>
                     <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-2" id="cmpOtra"><i class="fa-solid fa-plus"></i> Agregar otra</button>
@@ -116,7 +116,7 @@
                             <div class="col-md-1 text-end">
                                 <button type="button" class="btn btn-sm btn-outline-danger rounded-circle cmp-quitar" title="Quitar"><i class="fa-solid fa-trash"></i></button>
                             </div>
-                            {# Segundo plan (Seguros del Estado Integral): solo se ve si la aseguradora elegida tiene dos planes #}
+                            {# Segundo plan (Seguros del Estado Integral, AXA Colpatria VIP): solo se ve si la aseguradora elegida tiene dos planes #}
                             <div class="col-md-4 offset-md-5 cmp-valor-2" hidden>
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>

@@ -1,8 +1,9 @@
 """Comparativo de valores de las aseguradoras para un vehículo.
 
 Por cada aseguradora cuenta UN solo valor:
-  - con bot: la prima que siempre se resalta (`Cotizacion.prima_total`: Premium en HDI, Plan Full en La Equidad,
-    Plus en AXA…) de su cotización completada más reciente;
+  - con bot: la prima que siempre se resalta (`Cotizacion.prima_total`: Premium en HDI, Plan Full en La Equidad…)
+    de su cotización completada más reciente. Mapfre cuenta el producto elegido en su credencial (Super Trebol) y AXA
+    Colpatria sale en dos filas: Plus y VIP (PLANES_DEL_BOT);
   - sin bot (Bolívar, Allianz, Sura…): el valor final que entregó un tercero y se registró a mano
     (`ValorExterno`) más reciente;
   - con bot que no pudo cotizar (p. ej. Seguros del Estado rechaza al navegador del bot): el valor que el asesor
@@ -15,15 +16,20 @@ from django.utils import timezone
 
 from core.policies.models import Aseguradora, CoberturaAseguradora, Cotizacion, Poliza, ValorExterno
 from core.policies.services.bots import BOTS_DISPONIBLES
-from core.policies.services.bots.base import es_aseguradora_actual
+from core.policies.services.bots.base import es_aseguradora_actual, normalizar_texto
 from core.policies.services.coberturas import secciones_de
+from core.policies.services.credenciales import parametro, parametros_de
 from core.policies.services.proceso import PLAN_DESTACADO, PLANES_A_MANO, ultimas_por_aseguradora
 
 ETIQUETA_MANUAL = 'Valor final'
 SIN_CONDICIONES = 'No cuenta con condiciones para cotización'
 ETIQUETA_A_MANO = 'Cotizado a mano'  # aseguradora con bot cuyo valor cotizó el asesor en el portal
+SIN_CONDICIONES_CORTO = 'Sin condiciones'  # para el resumen al cliente, donde la columna es angosta
 # Seguros del Estado guarda solo sus planes (no `prima_total`): el comparativo toma el Elite.
 PLAN_COMPARATIVO = {'Seguros del Estado': 'Elite'}
+# Planes de una misma cotización del bot que salen como filas aparte (AXA Colpatria: niveles Plus y VIP de la tarjeta
+# PLUS). El primero es el de `prima_total`; los demás se leen de los planes que guardó el bot.
+PLANES_DEL_BOT = {'AXA Colpatria': ('Plus', 'VIP')}
 # Ficha de coberturas (producto) que corresponde al plan cuyo valor se compara. Sin entrada: «General».
 PRODUCTO_COMPARATIVO = {'AXA Colpatria': 'Plus', 'Seguros del Estado': 'Elite'}
 
@@ -76,22 +82,37 @@ def pendientes_de_valor(vehiculo, resultado=None):
             if a.pk not in con_valor and a.pk not in trabajando]
 
 
+def _plan_comparado(aseguradora):
+    """Plan del bot cuyo valor cuenta, si no es el de `prima_total`: el «Producto que cuenta en el comparativo» de la
+    credencial (Mapfre) o el fijo de PLAN_COMPARATIVO (Seguros del Estado). None = `prima_total`."""
+    nombre = aseguradora.name
+    if any(p['clave'] == 'producto_destacado' for p in parametros_de(nombre)):
+        credencial = aseguradora.credenciales.filter(is_active=True).order_by('-id').first()
+        return parametro(credencial, nombre, 'producto_destacado') or None
+    return PLAN_COMPARATIVO.get(nombre)
+
+
 def construir(vehiculo):
     """{'filas': [...], 'sin_valor': [...], 'actual': nombre|None} del vehículo. `actual` es la aseguradora con la que el
     vehículo está asegurado hoy según el aviso de su portal (la que no cotiza porque ya tiene la póliza). Cada fila es un dict con aseguradora, etiqueta
     (qué valor es), valor, origen ('bot' o 'manual'), fecha y la diferencia con el más bajo."""
     activas = {a.pk: a for a in Aseguradora.objects.filter(is_active=True)}
     candidatas = {}
+    comparados = {}  # aseguradora_id -> plan que cuenta (None = prima_total)
 
     completadas = (Cotizacion.objects.filter(vehiculo=vehiculo, estado_bot='completado',
                                              aseguradora__name__in=list(BOTS_DISPONIBLES))
                    .select_related('aseguradora').prefetch_related('planes').order_by('id'))
     for c in completadas:  # orden ascendente: la más reciente de cada aseguradora queda al final
         nombre = c.aseguradora.name
-        etiqueta = PLAN_COMPARATIVO.get(nombre) or PLAN_DESTACADO.get(nombre, 'Premium')
-        valor = c.prima_total
-        if not valor:  # el bot no llenó prima_total: se busca el plan destacado entre sus planes
-            valor = next((p.prima_total for p in c.planes.all() if p.nombre_plan == etiqueta), 0)
+        if c.aseguradora_id not in comparados:
+            comparados[c.aseguradora_id] = _plan_comparado(c.aseguradora)
+        comparado = comparados[c.aseguradora_id]
+        etiqueta = comparado or PLAN_DESTACADO.get(nombre, 'Premium')
+        planes = {normalizar_texto(p.nombre_plan): p.prima_total for p in c.planes.all() if p.prima_total and p.prima_total > 0}
+        valor = planes.get(normalizar_texto(comparado)) if comparado else None
+        if not valor:  # el plan que cuenta no está entre los guardados: el de prima_total (o el destacado)
+            valor = c.prima_total or planes.get(normalizar_texto(etiqueta), 0)
         if c.aseguradora_id in activas and valor and valor > 0:
             candidatas[c.aseguradora_id] = {
                 'aseguradora': nombre,
@@ -102,6 +123,7 @@ def construir(vehiculo):
                 'valor': valor,
                 'origen': 'bot',
                 'fecha': c.ejecutado_en or c.created_at,
+                'planes_bot': planes,
             }
 
     for v in ValorExterno.objects.filter(vehiculo=vehiculo).select_related('aseguradora').order_by('id'):
@@ -168,32 +190,48 @@ def construir(vehiculo):
             motivo = SIN_CONDICIONES
         sin_valor.append({'aseguradora': nombre, 'motivo': motivo, 'actual': motivo == 'Aseguradora actual del vehículo'})
     sin_valor.sort(key=lambda s: not s['actual'])  # la aseguradora actual, primero
+    sin_condiciones = sorted((s for s in sin_valor if s['motivo'] == SIN_CONDICIONES), key=lambda s: s['aseguradora'])
     actual = next((s['aseguradora'] for s in sin_valor if s['actual']), None) or (poliza.aseguradora.name if poliza else None)
-    return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual,
+    return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual, 'sin_condiciones': sin_condiciones,
             'sin_condiciones_ids': {f['aseguradora_id'] for f in marcadas}}
 
 
 def _separar_planes(filas):
-    """Los valores a mano de PLANES_A_MANO (Seguros del Estado) salen como una fila por plan: «Seguros del Estado Elite»
-    con `valor` y «Seguros del Estado Integral» con `valor_2` (si se registró). Las dos filas comparten el mismo
-    ValorExterno; `campo` dice cuál de sus valores muestra cada una (para corregirlo). `aseguradora` es el nombre que se
-    muestra y `aseguradora_nombre` el de la aseguradora."""
+    """Aseguradoras con dos planes en el comparativo: salen como una fila por plan, con el plan en el nombre.
+
+    - Valores a mano de PLANES_A_MANO (Seguros del Estado Elite/Integral, AXA Colpatria Plus/VIP): el primer plan con
+      `valor` y el segundo con `valor_2` (si se registró). Las dos filas comparten el mismo ValorExterno; `campo` dice
+      cuál de sus valores muestra cada una (para corregirlo).
+    - Cotizaciones del bot de PLANES_DEL_BOT (AXA Colpatria): el primer plan con `prima_total` y los demás con el valor
+      de ese plan entre los que guardó el bot. Todas comparten la cotización (y su PDF).
+    `aseguradora` es el nombre que se muestra y `aseguradora_nombre` el de la aseguradora."""
     for fila in filas:
         fila.setdefault('plan', '')
         fila.setdefault('campo', 'valor')
-        planes = PLANES_A_MANO.get(fila['aseguradora_nombre']) if fila['origen'] == 'manual' else None
+        nombre = fila['aseguradora_nombre']
+        if fila['origen'] == 'bot':
+            planes = PLANES_DEL_BOT.get(nombre)
+            if not planes:
+                yield fila
+                continue
+            yield {**fila, 'aseguradora': f'{nombre} {planes[0]}', 'plan': planes[0], 'etiqueta': planes[0]}
+            for plan in planes[1:]:
+                valor = fila.get('planes_bot', {}).get(normalizar_texto(plan))
+                if valor:
+                    yield {**fila, 'aseguradora': f'{nombre} {plan}', 'plan': plan, 'etiqueta': plan, 'valor': valor}
+            continue
+        planes = PLANES_A_MANO.get(nombre)
         if not planes:
             yield fila
             continue
-        nombre = fila['aseguradora_nombre']
-        yield {**fila, 'aseguradora': f'{nombre} {planes[0]}', 'plan': planes[0]}
+        yield {**fila, 'aseguradora': f'{nombre} {planes[0]}', 'plan': planes[0], 'plan_2': planes[1]}
         if fila.get('valor_2'):
             yield {**fila, 'aseguradora': f'{nombre} {planes[1]}', 'plan': planes[1], 'valor': fila['valor_2'], 'campo': 'valor_2'}
 
 
 def primeras_aseguradoras(filas, cantidad):
     """Las filas de las `cantidad` aseguradoras más baratas, una por aseguradora (de Seguros del Estado cuenta su plan
-    más barato: Elite e Integral son la misma cotización y el mismo PDF)."""
+    más barato: Elite e Integral son la misma cotización y el mismo PDF; igual Plus y VIP en AXA Colpatria)."""
     elegidas, vistas = [], set()
     for fila in filas:
         if fila['aseguradora_id'] not in vistas:
@@ -223,13 +261,20 @@ def _ficha_de(aseguradora_id, nombre, fichas, plan=''):
     return next((f for f in propias if f.producto == producto), propias[0] if propias else None)
 
 
-def resumen_cliente(filas):
-    """Cuadro para enviar al cliente: una columna por aseguradora que aplica (las que tienen valor), en el orden
-    del comparativo (de menor a mayor), con el valor y las coberturas/asistencias de su ficha.
+def _clase_columna(columna):
+    if columna.get('sin_condiciones'):
+        return 'cmp-col-sincond'
+    return 'cmp-col-mejor' if columna['es_mejor'] else 'cmp-col-segunda' if columna['es_segunda'] else ''
 
-    {'columnas': [{aseguradora, producto, etiqueta, valor_fmt, es_mejor, tiene_ficha}],
-     'secciones': [{'titulo', 'filas': [{'etiqueta', 'celdas': [{'texto', 'tono'}], 'igual'}]}]}
-    'igual' marca la fila cuyo texto es idéntico en todas las aseguradoras (para poder ocultarla)."""
+
+def resumen_cliente(filas, sin_condiciones=()):
+    """Cuadro para enviar al cliente: una columna por aseguradora que aplica (las que tienen valor), en el orden
+    del comparativo (de menor a mayor), con el valor y las coberturas/asistencias de su ficha. Al final, una columna
+    por aseguradora sin condiciones (`construir()['sin_condiciones']`), sin valor ni coberturas.
+
+    {'columnas': [{aseguradora, producto, etiqueta, valor_fmt, es_mejor, es_segunda, sin_condiciones, tiene_ficha, clase}],
+     'secciones': [{'titulo', 'filas': [{'etiqueta', 'celdas': [{'texto', 'tono', 'clase'}], 'igual'}]}]}
+    'igual' marca la fila cuyo texto es idéntico en todas las aseguradoras con valor (para poder ocultarla)."""
     if not filas:
         return {'columnas': [], 'secciones': []}
     fichas = {}
@@ -246,9 +291,14 @@ def resumen_cliente(filas):
             'valor_fmt': fila['valor_fmt'],
             'es_mejor': fila['posicion'] == 1,
             'es_segunda': fila['posicion'] == 2,
+            'sin_condiciones': False,
             'tiene_ficha': ficha is not None,
         })
         contenido.append(secciones_de(ficha) if ficha else None)
+    extra = [{'aseguradora': s['aseguradora'], 'producto': '', 'etiqueta': '', 'valor_fmt': SIN_CONDICIONES_CORTO,
+              'es_mejor': False, 'es_segunda': False, 'sin_condiciones': True, 'tiene_ficha': True} for s in sin_condiciones]
+    for columna in columnas + extra:
+        columna['clase'] = _clase_columna(columna)
 
     modelo = next((c for c in contenido if c), None)
     secciones = []
@@ -257,13 +307,15 @@ def resumen_cliente(filas):
             filas_seccion = []
             for j, (etiqueta, _) in enumerate(campos):
                 celdas = []
-                for c in contenido:
+                for columna, c in zip(columnas, contenido):
                     texto = c[i][1][j][1] if c else ''
-                    celdas.append({'texto': texto, 'tono': _tono(texto)})
+                    celdas.append({'texto': texto, 'tono': _tono(texto), 'clase': columna['clase']})
                 textos = {c['texto'] for c in celdas}
-                filas_seccion.append({'etiqueta': etiqueta, 'celdas': celdas, 'igual': len(textos) == 1 and len(celdas) > 1})
+                igual = len(textos) == 1 and len(celdas) > 1
+                celdas += [{'texto': '', 'tono': 'sincond', 'clase': columna['clase']} for columna in extra]
+                filas_seccion.append({'etiqueta': etiqueta, 'celdas': celdas, 'igual': igual})
             secciones.append({'titulo': titulo, 'filas': filas_seccion})
-    return {'columnas': columnas, 'secciones': secciones}
+    return {'columnas': columnas + extra, 'secciones': secciones}
 
 
 def indicadores(filas):

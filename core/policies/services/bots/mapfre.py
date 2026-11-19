@@ -606,7 +606,7 @@ class MapfreBot(RegistroErrorMixin):
     # Busca, en la fila del producto destacado de la tabla de resultados, el botón con ícono de PDF (más a la derecha).
     # Lo marca con data-aslan-pdf para pulsarlo con Playwright. Nunca toma «Emitir» ni «Recotizar».
     # El PDF de la cotización está en la columna «Carátula» de la tabla de resultados (ícono rojo de PDF), en la fila del
-    # producto que cuenta (Super Trebol 117). Se ubica la columna por su título, como lo haría una persona; si no
+    # producto que cuenta (el de la credencial: Super Trebol). Se ubica la columna por su título, como lo haría una persona; si no
     # aparece, se busca un ícono de PDF en la fila. Nunca se toca «Emitir» ni «SimuCrediMapfre».
     BOTON_PDF_JS = """(producto) => {
         const norm = t => (t || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toLowerCase();
@@ -616,7 +616,7 @@ class MapfreBot(RegistroErrorMixin):
         const esTitulo = c => norm(c.innerText) === 'caratula';
         const cabecera = filas.find(tr => [...tr.children].some(esTitulo));
         const datos = filas.filter(tr => tr !== cabecera && tr.querySelectorAll('td').length > 1);
-        // Primero la celda de producto exacta («Super Trebol 117 /» = super trebol 117); si no, la que lo contenga.
+        // Primero la celda de producto exacta («Super Trebol /» = super trebol, no «Super Trebol 117»); si no, la que lo contenga.
         const exacta = tr => [...tr.children].some(c => norm(c.innerText).replace(/\\s*\\/\\s*$/, '') === producto);
         const fila = datos.find(exacta) || datos.find(tr => norm(tr.innerText).includes(producto)) || datos[0];
         if (!fila) return {estado: 'sin_filas'};
@@ -644,7 +644,7 @@ class MapfreBot(RegistroErrorMixin):
 
     def _descargar_cotizacion(self, page):
         """PDF de la cotización: botón con ícono de PDF en la tabla de resultados, en la fila del producto destacado
-        (Super Trebol 117). Puede tardar unos segundos en aparecer después de la tabla."""
+        (Super Trebol). Puede tardar unos segundos en aparecer después de la tabla."""
         self._paso('PDF de la cotización')
         try:
             marco = self._marco(page)
@@ -669,7 +669,8 @@ class MapfreBot(RegistroErrorMixin):
                 boton.click(timeout=8000)
             except PlaywrightTimeoutError:
                 boton.evaluate('e => e.click()')  # ícono sin tamaño visible (p. ej. de fondo CSS): el clic va directo al elemento
-        self._descargar_pdf(page, pulsar)
+        # Mapfre abría una ventana para guardar el PDF y ahí se quedaba: sin diálogos y copiando el PDF de la red.
+        self._descargar_pdf(page, pulsar, interceptar=True)
 
     def _guardar_fila_sin_pdf(self, resultado):
         """Si el botón del PDF no aparece, guarda cómo venía la fila para ajustar el bot (sin datos de campos)."""

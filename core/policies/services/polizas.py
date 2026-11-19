@@ -90,10 +90,18 @@ def opciones_poliza(vehiculo):
     from core.policies.services.comparativo import construir  # import local: comparativo importa los bots
 
     grupos = []
+    por_cotizacion = {}  # AXA Colpatria Plus y VIP son dos filas de la misma cotización: un solo grupo con sus planes
     for fila in construir(vehiculo)['filas']:
-        grupo = {'aseguradora': fila['aseguradora'], 'aseguradora_id': fila['aseguradora_id'], 'origen': fila['origen'],
-                 'posicion': fila['posicion'], 'opciones': []}
+        previo = por_cotizacion.get(fila['cotizacion_id']) if fila['origen'] == 'bot' else None
+        if previo is not None:
+            for opcion in previo['opciones']:
+                opcion['comparado'] = opcion['comparado'] or opcion['plan'] == fila['etiqueta']
+            previo['opciones'].sort(key=lambda o: (not o['comparado'], o['valor']))
+            continue
+        grupo = {'aseguradora': fila['aseguradora_nombre'] if fila['origen'] == 'bot' else fila['aseguradora'],
+                 'aseguradora_id': fila['aseguradora_id'], 'origen': fila['origen'], 'posicion': fila['posicion'], 'opciones': []}
         if fila['origen'] == 'bot':
+            por_cotizacion[fila['cotizacion_id']] = grupo
             cotizacion = Cotizacion.objects.prefetch_related('planes').get(pk=fila['cotizacion_id'])
             planes = [(p.nombre_plan, p.prima_total) for p in cotizacion.planes.all() if p.prima_total and p.prima_total > 0]
             if not any(nombre == fila['etiqueta'] for nombre, _ in planes):
@@ -102,7 +110,7 @@ def opciones_poliza(vehiculo):
                 grupo['opciones'].append({'id': f'c{cotizacion.pk}|{nombre}', 'plan': nombre, 'valor': float(valor),
                                           'comparado': nombre == fila['etiqueta'], 'cuotas': _cuotas_del_plan(nombre)})
         else:
-            # Seguros del Estado Integral: segundo valor del mismo registro («e<id>|2»).
+            # Seguros del Estado Integral / AXA VIP: segundo valor del mismo registro («e<id>|2»).
             sufijo = '|2' if fila.get('campo') == 'valor_2' else ''
             grupo['opciones'].append({'id': f'e{fila["valor_externo_id"]}{sufijo}', 'plan': fila.get('plan', ''), 'valor': float(fila['valor']),
                                       'comparado': True, 'cuotas': None})

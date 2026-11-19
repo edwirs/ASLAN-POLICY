@@ -74,6 +74,8 @@ DORADO = '#d97706'
 AMBAR = '#f59e0b'          # la segunda opción más económica (como en el «Ranking de valores»)
 AMBAR_TEXTO = '#b45309'
 AMBAR_SUAVE = '#fef6e4'
+ROJO_TEXTO = '#b91c1c'      # aseguradoras sin condiciones (no cotizaron), de últimas en el comparativo
+ROJO_SUAVE = '#fdecec'
 NARANJA = '#f26a21'
 FUENTE = 'Arial, Helvetica, sans-serif'
 
@@ -333,10 +335,14 @@ def _barra(porcentaje, mejor, segunda=False):
             f'<div style="width:{porcentaje}%;height:3px;background:{color};border-radius:3px;font-size:0;line-height:0;"></div></div>')
 
 
-def bloque_comparativo(vehiculo, plantilla, filas=None):
-    """Ranking de valores (la aseguradora actual del vehículo va en la tarjeta de datos del vehículo, no aquí)."""
-    filas = construir(vehiculo)['filas'] if filas is None else filas
-    if not filas:
+def bloque_comparativo(vehiculo, plantilla, filas=None, sin_condiciones=None):
+    """Ranking de valores (la aseguradora actual del vehículo va en la tarjeta de datos del vehículo, no aquí). Al final,
+    en rojo claro, las aseguradoras sin condiciones (`construir()['sin_condiciones']`)."""
+    if filas is None or sin_condiciones is None:
+        resultado = construir(vehiculo)
+        filas = resultado['filas'] if filas is None else filas
+        sin_condiciones = resultado['sin_condiciones'] if sin_condiciones is None else sin_condiciones
+    if not filas and not sin_condiciones:
         return (f'<p style="font-family:{FUENTE};font-size:13px;color:{GRIS};margin:0;">'
                 f'Todavía no hay valores de aseguradoras para este vehículo.</p>')
     asegurados = dict(Cotizacion.objects.filter(pk__in=[f['cotizacion_id'] for f in filas if f['cotizacion_id']])
@@ -345,7 +351,7 @@ def bloque_comparativo(vehiculo, plantilla, filas=None):
     th = (f'style="background:{SUPERFICIE};font-family:{FUENTE};font-size:9px;font-weight:bold;text-transform:uppercase;'
           f'letter-spacing:.5px;color:{GRIS};padding:6px 8px;border-bottom:2px solid {BORDE_FUERTE};"')
     cuerpo = []
-    ultima = len(filas) - 1
+    ultima = len(filas) + len(sin_condiciones) - 1
     for i, f in enumerate(filas):
         mejor = f['posicion'] == 1
         segunda = f['posicion'] == 2
@@ -363,6 +369,15 @@ def bloque_comparativo(vehiculo, plantilla, filas=None):
             f'{f["valor_fmt"]}</span>{_barra(f["barra"], mejor, segunda)}</td>'
             f'<td align="right" class="solo-ancho" style="{td}font-size:12px;color:{TEXTO};white-space:nowrap;">{diferencia}</td>'
             f'<td align="right" class="solo-ancho" style="{td}font-size:12px;color:{TEXTO};white-space:nowrap;">{dinero(asegurado) if asegurado else "—"}</td></tr>')
+    for i, s in enumerate(sin_condiciones, start=len(filas)):
+        borde = '' if i == ultima else f'border-bottom:1px solid {BORDE};'
+        td = f'font-family:{FUENTE};padding:6px 8px;background:{ROJO_SUAVE};{borde}vertical-align:middle;'
+        cuerpo.append(
+            f'<tr><td align="center" width="32" style="{td}"><span style="display:inline-block;width:20px;height:20px;line-height:20px;'
+            f'border-radius:10px;text-align:center;font-family:{FUENTE};font-size:11px;font-weight:bold;background:#ffffff;'
+            f'color:{ROJO_TEXTO};border:1px solid #f5c2c2;">&times;</span></td>'
+            f'<td style="{td}"><span style="font-size:12px;font-weight:bold;color:{TEXTO};">{escape(s["aseguradora"])}</span></td>'
+            f'<td align="right" colspan="3" style="{td}font-size:12px;font-weight:bold;color:{ROJO_TEXTO};">{escape(s["motivo"])}</td></tr>')
     dias = plantilla.vigencia_cotizacion_dias if plantilla else 15
     tabla = (
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;width:100%;">'
@@ -516,7 +531,7 @@ def armar(plantilla, vehiculo, usuario, para_envio=False):
     firma = firma_de(usuario)
     bloques = {
         'datos_vehiculo': bloque_datos_vehiculo(vehiculo, actual),
-        'comparativo': bloque_comparativo(vehiculo, plantilla, filas),
+        'comparativo': bloque_comparativo(vehiculo, plantilla, filas, resultado['sin_condiciones']),
         'promocion': bloque_promocion(plantilla, filas, fuente(plantilla.promocion_imagen, 'promocion') if promocion_visible(plantilla, filas) else None),
         'firma': bloque_firma(usuario, fuente(firma.imagen if firma else None, 'firma')),
     }

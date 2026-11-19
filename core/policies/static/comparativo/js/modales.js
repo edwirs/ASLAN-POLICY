@@ -194,7 +194,7 @@ var comparativoModales = {
     },
 
     // Una aseguradora elegida en una fila no aparece en las listas de las otras; y se actualiza la línea de pendientes.
-    // Aseguradora con dos planes (Seguros del Estado: Elite e Integral): un valor por plan, cada uno con su nombre.
+    // Aseguradora con dos planes (Seguros del Estado: Elite e Integral; AXA Colpatria: Plus y VIP): un valor por plan, cada uno con su nombre.
     pintarPlanes: function ($fila) {
         var planes = String($fila.find('.cmp-aseguradora option:selected').data('planes') || '').split('|').filter(Boolean);
         var dos = planes.length === 2;
@@ -246,7 +246,7 @@ var comparativoModales = {
             if (sinCondiciones) { filas.push({aseguradora: aseguradora, sin_condiciones: true}); return; }
             if (!valor || parseInt(valor, 10) <= 0) { error = 'Escribe un valor mayor que cero (o marca «Sin condiciones») en la fila ' + (i + 1); return false; }
             var fila = {aseguradora: aseguradora, valor: valor};
-            if (valor2) { fila.valor_2 = valor2; }  // Seguros del Estado: el Integral (opcional)
+            if (valor2) { fila.valor_2 = valor2; }  // segundo plan (Integral / VIP), opcional
             filas.push(fila);
         });
         if (!error && !filas.length) {

@@ -40,7 +40,7 @@ def _aseguradoras_activas():
 
 
 # Plan cuyo valor se muestra resaltado como la prima de la aseguradora (la de las demás es «Premium»).
-PLAN_DESTACADO = {'La Equidad Seguros': 'Plan Full', 'Qualitas': 'Amplia', 'AXA Colpatria': 'Plus', 'Seguros Mundial': 'Pago de contado', 'Mapfre': 'Super Trebol 117'}
+PLAN_DESTACADO = {'La Equidad Seguros': 'Plan Full', 'Qualitas': 'Amplia', 'AXA Colpatria': 'Plus', 'Seguros Mundial': 'Pago de contado', 'Mapfre': 'Super Trebol'}
 
 
 def datos_usados(c):
@@ -60,8 +60,8 @@ def datos_usados(c):
 
 
 # Aseguradoras cuyos dos valores a mano son dos planes: en el comparativo, el resumen y el correo salen como dos filas
-# («Seguros del Estado Elite» con `valor` y «Seguros del Estado Integral» con `valor_2`).
-PLANES_A_MANO = {'Seguros del Estado': ('Elite', 'Integral')}
+# («Seguros del Estado Elite» con `valor` y «Seguros del Estado Integral» con `valor_2`; igual AXA Plus y VIP).
+PLANES_A_MANO = {'Seguros del Estado': ('Elite', 'Integral'), 'AXA Colpatria': ('Plus', 'VIP')}
 # Nombres de los dos valores que se piden al cotizar a mano. Fuera de PLANES_A_MANO solo el primero entra al comparativo.
 ETIQUETAS_A_MANO = {nombre: tuple(f'Valor {plan}' for plan in planes) for nombre, planes in PLANES_A_MANO.items()}
 ETIQUETAS_A_MANO_DEFECTO = ('Valor 1', 'Valor 2')

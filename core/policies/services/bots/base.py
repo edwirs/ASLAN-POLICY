@@ -548,13 +548,41 @@ class RegistroErrorMixin:
         except Exception:
             logger.warning('No se pudo guardar el mapeo de documentos.', exc_info=True)
 
-    def _descargar_pdf(self, page, clic, espera=60, filtro=None):
+    # Mientras se baja el PDF (con `interceptar`): ningún diálogo del navegador. Si el portal llama window.print() (vista
+    # de impresión con «Guardar como PDF») o showSaveFilePicker() (ventana «Guardar como»), la ventana se queda esperando
+    # a una persona y el bot no recibe nada. Se anulan y se deja la marca __aslanImprimir para el diagnóstico.
+    JS_SIN_DIALOGOS = """() => {
+        try { window.print = function () { window.__aslanImprimir = true; }; } catch (e) {}
+        try { window.showSaveFilePicker = undefined; } catch (e) {}
+    }"""
+
+    # PDF que una pestaña nueva muestra dentro de un visor (embed/iframe/object) o como blob: el contenido de los blob y
+    # data: se lee en la misma página (solo ella puede); las direcciones http se piden aparte con la sesión del navegador.
+    JS_PDF_EN_PESTANA = """async () => {
+        const fuentes = [...document.querySelectorAll('embed, iframe, object')]
+            .map(e => e.src || e.data || e.getAttribute('src') || e.getAttribute('data') || '').filter(Boolean);
+        for (const url of fuentes.filter(u => /^(blob|data):/.test(u))) {
+            try {
+                const datos = new Uint8Array(await (await fetch(url)).arrayBuffer());
+                let texto = '';
+                for (let i = 0; i < datos.length; i += 0x8000) texto += String.fromCharCode.apply(null, datos.subarray(i, i + 0x8000));
+                return {base64: btoa(texto)};
+            } catch (e) {}
+        }
+        return {urls: fuentes.filter(u => /^https?:/.test(u)), imprimio: !!window.__aslanImprimir};
+    }"""
+
+    def _descargar_pdf(self, page, clic, espera=60, filtro=None, interceptar=False):
         """Pulsa (con `clic()`) el botón del portal que descarga el PDF de la cotización y lo guarda en
         `Cotizacion.pdf`. Atrapa la descarga venga de esta pestaña o de una nueva; si el portal abre el PDF en una
         pestaña en vez de descargarlo, lo pide por su dirección. Nunca lanza: si no hay PDF, la cotización sigue
         completada con su valor y el asesor puede subirlo a mano al armar el correo. `filtro(descarga)` descarta las
-        descargas que no son la cotización (p. ej. un comparativo que el portal baja junto). Devuelve True si lo guardó."""
-        descargas, contexto, escuchadas = [], page.context, []
+        descargas que no son la cotización (p. ej. un comparativo que el portal baja junto). Devuelve True si lo guardó.
+
+        Con `interceptar` (Mapfre): además se anulan los diálogos de impresión y de «Guardar como» (JS_SIN_DIALOGOS) y se
+        copia cualquier PDF que pase por la red mientras tanto, aunque el navegador lo muestre en su visor en vez de
+        descargarlo. Si aun así no llega, se guarda una foto de las pestañas nuevas en media/bot_debug para mapearlo."""
+        descargas, contexto, escuchadas, capturados = [], page.context, [], []
 
         def guardar(descarga):
             try:
@@ -567,25 +595,58 @@ class RegistroErrorMixin:
         def escuchar(pestana):
             pestana.on('download', guardar)
             escuchadas.append(pestana)
+
+        def capturar(route):
+            if route.request.resource_type not in ('document', 'xhr', 'fetch', 'other'):
+                return route.continue_()
+            try:
+                respuesta = route.fetch()
+            except Exception:
+                return route.continue_()
+            try:
+                tipo = (respuesta.headers.get('content-type', '') + ' ' + respuesta.headers.get('content-disposition', '')).lower()
+                if 'pdf' in tipo:
+                    cuerpo = respuesta.body()
+                    if cuerpo[:5] == b'%PDF-':
+                        capturados.append(cuerpo)
+            except Exception:
+                logger.warning('No se pudo copiar una respuesta PDF del portal.', exc_info=True)
+            route.fulfill(response=respuesta)
+
         try:
             antes = list(contexto.pages)
             for pestana in antes:
                 escuchar(pestana)
             contexto.on('page', escuchar)
+            if interceptar:
+                contexto.add_init_script(f'({self.JS_SIN_DIALOGOS})()')  # pestañas y marcos que se abran
+                for pestana in antes:
+                    for marco in pestana.frames:
+                        try:
+                            marco.evaluate(self.JS_SIN_DIALOGOS)  # los que ya están abiertos
+                        except Exception:
+                            pass
+                contexto.route('**/*', capturar)
             try:
                 clic()
                 limite = time.time() + espera
-                while not descargas and time.time() < limite:
+                while not descargas and not capturados and time.time() < limite:
                     page.wait_for_timeout(500)  # también deja que Playwright procese los eventos (descarga, pestaña nueva)
                     if not descargas and time.time() > limite - espera + 8:
                         nuevas = [p for p in contexto.pages if p not in antes and p.url not in ('', 'about:blank')]
                         if nuevas:
+                            page.wait_for_timeout(2000)  # que alcance a cargar lo que muestre la pestaña
                             break
             finally:
                 contexto.remove_listener('page', escuchar)
                 for pestana in escuchadas:
                     try:
                         pestana.remove_listener('download', guardar)
+                    except Exception:
+                        pass
+                if interceptar:
+                    try:
+                        contexto.unroute('**/*', capturar)
                     except Exception:
                         pass
             datos = None
@@ -598,14 +659,10 @@ class RegistroErrorMixin:
                     descargas[0].save_as(ruta)
                     with open(ruta, 'rb') as archivo:
                         datos = archivo.read()
-            else:
-                for nueva in [p for p in contexto.pages if p not in antes]:
-                    try:
-                        respuesta = contexto.request.get(nueva.url, timeout=espera * 1000)
-                        if respuesta.ok and respuesta.body()[:5] == b'%PDF-':
-                            datos = respuesta.body()
-                    finally:
-                        nueva.close()
+            if (not datos or datos[:5] != b'%PDF-') and capturados:
+                datos = capturados[0]
+            if not datos or datos[:5] != b'%PDF-':
+                datos = self._pdf_de_pestanas_nuevas(contexto, antes, espera, diagnostico=interceptar)
             if not datos or datos[:5] != b'%PDF-':
                 logger.warning('%s: el portal no entregó el PDF de la cotización #%s.', self.cotizacion.aseguradora.name, self.cotizacion.pk)
                 return False
@@ -615,6 +672,58 @@ class RegistroErrorMixin:
             logger.warning('%s: no se pudo descargar el PDF de la cotización #%s.', self.cotizacion.aseguradora.name,
                            self.cotizacion.pk, exc_info=True)
             return False
+
+    def _pdf_de_pestanas_nuevas(self, contexto, antes, espera, diagnostico=False):
+        """El portal abrió el PDF en una pestaña en vez de descargarlo: se pide por su dirección o, si la pestaña lo
+        muestra dentro de un visor, se lee de ahí (JS_PDF_EN_PESTANA). Cierra las pestañas nuevas. Con `diagnostico`, si
+        no sale el PDF guarda una foto de cada pestaña en media/bot_debug (la dirección sin parámetros: llevan tokens)."""
+        import base64
+        datos = None
+        for i, nueva in enumerate([p for p in contexto.pages if p not in antes]):
+            visor = {}
+            try:
+                urls = [nueva.url]
+                if not datos:
+                    try:
+                        visor = nueva.evaluate(self.JS_PDF_EN_PESTANA) or {}
+                    except Exception:
+                        pass  # p. ej. el visor de PDF del navegador no deja ejecutar nada: queda la dirección
+                    if visor.get('base64'):
+                        datos = base64.b64decode(visor['base64'])
+                    urls += visor.get('urls') or []
+                for url in urls:
+                    if datos and datos[:5] == b'%PDF-':
+                        break
+                    if not url.startswith('http'):
+                        continue
+                    respuesta = contexto.request.get(url, timeout=espera * 1000)
+                    if respuesta.ok and respuesta.body()[:5] == b'%PDF-':
+                        datos = respuesta.body()
+                if diagnostico and not (datos and datos[:5] == b'%PDF-'):
+                    self._foto_pestana_sin_pdf(nueva, i, visor)
+            except Exception:
+                logger.warning('No se pudo leer el PDF de la pestaña nueva %s.', i, exc_info=True)
+            finally:
+                try:
+                    nueva.close()
+                except Exception:
+                    pass
+        return datos
+
+    def _foto_pestana_sin_pdf(self, pestana, indice, visor):
+        try:
+            import os
+            from django.conf import settings
+            carpeta = os.path.join(settings.MEDIA_ROOT, 'bot_debug')
+            os.makedirs(carpeta, exist_ok=True)
+            nombre = re.sub(r'[^a-z0-9]+', '_', normalizar_texto(self.cotizacion.aseguradora.name)).strip('_')
+            base = os.path.join(carpeta, f'{nombre}_pdf_{self.cotizacion.pk}_pestana{indice}')
+            pestana.screenshot(path=f'{base}.png', timeout=15000)
+            logger.warning('%s: la pestaña que abrió el portal no trajo el PDF (%s%s). Foto en %s.png',
+                           self.cotizacion.aseguradora.name, pestana.url.split('?')[0],
+                           ', pidió imprimir' if visor.get('imprimio') else '', base)
+        except Exception:
+            logger.warning('No se pudo guardar la foto de la pestaña sin PDF.', exc_info=True)
 
     def _guardar_pdf(self, datos):
         from django.core.files.base import ContentFile
