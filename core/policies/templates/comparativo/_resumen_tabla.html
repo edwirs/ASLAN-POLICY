@@ -22,8 +22,7 @@
                     <th class="cmp-col-etiqueta" scope="row">{{ f.etiqueta }}</th>
                     {% for celda in f.celdas %}
                         <td class="cmp-celda cmp-tono-{{ celda.tono }} {{ celda.clase }}">
-                            {% if celda.tono == 'sincond' %}
-                            {% elif celda.tono == 'vacio' %}<span class="cmp-sin-dato">—</span>
+                            {% if celda.tono == 'vacio' %}<span class="cmp-sin-dato">—</span>
                             {% else %}
                                 {% if celda.tono == 'si' %}<i class="fa-solid fa-circle-check"></i>{% elif celda.tono == 'no' %}<i class="fa-solid fa-circle-xmark"></i>{% endif %}
                                 <span>{{ celda.texto }}</span>

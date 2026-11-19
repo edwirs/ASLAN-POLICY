@@ -250,7 +250,7 @@
         {% include 'comparativo/_resumen_tabla.html' %}
 
         {% for c in resumen.columnas %}{% if not c.tiene_ficha %}
-            <div class="cmp-aviso cmp-no-imprimir"><i class="fa-solid fa-triangle-exclamation"></i> {{ c.aseguradora }} no tiene ficha de coberturas cargada: su columna solo muestra el valor.</div>
+            <div class="cmp-aviso cmp-no-imprimir"><i class="fa-solid fa-triangle-exclamation"></i> {{ c.aseguradora }} no tiene ficha de coberturas cargada: su columna {% if c.sin_condiciones %}queda sin coberturas{% else %}solo muestra el valor{% endif %}.</div>
         {% endif %}{% endfor %}
         <p class="cmp-nota-pie">Valores en pesos colombianos (COP). Las coberturas, deducibles y condiciones están sujetas a las condiciones generales de cada aseguradora.</p>
     </section>

@@ -168,7 +168,8 @@ def construir(vehiculo):
                   'valor_externo_id': f['valor_externo_id'], 'aseguradora_id': f['aseguradora_id']} for f in marcadas]
     con_valor |= {f['aseguradora'] for f in marcadas}
     ultimas = {c.aseguradora.name: c for c in ultimas_por_aseguradora(vehiculo)}
-    nombres_activos = {a.name for a in activas.values()}
+    ids_activos = {a.name: a.pk for a in activas.values()}
+    nombres_activos = set(ids_activos)
     for nombre in BOTS_DISPONIBLES:
         if nombre in con_valor or nombre not in nombres_activos:
             continue
@@ -188,7 +189,8 @@ def construir(vehiculo):
             motivo = 'Debe cambiar la contraseña del portal'
         else:
             motivo = SIN_CONDICIONES
-        sin_valor.append({'aseguradora': nombre, 'motivo': motivo, 'actual': motivo == 'Aseguradora actual del vehículo'})
+        sin_valor.append({'aseguradora': nombre, 'motivo': motivo, 'actual': motivo == 'Aseguradora actual del vehículo',
+                          'aseguradora_id': ids_activos[nombre]})
     sin_valor.sort(key=lambda s: not s['actual'])  # la aseguradora actual, primero
     sin_condiciones = sorted((s for s in sin_valor if s['motivo'] == SIN_CONDICIONES), key=lambda s: s['aseguradora'])
     actual = next((s['aseguradora'] for s in sin_valor if s['actual']), None) or (poliza.aseguradora.name if poliza else None)
@@ -270,15 +272,16 @@ def _clase_columna(columna):
 def resumen_cliente(filas, sin_condiciones=()):
     """Cuadro para enviar al cliente: una columna por aseguradora que aplica (las que tienen valor), en el orden
     del comparativo (de menor a mayor), con el valor y las coberturas/asistencias de su ficha. Al final, una columna
-    por aseguradora sin condiciones (`construir()['sin_condiciones']`), sin valor ni coberturas.
+    por aseguradora sin condiciones (`construir()['sin_condiciones']`): sin valor, pero con las coberturas de su ficha.
 
     {'columnas': [{aseguradora, producto, etiqueta, valor_fmt, es_mejor, es_segunda, sin_condiciones, tiene_ficha, clase}],
      'secciones': [{'titulo', 'filas': [{'etiqueta', 'celdas': [{'texto', 'tono', 'clase'}], 'igual'}]}]}
-    'igual' marca la fila cuyo texto es idéntico en todas las aseguradoras con valor (para poder ocultarla)."""
+    'igual' marca la fila cuyo texto es idéntico en todas las aseguradoras con ficha (para poder ocultarla)."""
     if not filas:
         return {'columnas': [], 'secciones': []}
     fichas = {}
-    for ficha in CoberturaAseguradora.objects.filter(aseguradora_id__in={f['aseguradora_id'] for f in filas}).order_by('id'):
+    ids = {f['aseguradora_id'] for f in filas} | {s['aseguradora_id'] for s in sin_condiciones}
+    for ficha in CoberturaAseguradora.objects.filter(aseguradora_id__in=ids).order_by('id'):
         fichas.setdefault(ficha.aseguradora_id, []).append(ficha)
 
     columnas, contenido = [], []
@@ -295,9 +298,13 @@ def resumen_cliente(filas, sin_condiciones=()):
             'tiene_ficha': ficha is not None,
         })
         contenido.append(secciones_de(ficha) if ficha else None)
-    extra = [{'aseguradora': s['aseguradora'], 'producto': '', 'etiqueta': '', 'valor_fmt': SIN_CONDICIONES_CORTO,
-              'es_mejor': False, 'es_segunda': False, 'sin_condiciones': True, 'tiene_ficha': True} for s in sin_condiciones]
-    for columna in columnas + extra:
+    for s in sin_condiciones:
+        ficha = _ficha_de(s['aseguradora_id'], s['aseguradora'], fichas)
+        columnas.append({'aseguradora': s['aseguradora'], 'producto': ficha.producto if ficha and ficha.producto != 'General' else '',
+                         'etiqueta': '', 'valor_fmt': SIN_CONDICIONES_CORTO, 'es_mejor': False, 'es_segunda': False,
+                         'sin_condiciones': True, 'tiene_ficha': ficha is not None})
+        contenido.append(secciones_de(ficha) if ficha else None)
+    for columna in columnas:
         columna['clase'] = _clase_columna(columna)
 
     modelo = next((c for c in contenido if c), None)
@@ -310,12 +317,11 @@ def resumen_cliente(filas, sin_condiciones=()):
                 for columna, c in zip(columnas, contenido):
                     texto = c[i][1][j][1] if c else ''
                     celdas.append({'texto': texto, 'tono': _tono(texto), 'clase': columna['clase']})
-                textos = {c['texto'] for c in celdas}
-                igual = len(textos) == 1 and len(celdas) > 1
-                celdas += [{'texto': '', 'tono': 'sincond', 'clase': columna['clase']} for columna in extra]
+                con_ficha = [celda['texto'] for celda, c in zip(celdas, contenido) if c]
+                igual = len(set(con_ficha)) == 1 and len(con_ficha) > 1
                 filas_seccion.append({'etiqueta': etiqueta, 'celdas': celdas, 'igual': igual})
             secciones.append({'titulo': titulo, 'filas': filas_seccion})
-    return {'columnas': columnas + extra, 'secciones': secciones}
+    return {'columnas': columnas, 'secciones': secciones}
 
 
 def indicadores(filas):
