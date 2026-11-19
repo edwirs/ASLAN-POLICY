@@ -112,6 +112,9 @@ SEGURIDAD_SMTP = (
 )
 
 ESTADO_CORREO = (
+    ('programado', 'Programado'),
+    ('enviando', 'Enviando'),
     ('enviado', 'Enviado'),
     ('error', 'No se pudo enviar'),
+    ('cancelado', 'Cancelado'),
 )

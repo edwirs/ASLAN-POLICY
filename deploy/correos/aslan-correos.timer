@@ -1,0 +1,11 @@
+# Corre aslan-correos.service cada minuto. Instalación: ver deploy/correos/LEEME.md
+[Unit]
+Description=ASLAN - revisar la cola de correos cada minuto
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

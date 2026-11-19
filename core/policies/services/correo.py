@@ -11,7 +11,7 @@ import os
 import re
 import smtplib
 import socket
-from datetime import date
+from datetime import date, timedelta
 from email.mime.image import MIMEImage
 from html import escape
 from html.parser import HTMLParser
@@ -28,8 +28,9 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from core.policies.models import CorreoEnviado, Cotizacion, FirmaCorreo, PlantillaCorreo, ValorExterno
+from core.policies.models import CorreoAdjunto, CorreoEnviado, Cotizacion, FirmaCorreo, PlantillaCorreo, ValorExterno
 from core.policies.services.bots.base import normalizar_texto
+from core.policies.services import horario_habil
 from core.policies.services.comparativo import construir, dinero, soat
 from core.policies.services.polizas import registrar_evento
 
@@ -451,7 +452,12 @@ MAS_BARATAS = 2
 PDF_MAXIMO_MB = 10
 
 
-def cotizaciones_a_adjuntar(filas):
+def nombre_pdf_cotizacion(placa, aseguradora):
+    """Nombre del PDF de la cotización de una aseguradora: «CTZ» fijo + placa + aseguradora (CTZ KHD711 HDI.pdf)."""
+    return f'CTZ {(placa or "").strip().upper()} {aseguradora}.pdf'
+
+
+def cotizaciones_a_adjuntar(filas, placa):
     """Los MAS_BARATAS primeros del ranking y su PDF. Los valores manuales (cotizados por el asesor o por un externo)
     llevan el PDF que sube el asesor; los de bot, el que el bot descargó del portal (o el que suba el asesor si no pudo).
     `tipo` + `ref_id` identifican de dónde es el PDF: 'manual' = ValorExterno, 'bot' = Cotizacion."""
@@ -472,7 +478,7 @@ def cotizaciones_a_adjuntar(filas):
             'ref_id': ref_id,
             'valor_externo_id': fila.get('valor_externo_id'),
             'tiene_pdf': bool(documento),
-            'archivo': f'Cotización {fila["aseguradora"]}.pdf',
+            'archivo': nombre_pdf_cotizacion(placa, fila['aseguradora']),
             'documento': documento or None,
         })
     return resultado
@@ -531,7 +537,7 @@ def armar(plantilla, vehiculo, usuario, para_envio=False):
         avisos.append('El cliente no tiene correo registrado: escríbalo en «Para».')
     if not filas:
         avisos.append('El comparativo todavía no tiene valores de aseguradoras.')
-    cotizaciones = cotizaciones_a_adjuntar(filas)
+    cotizaciones = cotizaciones_a_adjuntar(filas, vehiculo.placa)
     faltan = [c['aseguradora'] for c in cotizaciones if not c['tiene_pdf']]
     if faltan:
         avisos.append(f'Falta adjuntar el PDF de la cotización de {" y ".join(faltan)} (está entre las {MAS_BARATAS} más baratas).')
@@ -695,9 +701,22 @@ def probar_cuenta(cuenta):
     return ok, mensaje
 
 
-def enviar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None):
-    """Envía el correo y lo registra. `para` y `cc` son textos con correos separados por coma. Devuelve el
-    CorreoEnviado; lanza CorreoError (y deja el intento registrado) si no se pudo."""
+# Fallas pasajeras del servidor de correo: el envío programado se reintenta hasta INTENTOS_MAXIMOS veces.
+INTENTOS_MAXIMOS = 3
+MINUTOS_REINTENTO = 5
+
+
+def _falla_pasajera(error):
+    if isinstance(error, (smtplib.SMTPAuthenticationError, smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused)):
+        return False
+    return isinstance(error, (socket.timeout, TimeoutError, ConnectionError, smtplib.SMTPServerDisconnected,
+                              smtplib.SMTPConnectError, OSError))
+
+
+def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None):
+    """Deja el correo en la cola tal como el asesor lo revisó (asunto, cuerpo y PDF) y, si es horario hábil, lo envía
+    en el acto. Fuera del horario queda «programado» para la siguiente hora hábil. `para` y `cc` son textos con correos
+    separados por coma. Devuelve el CorreoEnviado; lanza CorreoError si no se pudo (y deja el intento registrado)."""
     cuenta = plantilla.cuenta
     if cuenta is None or not cuenta.is_active:
         raise CorreoError('La plantilla no tiene una cuenta de envío activa.')
@@ -712,35 +731,127 @@ def enviar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None):
         raise CorreoError('Escriba el asunto.')
 
     correo = armar(plantilla, vehiculo, usuario, para_envio=True)
-    mensaje = _CorreoConImagenes(subject=asunto, body=correo['texto'], from_email=cuenta.remitente, to=lista_para,
-                                 cc=lista_cc, connection=conexion(cuenta), imagenes=correo['imagenes'])
-    mensaje.attach_alternative(correo['html'], 'text/html')
-    adjuntos = []
+    adjuntos = []  # (nombre, bytes)
     if pdf:
-        adjuntos.append(correo['adjunto'] or f'Comparativo {vehiculo.placa}.pdf')
-        mensaje.attach(adjuntos[-1], pdf, 'application/pdf')
+        adjuntos.append((correo['adjunto'] or f'Comparativo {vehiculo.placa}.pdf', pdf))
     # PDF de las cotizaciones de las 2 más baratas (del portal, descargado por el bot, o subido por el asesor).
     del_portal = []
     for cotizacion in correo['cotizaciones']:
         if cotizacion['documento']:
             with cotizacion['documento'].open('rb') as archivo:
-                mensaje.attach(cotizacion['archivo'], archivo.read(), 'application/pdf')
-            adjuntos.append(cotizacion['archivo'])
+                adjuntos.append((cotizacion['archivo'], archivo.read()))
             if cotizacion['tipo'] == 'bot':
                 del_portal.append(cotizacion['ref_id'])
 
-    registro = CorreoEnviado(vehiculo=vehiculo, plantilla=plantilla, remitente=cuenta.remitente[:200],
-                             para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=asunto[:300],
-                             adjunto=', '.join(adjuntos)[:150], enviado_por=usuario)
+    registro = CorreoEnviado.objects.create(
+        vehiculo=vehiculo, plantilla=plantilla, cuenta=cuenta, remitente=cuenta.remitente[:200],
+        para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=asunto[:300],
+        adjunto=', '.join(nombre for nombre, _ in adjuntos)[:150], enviado_por=usuario, estado='programado',
+        html=correo['html'], texto=correo['texto'], imagenes=[list(i) for i in correo['imagenes']],
+        cotizaciones_portal=del_portal, programado_para=horario_habil.siguiente_hora_habil())
+    for orden, (nombre, contenido) in enumerate(adjuntos):
+        adjunto = CorreoAdjunto(correo=registro, nombre=nombre[:150], orden=orden)
+        adjunto.archivo.save('adjunto.pdf', ContentFile(contenido), save=True)
+
+    if horario_habil.en_horario():
+        enviar_registro(registro)
+    else:
+        registrar_evento(vehiculo, 'correo', '', f'Cotización programada para {registro.para}'[:200],
+                         f'Sale el {horario_habil.texto_fecha(registro.programado_para)} (fuera del horario hábil)', usuario)
+    return registro
+
+
+def _lista(texto):
+    """«a@x.com, b@y.com» (ya validados al programar) -> lista."""
+    return [c.strip() for c in (texto or '').split(',') if c.strip()]
+
+
+def _borrar_adjuntos(registro):
+    """Los PDF de la cola se borran al terminar (enviado, error definitivo o cancelado): llevan datos personales."""
+    for adjunto in registro.adjuntos.all():
+        adjunto.archivo.delete(save=False)
+    registro.adjuntos.all().delete()
+
+
+def enviar_registro(registro, automatico=False):
+    """Envía un correo «programado» de la cola. Lo toma con una actualización atómica (si otro proceso ya lo tomó, no
+    hace nada y devuelve False). Desde la pantalla (`automatico=False`) una falla lanza CorreoError; desde el comando
+    programado, una falla pasajera se reintenta unos minutos después y una definitiva queda en «No se pudo enviar»."""
+    from django.db.models import F
+
+    tomado = CorreoEnviado.objects.filter(pk=registro.pk, estado='programado').update(estado='enviando', intentos=F('intentos') + 1)
+    if not tomado:
+        return False
+    registro.refresh_from_db()
+    cuenta = registro.cuenta
     try:
+        if cuenta is None or not cuenta.is_active or not cuenta.clave:
+            raise CorreoError('La cuenta de envío ya no está activa o no tiene contraseña registrada.')
+        imagenes = [(cid, ruta, nombre) for cid, ruta, nombre in registro.imagenes if os.path.isfile(ruta)]
+        mensaje = _CorreoConImagenes(subject=registro.asunto, body=registro.texto, from_email=registro.remitente,
+                                     to=_lista(registro.para), cc=_lista(registro.cc),
+                                     connection=conexion(cuenta), imagenes=imagenes)
+        mensaje.attach_alternative(registro.html, 'text/html')
+        for adjunto in registro.adjuntos.all():
+            with adjunto.archivo.open('rb') as archivo:
+                mensaje.attach(adjunto.nombre, archivo.read(), 'application/pdf')
         mensaje.send()
     except Exception as e:
-        registro.estado, registro.error = 'error', str(e)[:2000]
-        registro.save()
-        raise CorreoError(explicar_error_smtp(e, cuenta))
-    registro.save()
-    if del_portal:  # enviados al cliente: la limpieza de los 10 días ya no los borra
-        Cotizacion.objects.filter(pk__in=del_portal).update(pdf_enviado_en=timezone.now())
-    registrar_evento(vehiculo, 'correo', '', f'Cotización enviada a {registro.para}'[:200],
-                     f'Desde {cuenta.correo}' + (f' · CC {registro.cc}' if registro.cc else ''), usuario)
-    return registro
+        explicacion = str(e) if isinstance(e, CorreoError) else explicar_error_smtp(e, cuenta)
+        registro.error = (f'{explicacion}\n\n{e}' if not isinstance(e, CorreoError) else explicacion)[:2000]
+        if automatico and _falla_pasajera(e) and registro.intentos < INTENTOS_MAXIMOS:
+            registro.estado = 'programado'
+            registro.programado_para = horario_habil.siguiente_hora_habil(timezone.now() + timedelta(minutes=MINUTOS_REINTENTO))
+            registro.save(update_fields=['estado', 'error', 'programado_para'])
+            return False
+        registro.estado = 'error'
+        registro.save(update_fields=['estado', 'error'])
+        _borrar_adjuntos(registro)
+        if automatico:
+            registrar_evento(registro.vehiculo, 'correo', '', f'No se pudo enviar el correo programado a {registro.para}'[:200],
+                             explicacion[:300], registro.enviado_por)
+            return False
+        raise CorreoError(explicacion)
+
+    registro.estado, registro.enviado_en, registro.error = 'enviado', timezone.now(), ''
+    registro.save(update_fields=['estado', 'enviado_en', 'error'])
+    _borrar_adjuntos(registro)
+    if registro.cotizaciones_portal:  # enviados al cliente: la limpieza de los 10 días ya no los borra
+        Cotizacion.objects.filter(pk__in=registro.cotizaciones_portal).update(pdf_enviado_en=registro.enviado_en)
+    registrar_evento(registro.vehiculo, 'correo', '', f'Cotización enviada a {registro.para}'[:200],
+                     f'Desde {cuenta.correo}' + (f' · CC {registro.cc}' if registro.cc else '')
+                     + (' · envío programado' if automatico else ''), registro.enviado_por)
+    return True
+
+
+def cancelar(registro, usuario):
+    """Cancela un correo que sigue programado. Devuelve False si ya salió o lo está enviando."""
+    if not CorreoEnviado.objects.filter(pk=registro.pk, estado='programado').update(estado='cancelado'):
+        return False
+    _borrar_adjuntos(registro)
+    registrar_evento(registro.vehiculo, 'correo', f'Programado para {registro.para}'[:200], 'Cancelado',
+                     'Correo programado cancelado antes de salir', usuario)
+    return True
+
+
+def enviar_pendientes(limite=10):
+    """Envía los correos programados cuya hora ya llegó (solo dentro del horario hábil), de a `limite` por llamada para
+    no saturar el servidor de correo a las 8:00 a. m. Devuelve (enviados, fallidos)."""
+    # Un envío que quedó «enviando» (el proceso se cayó a mitad) no se reintenta solo: pudo haber salido y se
+    # duplicaría. Queda como error para que el asesor revise y, si hace falta, lo vuelva a enviar.
+    for colgado in CorreoEnviado.objects.filter(estado='enviando', programado_para__lt=timezone.now() - timedelta(minutes=15)):
+        colgado.estado = 'error'
+        colgado.error = 'El envío se interrumpió y no se sabe si salió: revise con el cliente antes de volver a enviarlo.'
+        colgado.save(update_fields=['estado', 'error'])
+        _borrar_adjuntos(colgado)
+    if not horario_habil.en_horario():
+        return 0, 0
+    enviados = fallidos = 0
+    pendientes = (CorreoEnviado.objects.filter(estado='programado', programado_para__lte=timezone.now())
+                  .select_related('vehiculo', 'cuenta', 'enviado_por').order_by('programado_para', 'id')[:limite])
+    for registro in pendientes:
+        if enviar_registro(registro, automatico=True):
+            enviados += 1
+        else:
+            fallidos += 1
+    return enviados, fallidos

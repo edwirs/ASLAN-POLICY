@@ -12,7 +12,7 @@ from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView, View
 
 from core.policies.models import Aseguradora, CorreoEnviado, Cotizacion, PlantillaCorreo, ValorExterno, Vehiculo
-from core.policies.services import correo
+from core.policies.services import correo, horario_habil
 from core.policies.services.polizas import registrar_evento
 from core.pos.models import Company
 from core.policies.services.bots import BOTS_DISPONIBLES
@@ -228,31 +228,28 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
     @staticmethod
     def _cotizaciones(vehiculo):
         """Las más baratas del ranking, para la sección «Cotizaciones que se adjuntan» de la ventana."""
-        return [{k: v for k, v in c.items() if k != 'documento'} for c in correo.cotizaciones_a_adjuntar(construir(vehiculo)['filas'])]
+        return [{k: v for k, v in c.items() if k != 'documento'} for c in correo.cotizaciones_a_adjuntar(construir(vehiculo)['filas'], vehiculo.placa)]
 
     def get(self, request, pk):
         if request.GET.get('cotizacion_pdf') or request.GET.get('portal_pdf'):
             # Ver el PDF (subido o del portal): se sirve por aquí (con permiso), nunca por un enlace público de /media.
             if request.GET.get('portal_pdf'):
-                origen = get_object_or_404(Cotizacion.objects.select_related('aseguradora'), pk=request.GET['portal_pdf'], vehiculo_id=pk)
+                origen = get_object_or_404(Cotizacion.objects.select_related('aseguradora', 'vehiculo'), pk=request.GET['portal_pdf'], vehiculo_id=pk)
                 archivo = origen.pdf
             else:
-                origen = get_object_or_404(ValorExterno.objects.select_related('aseguradora'), pk=request.GET['cotizacion_pdf'], vehiculo_id=pk)
+                origen = get_object_or_404(ValorExterno.objects.select_related('aseguradora', 'vehiculo'), pk=request.GET['cotizacion_pdf'], vehiculo_id=pk)
                 archivo = origen.documento
             if not archivo:
                 raise Http404
-            return FileResponse(archivo.open('rb'), content_type='application/pdf', filename=f'Cotización {origen.aseguradora.name}.pdf')
+            return FileResponse(archivo.open('rb'), content_type='application/pdf', filename=correo.nombre_pdf_cotizacion(origen.vehiculo.placa, origen.aseguradora.name))
         vehiculo = get_object_or_404(Vehiculo.objects.select_related('tomador', 'zona_circulacion__departamento'), pk=pk)
         plantilla = correo.plantilla_para(vehiculo, request.GET.get('plantilla'))
         if plantilla is None:
             return JsonResponse({'error': 'No hay plantillas de correo activas. Créelas en Configuraciones › Plantillas de correo.'})
         armado = correo.armar(plantilla, vehiculo, request.user)
         solo = '?solo_diferencias=1' if request.GET.get('solo_diferencias') == '1' else ''
-        enviados = [{
-            'fecha': timezone.localtime(c.created_at).strftime('%d/%m/%Y %H:%M'),
-            'para': c.para, 'estado': c.estado, 'estado_display': c.get_estado_display(),
-            'por': (c.enviado_por.names or c.enviado_por.username) if c.enviado_por else '',
-        } for c in CorreoEnviado.objects.filter(vehiculo=vehiculo).select_related('enviado_por')[:5]]
+        enviados = [self._enviado(c) for c in CorreoEnviado.objects.filter(vehiculo=vehiculo).select_related('enviado_por')[:5]]
+        en_horario = horario_habil.en_horario()
         return JsonResponse({
             'plantillas': [{'id': p.pk, 'nombre': p.nombre, 'predeterminada': p.predeterminada}
                            for p in PlantillaCorreo.objects.filter(is_active=True, tipo_seguro='autos').order_by('-predeterminada', 'nombre')],
@@ -268,13 +265,33 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
             'pdf_url': reverse('vehiculo_comparativo_pdf', args=[vehiculo.pk]) + solo,
             'puede_enviar': bool(plantilla.cuenta and plantilla.cuenta.is_active and plantilla.cuenta.clave),
             'enviados': enviados,
+            # Fuera del horario hábil el correo no sale: queda programado para la siguiente hora hábil.
+            'horario': {'en_horario': en_horario, 'texto': horario_habil.texto_horario(),
+                        'siguiente': '' if en_horario else horario_habil.texto_fecha(horario_habil.siguiente_hora_habil())},
         })
+
+    @staticmethod
+    def _enviado(c):
+        momento = c.enviado_en if c.estado == 'enviado' and c.enviado_en else (
+            c.programado_para if c.estado == 'programado' and c.programado_para else c.created_at)
+        return {
+            'id': c.pk, 'fecha': momento.astimezone(horario_habil.TZ_COLOMBIA).strftime('%d/%m/%Y %H:%M'),
+            'programado': horario_habil.texto_fecha(c.programado_para) if c.estado == 'programado' and c.programado_para else '',
+            'para': c.para, 'estado': c.estado, 'estado_display': c.get_estado_display(),
+            'por': (c.enviado_por.names or c.enviado_por.username) if c.enviado_por else '',
+        }
 
     def post(self, request, pk):
         vehiculo = get_object_or_404(Vehiculo.objects.select_related('tomador'), pk=pk)
         accion = request.POST.get('action')
         if accion in ('subir_cotizacion', 'quitar_cotizacion'):
             return self._cotizacion_manual(request, vehiculo, accion)
+        if accion == 'cancelar_correo':
+            registro = CorreoEnviado.objects.filter(pk=request.POST.get('id'), vehiculo=vehiculo).first()
+            if registro is None or not correo.cancelar(registro, request.user):
+                return JsonResponse({'error': 'Ese correo ya no está programado (ya salió o se canceló).'}, status=400)
+            return JsonResponse({'ok': True, 'enviados': [self._enviado(c) for c in CorreoEnviado.objects.filter(
+                vehiculo=vehiculo).select_related('enviado_por')[:5]]})
         plantilla = correo.plantilla_para(vehiculo, request.POST.get('plantilla'))
         if plantilla is None:
             return JsonResponse({'error': 'No hay plantillas de correo activas.'}, status=400)
@@ -282,11 +299,16 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
             pdf = None
             if plantilla.adjuntar_pdf:
                 pdf = correo.pdf_comparativo(request, vehiculo, solo_diferencias=request.POST.get('solo_diferencias') == '1')
-            registro = correo.enviar(plantilla, vehiculo, request.user, request.POST.get('para', ''),
-                                     request.POST.get('cc', ''), request.POST.get('asunto', ''), pdf=pdf)
+            registro = correo.programar(plantilla, vehiculo, request.user, request.POST.get('para', ''),
+                                        request.POST.get('cc', ''), request.POST.get('asunto', ''), pdf=pdf)
         except correo.CorreoError as e:
             return JsonResponse({'error': str(e)}, status=400)
-        return JsonResponse({'ok': True, 'mensaje': f'Correo enviado a {registro.para}' + (f' (CC {registro.cc})' if registro.cc else '') + '.'})
+        destino = registro.para + (f' (CC {registro.cc})' if registro.cc else '')
+        if registro.estado == 'programado':
+            return JsonResponse({'ok': True, 'programado': True, 'mensaje': (
+                f'Fuera del horario hábil: el correo a {destino} quedó programado y sale el '
+                f'{horario_habil.texto_fecha(registro.programado_para)}')})
+        return JsonResponse({'ok': True, 'mensaje': f'Correo enviado a {destino}.'})
 
     def _cotizacion_manual(self, request, vehiculo, accion):
         """Sube o quita el PDF de la cotización de una de las más baratas: de un valor manual (tipo 'manual') o de una

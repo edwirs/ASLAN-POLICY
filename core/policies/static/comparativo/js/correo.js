@@ -9,7 +9,7 @@ function ajustarMarco(marco) {
 }
 // «Armar correo» del comparativo: trae el correo armado con la plantilla, lo muestra para revisarlo y lo envía.
 var correoCotizacion = (function () {
-    var $modal, url, soloDiferencias = false, plantillaId = null;
+    var $modal, url, soloDiferencias = false, plantillaId = null, horario = {en_horario: true};
 
     function esc(t) { return $('<div>').text(t == null ? '' : t).html(); }
 
@@ -27,15 +27,30 @@ var correoCotizacion = (function () {
         $('#pcFilaAdjunto').toggle(!!r.adjunto);
         pintarCotizaciones(r.cotizaciones || []);
         $('#pcAdjunto').attr('href', r.pdf_url).find('span').text(r.adjunto);
-        $('#pcCorreoAvisos').html((r.avisos || []).map(function (a) {
+        horario = r.horario || {en_horario: true};
+        var avisoHorario = horario.en_horario ? '' : '<div class="pc-aviso"><i class="fa-solid fa-clock"></i> Fuera del horario hábil (' +
+            esc(horario.texto) + '): el correo quedará programado y sale el <b>' + esc(horario.siguiente) + '</b></div>';
+        $('#pcCorreoAvisos').html(avisoHorario + (r.avisos || []).map(function (a) {
             return '<div class="pc-aviso"><i class="fa-solid fa-triangle-exclamation"></i> ' + esc(a) + '</div>';
         }).join(''));
-        $('#pcEnviados').html((r.enviados || []).length ? '<i class="fa-solid fa-clock-rotate-left"></i> Enviados antes: ' + r.enviados.map(function (e) {
-            return '<b>' + esc(e.fecha) + '</b> a ' + esc(e.para) + (e.estado === 'error' ? ' <span class="pc-chip pc-chip-alerta">No se envió</span>' : '') + (e.por ? ' · ' + esc(e.por) : '');
-        }).join(' &nbsp;|&nbsp; ') : '');
-        $('#pcEnviar').prop('disabled', !r.puede_enviar);
+        pintarEnviados(r.enviados || []);
+        $('#pcEnviar').prop('disabled', !r.puede_enviar).html(horario.en_horario
+            ? '<i class="fa-solid fa-paper-plane"></i> Enviar correo' : '<i class="fa-solid fa-clock"></i> Programar envío');
         document.getElementById('pcCorreoMarco').srcdoc = r.html;
         plantillaId = r.plantilla_id;
+    }
+
+    // Últimos correos de la placa: enviados, con error, cancelados y los programados (que se pueden cancelar).
+    function pintarEnviados(lista) {
+        $('#pcEnviados').html(lista.length ? '<i class="fa-solid fa-clock-rotate-left"></i> Correos de esta placa: ' + lista.map(function (e) {
+            if (e.estado === 'programado') {
+                return '<span class="pc-chip">Programado</span> sale el <b>' + esc(e.programado) + '</b> a ' + esc(e.para) +
+                    (e.por ? ' · ' + esc(e.por) : '') + ' <a href="#" class="pc-cancelar-correo text-danger" data-id="' + e.id + '">Cancelar</a>';
+            }
+            var chip = e.estado === 'error' ? ' <span class="pc-chip pc-chip-alerta">No se envió</span>'
+                : e.estado === 'cancelado' ? ' <span class="pc-chip">Cancelado</span>' : e.estado === 'enviando' ? ' <span class="pc-chip">Enviando…</span>' : '';
+            return '<b>' + esc(e.fecha) + '</b> a ' + esc(e.para) + chip + (e.por ? ' · ' + esc(e.por) : '');
+        }).join(' &nbsp;|&nbsp; ') : '');
     }
 
     // Las 2 más baratas del ranking y su PDF: el que bajó el bot del portal o el que sube el asesor (valores manuales,
@@ -93,16 +108,19 @@ var correoCotizacion = (function () {
     function enviar() {
         var para = $('#pcPara').val().trim();
         if (!para) { message_error('Escriba al menos un correo en «Para».'); return; }
-        Swal.fire({icon: 'question', title: '¿Enviar el correo?', html: 'Para <b>' + esc(para) + '</b>' + ($('#pcCc').val().trim() ? '<br>CC ' + esc($('#pcCc').val()) : ''),
-            showCancelButton: true, confirmButtonText: 'Sí, enviar', cancelButtonText: 'Revisar'}).then(function (res) {
+        var programar = !horario.en_horario;
+        Swal.fire({icon: 'question', title: programar ? '¿Programar el correo?' : '¿Enviar el correo?',
+            html: 'Para <b>' + esc(para) + '</b>' + ($('#pcCc').val().trim() ? '<br>CC ' + esc($('#pcCc').val()) : '') +
+                (programar ? '<br><br>Fuera del horario hábil: sale el <b>' + esc(horario.siguiente) + '</b>' : ''),
+            showCancelButton: true, confirmButtonText: programar ? 'Sí, programar' : 'Sí, enviar', cancelButtonText: 'Revisar'}).then(function (res) {
             if (!res.isConfirmed) { return; }
-            $.LoadingOverlay('show', {text: 'Generando el PDF y enviando…'});
+            $.LoadingOverlay('show', {text: programar ? 'Generando el PDF y programando…' : 'Generando el PDF y enviando…'});
             $.ajax({url: url, type: 'POST', headers: {'X-CSRFToken': csrftoken}, dataType: 'json',
                 data: {plantilla: plantillaId, para: para, cc: $('#pcCc').val(), asunto: $('#pcAsunto').val(), solo_diferencias: soloDiferencias ? '1' : ''}})
                 .done(function (r) {
                     if (r.error) { message_error(r.error); return; }
                     bootstrap.Modal.getOrCreateInstance($modal[0]).hide();
-                    Swal.fire({icon: 'success', title: 'Correo enviado', text: r.mensaje});
+                    Swal.fire({icon: 'success', title: r.programado ? 'Correo programado' : 'Correo enviado', text: r.mensaje});
                 })
                 .fail(function (xhr) { message_error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo enviar el correo.'); })
                 .always(function () { $.LoadingOverlay('hide'); });
@@ -115,6 +133,17 @@ var correoCotizacion = (function () {
         url = $modal.data('url');
         $('#pcPlantilla').on('change', function () { cargar(this.value); });
         $('#pcEnviar').on('click', enviar);
+        $('#pcEnviados').on('click', '.pc-cancelar-correo', function (e) {
+            e.preventDefault();
+            var id = $(this).data('id');
+            Swal.fire({icon: 'warning', title: '¿Cancelar el correo programado?', text: 'No se enviará al cliente.',
+                showCancelButton: true, confirmButtonText: 'Sí, cancelar', cancelButtonText: 'No', confirmButtonColor: '#dc3545'}).then(function (res) {
+                if (!res.isConfirmed) { return; }
+                $.ajax({url: url, type: 'POST', headers: {'X-CSRFToken': csrftoken}, dataType: 'json', data: {action: 'cancelar_correo', id: id}})
+                    .done(function (r) { if (r.error) { message_error(r.error); return; } pintarEnviados(r.enviados || []); toastr.success('Correo programado cancelado.'); })
+                    .fail(function (xhr) { message_error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo cancelar el correo.'); });
+            });
+        });
         var subiendo = null;
         $('#pcCotizacionesLista').on('click', '.pc-cot-subir', function () {
             subiendo = {tipo: $(this).data('tipo'), id: $(this).data('id')};

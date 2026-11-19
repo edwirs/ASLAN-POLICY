@@ -880,8 +880,18 @@ class FirmaCorreo(models.Model):
         permissions = perms_for('policies.FirmaCorreo')
 
 
+def _ruta_adjunto_correo(instancia, nombre):
+    """Adjunto de un correo en cola: nombre aleatorio (lleva datos personales) y se borra al enviarse."""
+    import uuid
+    return f'correos_programados/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.pdf'
+
+
 class CorreoEnviado(models.Model):
-    """Registro de cada correo de cotización que se intentó enviar (enviado o con error)."""
+    """Cada correo de cotización: la cola de envíos y su historial.
+
+    Al pulsar «Enviar» el correo queda armado tal como el asesor lo revisó (asunto, HTML, adjuntos). Dentro del horario
+    hábil se envía en el acto; fuera de él queda «programado» para la siguiente hora hábil y lo envía el comando
+    `enviar_correos_programados` (timer del servidor, cada minuto)."""
     vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE, related_name='correos', verbose_name='Vehículo')
     plantilla = models.ForeignKey(PlantillaCorreo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Plantilla')
     remitente = models.CharField(max_length=200, verbose_name='De')
@@ -893,6 +903,15 @@ class CorreoEnviado(models.Model):
     error = models.TextField(blank=True, default='', verbose_name='Error')
     enviado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Enviado por')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+    # Cola de envíos: el correo congelado al pulsar «Enviar».
+    cuenta = models.ForeignKey(CuentaCorreo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Cuenta de envío')
+    html = models.TextField(blank=True, default='', verbose_name='Cuerpo (HTML)')
+    texto = models.TextField(blank=True, default='', verbose_name='Cuerpo (texto)')
+    imagenes = models.JSONField(default=list, blank=True, verbose_name='Imágenes incrustadas')  # [[cid, ruta, nombre]]
+    cotizaciones_portal = models.JSONField(default=list, blank=True, verbose_name='Cotizaciones con PDF del portal')
+    programado_para = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name='Programado para')
+    enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='Enviado en')
+    intentos = models.PositiveSmallIntegerField(default=0, verbose_name='Intentos')
 
     class Meta:
         verbose_name = 'Correo enviado'
@@ -900,3 +919,17 @@ class CorreoEnviado(models.Model):
         ordering = ['-created_at', '-id']
         default_permissions = ()
         permissions = perms_for('policies.CorreoEnviado')
+
+
+class CorreoAdjunto(models.Model):
+    """PDF de un correo en cola (comparativo o cotización), guardado al pulsar «Enviar»."""
+    correo = models.ForeignKey(CorreoEnviado, on_delete=models.CASCADE, related_name='adjuntos', verbose_name='Correo')
+    nombre = models.CharField(max_length=150, verbose_name='Nombre del archivo')
+    archivo = models.FileField(upload_to=_ruta_adjunto_correo, verbose_name='Archivo')
+    orden = models.PositiveSmallIntegerField(default=0, verbose_name='Orden')
+
+    class Meta:
+        verbose_name = 'Adjunto de correo'
+        verbose_name_plural = 'Adjuntos de correos'
+        ordering = ['orden', 'id']
+        default_permissions = ()

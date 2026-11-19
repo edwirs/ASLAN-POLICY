@@ -1,0 +1,13 @@
+# Envía los correos de cotización programados (manage.py enviar_correos_programados). Lo dispara aslan-correos.timer
+# cada minuto; fuera del horario hábil de Colombia el comando no envía nada. Ajuste User y rutas si su instalación es
+# distinta. Instalación: ver deploy/correos/LEEME.md
+[Unit]
+Description=ASLAN - envío de correos programados
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=edwin
+WorkingDirectory=/home/edwin/aslan-multiagente/ASLAN-POLICY
+ExecStart=/home/edwin/aslan-multiagente/ASLAN-POLICY/venv/bin/python manage.py enviar_correos_programados
+Environment=PYTHONUNBUFFERED=1
