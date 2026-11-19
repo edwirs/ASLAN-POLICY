@@ -5,7 +5,7 @@
 
 {% block assets %}
     <link rel="stylesheet" href="{% static 'comparativo/css/comparativo.css' %}?v=11">
-    <script src="{% static 'comparativo/js/modales.js' %}?v=8"></script>
+    <script src="{% static 'comparativo/js/modales.js' %}?v=9"></script>
     <link rel="stylesheet" href="{% static 'plantilla_correo/css/plantilla.css' %}?v=4">
     <script src="{% static 'comparativo/js/correo.js' %}?v=6"></script>
 {% endblock %}
@@ -82,6 +82,13 @@
                         <button type="button" class="btn btn-sm btn-link p-0 ms-2 align-baseline" id="cmpEditarSoat"
                                 data-placa="{{ vehiculo.placa }}" data-valor="{{ vehiculo.soat_valor|default_if_none:''|stringformat:'s' }}"
                                 data-vence="{{ vehiculo.soat_vencimiento|date:'Y-m-d' }}"><i class="fa-solid fa-pen"></i> {% if soat %}Editar{% else %}Agregar{% endif %}</button>
+                    </dd></div>
+                    <div class="cmp-ancho"><dt>Inicio vigencia póliza</dt><dd>
+                        {% if inicio.fecha %}{{ inicio.fecha_fmt }}{% else %}<span class="text-muted">Sin registrar</span>{% endif %}
+                        <small class="text-muted">({{ inicio.tramite }}{% if inicio.automatica %}: día siguiente al fin de la póliza actual{% endif %})</small>
+                        {% if not inicio.automatica %}
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-2 align-baseline cmp-editar-inicio"><i class="fa-solid fa-pen"></i> {% if inicio.fecha %}Editar{% else %}Agregar{% endif %}</button>
+                        {% endif %}
                     </dd></div>
                 </dl>
             </article>
@@ -304,9 +311,10 @@
                 showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
             }).then(function (r) { if (r.isConfirmed) { accionValor($b.data('id'), {action: 'eliminar', campo: $b.data('campo') || 'valor'}); } });
         });
-        $('#cmpEditarSoat').on('click', function () {
-            var $b = $(this);
-            comparativoModales.abrirSoat($b.data('placa'), String($b.data('valor') || ''), $b.data('vence') || '');
+        $('#cmpEditarSoat, .cmp-editar-inicio').on('click', function () {
+            var $b = $('#cmpEditarSoat');
+            comparativoModales.abrirSoat($b.data('placa'), String($b.data('valor') || ''), $b.data('vence') || '',
+                '{{ vehiculo.inicio_vigencia|date:"Y-m-d" }}', {{ inicio.automatica|yesno:"true,false" }});
         });
         $('#cmpAgregarValores').on('click', function () {
             $('.cmp-placa').text('{{ vehiculo.placa|escapejs }}');

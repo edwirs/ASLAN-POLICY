@@ -19,6 +19,8 @@
     .cmp-soat-dias.ok { background: rgba(22, 163, 74, .12); color: #15803d; }
     .cmp-soat-dias.pronto { background: rgba(217, 119, 6, .14); color: #b45309; }
     .cmp-soat-dias.vencido { background: rgba(220, 38, 38, .12); color: #b91c1c; }
+    #cmpSeccionSoat:not([hidden]) + #cmpSeccionInicio { margin-top: 12px; }
+    .cmp-soat label.cmp-inicio-titulo { font-size: 1rem; font-weight: 700; color: inherit; margin: 0; }
     .cmp-pregunta-valores { margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(100, 116, 139, .35); }
     .cmp-pregunta-valores.cmp-sin-borde { margin-top: 0; padding-top: 0; border-top: 0; }
     .cmp-pendientes { margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(217, 119, 6, .08);
@@ -41,7 +43,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <section class="cmp-soat">
+                <section class="cmp-soat" id="cmpSeccionSoat">
                     <div class="cmp-soat-titulo">
                         <span class="cmp-soat-icono"><i class="fa-solid fa-shield-heart"></i></span>
                         <div><b>SOAT obligatorio</b><small>Sale en el PDF y en el correo, junto a los datos del vehículo. Opcional.</small></div>
@@ -60,6 +62,16 @@
                         </div>
                     </div>
                     <div class="cmp-soat-dias" id="cmpSoatDias" hidden></div>
+                </section>
+                {# Solicitud nueva (vehículo sin póliza con nosotros). Con póliza la fecha sale sola y esta parte no aparece. #}
+                <section class="cmp-soat" id="cmpSeccionInicio" hidden>
+                    <div class="cmp-soat-titulo">
+                        <span class="cmp-soat-icono"><i class="fa-solid fa-calendar-day"></i></span>
+                        <label for="cmpInicioVigencia" class="cmp-inicio-titulo">Fecha inicio vigencia póliza</label>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-sm-6"><input type="date" class="form-control" id="cmpInicioVigencia"></div>
+                    </div>
                 </section>
                 <section class="cmp-pregunta-valores" id="cmpSeccionValores">
                     <p class="mb-1 fw-semibold">¿Desea agregar valores de aseguradoras?</p>

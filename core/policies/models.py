@@ -243,6 +243,9 @@ class Vehiculo(models.Model):
     # que le quedan de vigencia, contados desde el día en que se mira).
     soat_valor = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='Valor del SOAT')
     soat_vencimiento = models.DateField(null=True, blank=True, verbose_name='Vencimiento del SOAT')
+    # Inicio de vigencia de la póliza que se cotiza, para solicitudes nuevas (vehículo sin póliza con nosotros). Si ya tiene
+    # póliza, la fecha se toma sola: el día siguiente al fin de la vigencia (services/comparativo.inicio_vigencia).
+    inicio_vigencia = models.DateField(null=True, blank=True, verbose_name='Fecha inicio de vigencia de la póliza')
 
     # Seguimiento: vendido, siniestrado… Distinto de «activo» = no se puede cotizar hasta que alguien lo actualice.
     estado = models.CharField(max_length=15, choices=ESTADO_VEHICULO, default='activo', verbose_name='Estado del vehículo')
@@ -275,9 +278,10 @@ class Vehiculo(models.Model):
 
     def toJSON(self):
         item = model_to_dict(self, exclude=['tomador', 'zona_circulacion', 'created_at', 'estado', 'estado_fecha', 'estado_nota', 'no_compro_fecha',
-                                            'soat_valor', 'soat_vencimiento'])
+                                            'soat_valor', 'soat_vencimiento', 'inicio_vigencia'])
         item['soat_valor'] = int(self.soat_valor) if self.soat_valor is not None else None
         item['soat_vencimiento'] = self.soat_vencimiento.strftime('%Y-%m-%d') if self.soat_vencimiento else None
+        item['inicio_vigencia'] = self.inicio_vigencia.strftime('%Y-%m-%d') if self.inicio_vigencia else None
         item['tomador'] = self.tomador.toJSON()
         item['estado'] = self.estado_json()
         item['zona_circulacion'] = str(self.zona_circulacion)

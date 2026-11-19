@@ -1,6 +1,7 @@
 import json
 from datetime import date
 
+from django.db.models import Max
 from django.http import HttpResponse
 from django.urls import reverse, reverse_lazy
 from django.utils.decorators import method_decorator
@@ -9,9 +10,9 @@ from django.views.decorators.gzip import gzip_page
 
 from core.tenants.estado import modulo_activo
 from core.policies.choices import MOTIVO_NO_COMPRO
-from core.policies.models import Aseguradora, Cotizacion, ValorExterno, Vehiculo
+from core.policies.models import Aseguradora, Cotizacion, Poliza, ValorExterno, Vehiculo
 from core.policies.services.bots import BOTS_DISPONIBLES
-from core.policies.services.comparativo import aseguradoras_sin_bot
+from core.policies.services.comparativo import aseguradoras_sin_bot, inicio_automatico
 from core.policies.services.etapas import ETAPAS, etapa_de, etapas_por_vehiculo
 from core.policies.services.polizas import registrar_evento
 from core.policies.services.proceso import EN_CURSO, PLANES_A_MANO, resumen_por_vehiculo
@@ -35,6 +36,7 @@ def _fila(vehiculo):
         'created_at': vehiculo.created_at.strftime('%Y-%m-%d %H:%M'),
         'soat_valor': int(vehiculo.soat_valor) if vehiculo.soat_valor is not None else None,
         'soat_vencimiento': vehiculo.soat_vencimiento.strftime('%Y-%m-%d') if vehiculo.soat_vencimiento else None,
+        'inicio_vigencia': vehiculo.inicio_vigencia.strftime('%Y-%m-%d') if vehiculo.inicio_vigencia else None,
         'tomador': {
             'names': tomador.names,
             'dni': tomador.dni,
@@ -79,11 +81,15 @@ class VehiculoListView(GroupPermissionMixin, TemplateView):
                     if not sin_cond:
                         con_valor_manual.add(vehiculo_id)
                 etapas = etapas_por_vehiculo(vehiculos)
+                # Con póliza vigente el inicio de la nueva vigencia sale solo; sin ella la modal lo pide (solicitud nueva).
+                fin_poliza = dict(Poliza.objects.filter(vehiculo__in=vehiculos, estado='generada').values('vehiculo_id')
+                                  .annotate(fin=Max('fecha_renovacion')).values_list('vehiculo_id', 'fin'))
                 for vehiculo in vehiculos:
                     item = _fila(vehiculo)
                     item['etapa'] = etapas[vehiculo.pk]
                     item['ultima_cotizacion'] = etapas[vehiculo.pk]['ultima_cotizacion']
                     item['tiene_valor_externo'] = vehiculo.pk in con_valor_manual
+                    item['inicio_automatico'] = inicio_automatico(fin_poliza.get(vehiculo.pk)) is not None
                     item['proceso'] = resumenes[vehiculo.pk]
                     # A qué aseguradoras se les puede registrar valor a mano: sin bot, o con bot que no trajo valor.
                     completadas = {d['aseguradora'] for d in resumenes[vehiculo.pk]['detalle'] if d['estado_bot'] == 'completado'}

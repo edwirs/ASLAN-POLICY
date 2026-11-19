@@ -75,7 +75,9 @@ var comparativoModales = {
     // `permitidas`: ids de las aseguradoras a las que se les puede registrar valor en esta solicitud (las sin bot y
     // las con bot que no trajeron valor). En la página del comparativo la lista ya viene filtrada (null).
     // Siempre se abre: arriba el SOAT del vehículo; abajo, solo si faltan aseguradoras sin bot, la pregunta de valores.
-    abrirPregunta: function (id, placa, faltantes, puedeRegistrar, permitidas, soatValor, soatVencimiento) {
+    // `inicioVigencia` / `inicioAutomatico`: fecha de inicio de la póliza ya escrita y si sale sola (el vehículo ya tiene
+    // póliza con nosotros). En una solicitud nueva sin fecha, la modal la pide.
+    abrirPregunta: function (id, placa, faltantes, puedeRegistrar, permitidas, soatValor, soatVencimiento, inicioVigencia, inicioAutomatico) {
         this.permitidas = permitidas || null;
         this.soloSoat = false;
         this.establecer(id, placa);
@@ -83,37 +85,41 @@ var comparativoModales = {
         // El SOAT ya registrado (valor y fecha, sin vencer) no se vuelve a pedir: se corrige con «Editar» en el comparativo.
         var hoy = new Date(), hoyTxt = hoy.getFullYear() + '-' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '-' + ('0' + hoy.getDate()).slice(-2);
         var soatListo = !!(soatValor && soatVencimiento && soatVencimiento >= hoyTxt);
-        if (soatListo && !preguntar) {
+        var inicioListo = !!(inicioAutomatico || inicioVigencia);  // ya escrita: se corrige con «Editar» en el comparativo
+        if (soatListo && inicioListo && !preguntar) {
             location.href = this.comparativoUrl;
             return;
         }
-        $('#modalPregunta .cmp-soat').prop('hidden', soatListo);
-        $('#cmpSeccionValores').toggleClass('cmp-sin-borde', soatListo);
+        $('#cmpSeccionSoat').prop('hidden', soatListo);
+        $('#cmpSeccionInicio').prop('hidden', inicioListo);
+        $('#cmpSeccionValores').toggleClass('cmp-sin-borde', soatListo && inicioListo);
         this.faltantes = preguntar ? faltantes : [];
         $('#cmpFaltantes').text(preguntar ? 'Sin valor todavía: ' + faltantes.map(function (f) { return f.nombre; }).join(', ') + '.' : '');
         $('#cmpSeccionValores').prop('hidden', !preguntar);
         $('#cmpSiAgregar').prop('hidden', !preguntar);
         $('#cmpNoAgregar span').text('Ver comparativo');
-        this.cargarSoat(soatValor, soatVencimiento);
+        this.cargarSoat(soatValor, soatVencimiento, inicioVigencia);
         this.pregunta.show();
     },
 
-    // Desde la página del comparativo: solo el SOAT; al guardar se recarga para verlo en la ficha.
-    abrirSoat: function (placa, soatValor, soatVencimiento) {
+    // Desde la página del comparativo: el SOAT (y el inicio de vigencia si es solicitud nueva); al guardar se recarga.
+    abrirSoat: function (placa, soatValor, soatVencimiento, inicioVigencia, inicioAutomatico) {
         this.soloSoat = true;
-        $('#modalPregunta .cmp-soat').prop('hidden', false);
+        $('#cmpSeccionSoat').prop('hidden', false);
+        $('#cmpSeccionInicio').prop('hidden', !!inicioAutomatico);
         $('.cmp-placa').text(placa || '');
         $('#cmpSeccionValores, #cmpSiAgregar').prop('hidden', true);
         $('#cmpNoAgregar span').text('Guardar');
-        this.cargarSoat(soatValor, soatVencimiento);
+        this.cargarSoat(soatValor, soatVencimiento, inicioVigencia);
         this.pregunta.show();
     },
 
-    cargarSoat: function (valor, vencimiento) {
+    cargarSoat: function (valor, vencimiento, inicio) {
         var texto = valor ? String(valor).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
         $('#cmpSoatValor').val(texto);
         $('#cmpSoatFecha').val(vencimiento || '');
-        this.soatInicial = texto + '|' + (vencimiento || '');
+        $('#cmpInicioVigencia').val(inicio || '');
+        this.soatInicial = texto + '|' + (vencimiento || '') + '|' + (inicio || '');
         this.pintarDias();
     },
 
@@ -132,14 +138,16 @@ var comparativoModales = {
     },
 
     guardarSoat: function () {
-        var valor = $('#cmpSoatValor').val(), fecha = $('#cmpSoatFecha').val();
+        var valor = $('#cmpSoatValor').val(), fecha = $('#cmpSoatFecha').val(), inicio = $('#cmpInicioVigencia').val();
         var listo = $.Deferred();
-        if (valor + '|' + fecha === this.soatInicial || !this.soatUrl) {
+        if (valor + '|' + fecha + '|' + inicio === this.soatInicial || !this.soatUrl) {
             return listo.resolve().promise();
         }
+        var datos = {soat_valor: valor.replace(/\D/g, ''), soat_vencimiento: fecha};
+        if (!$('#cmpSeccionInicio').prop('hidden')) { datos.inicio_vigencia = inicio; }  // solo si se pidió (solicitud nueva)
         $.ajax({
             url: this.soatUrl, type: 'POST', headers: {'X-CSRFToken': csrftoken}, dataType: 'json',
-            data: {soat_valor: valor.replace(/\D/g, ''), soat_vencimiento: fecha}
+            data: datos
         }).done(function () { listo.resolve(); }).fail(function (xhr) {
             toastr.error((xhr.responseJSON && xhr.responseJSON.error) || 'No se pudo guardar el SOAT. Intenta nuevamente.');
             listo.reject();

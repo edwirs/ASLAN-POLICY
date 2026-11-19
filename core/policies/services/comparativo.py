@@ -10,6 +10,7 @@ Por cada aseguradora cuenta UN solo valor:
     cotizó a mano en el portal y registró. Si hay valor del bot y valor manual, cuenta el más reciente.
 El resultado va ordenado de menor a mayor valor.
 """
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils import timezone
@@ -54,6 +55,43 @@ def soat(vehiculo, hoy=None):
         datos['vencido'] = dias < 0
         datos['dias_texto'] = ('Vencido' if dias < 0 else 'Vence hoy' if dias == 0 else '1 día' if dias == 1 else f'{dias} días')
     return datos
+
+
+RENOVACION = 'renovación'
+EMISION = 'emisión'
+
+
+def poliza_actual(vehiculo):
+    """La póliza generada más reciente del vehículo (vigente o la última que tuvo), o None."""
+    return (vehiculo.polizas.filter(estado='generada').select_related('aseguradora')
+            .order_by('-fecha_renovacion', '-id').first())
+
+
+def inicio_automatico(fecha_renovacion, hoy=None):
+    """Inicio de la nueva vigencia: el día siguiente al fin de la póliza. None si esa fecha ya pasó (la póliza venció hace
+    rato y no se sabe cuándo empieza la nueva: se pide a mano)."""
+    if not fecha_renovacion:
+        return None
+    inicio = fecha_renovacion + timedelta(days=1)
+    return inicio if inicio >= (hoy or timezone.localdate()) else None
+
+
+def inicio_vigencia(vehiculo, poliza=False, hoy=None):
+    """Inicio de vigencia de la póliza que se cotiza y si es renovación o emisión.
+
+    Con póliza con nosotros es renovación y la fecha sale sola (día siguiente al fin de la vigencia); sin póliza es emisión
+    y vale la fecha que el asesor escribió en la modal del comparativo (`Vehiculo.inicio_vigencia`).
+    `poliza`: la póliza que se tomará como actual (None = ninguna); si no se pasa, se busca la más reciente.
+    Devuelve {'fecha', 'fecha_fmt', 'automatica', 'tramite'}; 'fecha' puede ser None si no hay ninguna."""
+    if poliza is False:
+        poliza = poliza_actual(vehiculo)
+    tramite = RENOVACION if (poliza or vehiculo.polizas.filter(estado='generada').exists()) else EMISION
+    fecha = inicio_automatico(poliza.fecha_renovacion, hoy) if poliza else None
+    automatica = fecha is not None
+    if not automatica:
+        fecha = vehiculo.inicio_vigencia
+    return {'fecha': fecha, 'fecha_fmt': fecha.strftime('%d/%m/%Y') if fecha else '', 'automatica': automatica,
+            'tramite': tramite}
 
 
 def aseguradoras_sin_bot():

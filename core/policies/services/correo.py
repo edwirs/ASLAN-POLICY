@@ -31,7 +31,7 @@ from django.utils.html import strip_tags
 from core.policies.models import CorreoAdjunto, CorreoEnviado, Cotizacion, FirmaCorreo, PlantillaCorreo, ValorExterno
 from core.policies.services.bots.base import normalizar_texto
 from core.policies.services import horario_habil
-from core.policies.services.comparativo import construir, dinero, primeras_aseguradoras, soat
+from core.policies.services.comparativo import construir, dinero, inicio_vigencia, poliza_actual, primeras_aseguradoras, soat
 from core.policies.services.polizas import registrar_evento
 
 # (nombre, qué es) — se muestran como botones en el editor de la plantilla.
@@ -42,6 +42,7 @@ VARIABLES = (
     ('vehiculo', 'Marca y referencia'),
     ('modelo', 'Modelo (año)'),
     ('vigencia', 'Vigencia de la póliza (p. ej. 2026-2027)'),
+    ('tramite', '«renovación» si el vehículo ya tiene póliza con nosotros; «emisión» si es una solicitud nueva'),
     ('correo_cliente', 'Correo del cliente'),
     ('empresa', 'Nombre de la empresa'),
     ('asesor', 'Nombre de quien envía'),
@@ -192,8 +193,7 @@ def _empresa():
 
 def _poliza_actual(vehiculo):
     """La póliza más reciente del vehículo (vigente o la última que tuvo)."""
-    return (vehiculo.polizas.filter(estado='generada').select_related('aseguradora')
-            .order_by('-fecha_renovacion', '-id').first())
+    return poliza_actual(vehiculo)
 
 
 def _zona(municipio):
@@ -213,8 +213,9 @@ def _nombre_usuario(usuario):
 def valores(vehiculo, usuario):
     """Valor de cada variable para este vehículo y quien envía."""
     tomador = vehiculo.tomador
-    poliza = _poliza_actual(vehiculo)
-    base = poliza.fecha_renovacion if poliza and poliza.fecha_renovacion >= timezone.localdate() else timezone.localdate()
+    inicio = inicio_vigencia(vehiculo)
+    # La vigencia va desde el inicio de la nueva póliza (día siguiente al fin de la actual, o la fecha de la solicitud nueva).
+    base = inicio['fecha'] if inicio['fecha'] and inicio['fecha'] >= timezone.localdate() else timezone.localdate()
     nombre = (tomador.names or '').strip()
     return {
         'cliente': nombre,
@@ -223,6 +224,7 @@ def valores(vehiculo, usuario):
         'vehiculo': ' '.join(x for x in (vehiculo.marca, vehiculo.referencia) if x),
         'modelo': str(vehiculo.modelo or ''),
         'vigencia': f'{base.year}-{base.year + 1}',
+        'tramite': inicio['tramite'],
         'correo_cliente': ', '.join(c.strip() for c in (tomador.email, tomador.email_secundario) if c and c.strip()),
         'empresa': _empresa().get('nombre', ''),
         'asesor': _nombre_usuario(usuario),
@@ -274,10 +276,14 @@ def _tarjeta(eyebrow, titulo, contenido, subtitulo=''):
     )
 
 
-def _dato(etiqueta, valor, borde=''):
+def _dato(etiqueta, valor, borde='', color=None):
+    """`color`: tono de la etiqueta y el valor (por defecto gris y texto normal)."""
     return (f'<td valign="top" width="33%" style="padding:6px 12px;font-family:{FUENTE};{borde}">'
-            f'<div style="font-size:9px;font-weight:bold;letter-spacing:.7px;text-transform:uppercase;color:{GRIS};">{escape(etiqueta)}</div>'
-            f'<div style="font-size:12px;font-weight:bold;color:{TEXTO};margin-top:1px;">{escape(valor)}</div></td>')
+            f'<div style="font-size:9px;font-weight:bold;letter-spacing:.7px;text-transform:uppercase;color:{color or GRIS};">{escape(etiqueta)}</div>'
+            f'<div style="font-size:12px;font-weight:bold;color:{color or TEXTO};margin-top:1px;">{escape(valor)}</div></td>')
+
+
+COLORES = {'Inicio vigencia póliza': ACENTO}  # datos de la tarjeta del vehículo con color propio
 
 
 def bloque_datos_vehiculo(vehiculo, actual=None):
@@ -309,12 +315,14 @@ def bloque_datos_vehiculo(vehiculo, actual=None):
     if datos_soat:
         pares += [('Valor SOAT', datos_soat['valor_fmt']), ('Días de vigencia SOAT', datos_soat['dias_texto']),
                   ('Fecha fin SOAT', datos_soat['vence_fmt'])]
+    inicio = inicio_vigencia(vehiculo, poliza, hoy)
+    pares.append(('Inicio vigencia póliza', inicio['fecha_fmt']))  # de último y en azul, como «Vehículo» (ver COLORES)
     pares = [(t, v) for t, v in pares if v]
     filas = []
     for i in range(0, len(pares), 3):
         borde = f'border-top:1px solid {BORDE};' if i else ''  # en las celdas: no todos los clientes pintan bordes de <tr>
         grupo = pares[i:i + 3]
-        celdas = ''.join(_dato(t, v, borde) for t, v in grupo) + f'<td width="33%" style="{borde}"></td>' * (3 - len(grupo))
+        celdas = ''.join(_dato(t, v, borde, COLORES.get(t)) for t, v in grupo) + f'<td width="33%" style="{borde}"></td>' * (3 - len(grupo))
         filas.append(f'<tr>{celdas}</tr>')
     rejilla = ''.join(filas)
     contenido = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">'

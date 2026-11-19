@@ -17,7 +17,8 @@ from core.policies.services.polizas import registrar_evento
 from core.policies.services.proceso import PLANES_A_MANO
 from core.pos.models import Company
 from core.policies.services.bots import BOTS_DISPONIBLES
-from core.policies.services.comparativo import aseguradoras_valor_manual, construir, dinero, indicadores, pendientes_de_valor, resumen_cliente, soat
+from core.policies.services.comparativo import (aseguradoras_valor_manual, construir, dinero, indicadores, inicio_vigencia,
+                                                pendientes_de_valor, resumen_cliente, soat)
 from core.security.mixins import StrictPermissionMixin
 
 MODULE_NAME = 'Cotizador'
@@ -64,6 +65,7 @@ class ComparativoView(StrictPermissionMixin, TemplateView):
             'correo_url': reverse('vehiculo_comparativo_correo', args=[vehiculo.pk]),
             'vehiculo_id': vehiculo.pk,
             'soat': soat(vehiculo),
+            'inicio': inicio_vigencia(vehiculo),
             'pendientes_valor_json': json.dumps(pendientes_de_valor(vehiculo, resultado)).replace('<', '\\u003c'),
             'soat_url': reverse('vehiculo_comparativo_soat', args=[vehiculo.pk]),
             'poliza_vigente': vehiculo.polizas.filter(estado='generada', fecha_renovacion__gte=timezone.localdate())
@@ -189,7 +191,8 @@ class ComparativoValoresView(StrictPermissionMixin, View):
 
 
 class ComparativoSoatView(StrictPermissionMixin, View):
-    """Guarda el valor y el vencimiento del SOAT del vehículo (modal «Comparativo»). Los dos son opcionales: vacío borra."""
+    """Guarda el valor y el vencimiento del SOAT del vehículo (modal «Comparativo»). Los dos son opcionales: vacío borra.
+    Si llega `inicio_vigencia` (solicitud nueva: el vehículo aún no tiene póliza con nosotros) también se guarda."""
     permission_required = 'policies.view_comparativo'
 
     def post(self, request, pk):
@@ -210,8 +213,22 @@ class ComparativoSoatView(StrictPermissionMixin, View):
             hoy = timezone.localdate()
             if not (hoy.replace(year=hoy.year - 2) <= fecha <= hoy.replace(year=hoy.year + 2)):
                 return JsonResponse({'error': 'Revisa la fecha de vencimiento del SOAT: está muy lejos de hoy'}, status=400)
+        campos = ['soat_valor', 'soat_vencimiento']
         vehiculo.soat_valor, vehiculo.soat_vencimiento = valor, fecha
-        vehiculo.save(update_fields=['soat_valor', 'soat_vencimiento'])
+        if 'inicio_vigencia' in request.POST:
+            texto_inicio = str(request.POST.get('inicio_vigencia') or '').strip()
+            inicio = None
+            if texto_inicio:
+                try:
+                    inicio = date.fromisoformat(texto_inicio)
+                except ValueError:
+                    return JsonResponse({'error': 'La fecha de inicio de vigencia de la póliza no es válida'}, status=400)
+                hoy = timezone.localdate()
+                if abs((inicio - hoy).days) > 366:
+                    return JsonResponse({'error': 'Revisa la fecha de inicio de vigencia de la póliza: está muy lejos de hoy'}, status=400)
+            vehiculo.inicio_vigencia = inicio
+            campos.append('inicio_vigencia')
+        vehiculo.save(update_fields=campos)
         return JsonResponse({'ok': True, 'soat': soat(vehiculo)})
 
 
