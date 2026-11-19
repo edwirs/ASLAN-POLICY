@@ -307,7 +307,8 @@ def bloque_datos_vehiculo(vehiculo, actual=None):
         pares.append(('Aseguradora actual', actual))
     datos_soat = soat(vehiculo, hoy)
     if datos_soat:
-        pares += [('Valor SOAT', datos_soat['valor_fmt']), ('Días de vigencia SOAT', datos_soat['dias_texto'])]
+        pares += [('Valor SOAT', datos_soat['valor_fmt']), ('Días de vigencia SOAT', datos_soat['dias_texto']),
+                  ('Fecha fin SOAT', datos_soat['vence_fmt'])]
     pares = [(t, v) for t, v in pares if v]
     filas = []
     for i in range(0, len(pares), 3):
