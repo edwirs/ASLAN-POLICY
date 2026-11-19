@@ -59,6 +59,8 @@ var correoCotizacion = (function () {
         $('#pcCotizaciones').toggleClass('d-none', !lista.length);
         $('#pcCotizacionesLista').html(lista.map(function (c) {
             var origen = c.manual ? 'valor manual' : (c.tiene_pdf ? 'cotizado por el bot · PDF del portal' : 'cotizado por el bot · el bot no trajo el PDF');
+            // Aseguradora actual fuera de las 2 más baratas: su renovación se adjunta solo si el asesor sube el PDF.
+            if (c.renovacion) { origen = 'aseguradora actual · renovación (opcional: se adjunta solo si sube el PDF)'; }
             var cabeza = '<span class="pc-cot-pos">' + c.posicion + '</span><span class="pc-cot-datos"><b>' + esc(c.aseguradora) +
                 '</b><small>' + esc(c.valor_fmt) + ' · ' + origen + '</small></span>';
             var datos = ' data-tipo="' + c.tipo + '" data-id="' + c.ref_id + '"';
@@ -72,10 +74,10 @@ var correoCotizacion = (function () {
                     '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill pc-cot-quitar"' + datos + ' data-nombre="' + esc(c.aseguradora) + '" title="Quitar el PDF">' +
                     '<i class="fa-solid fa-trash-can"></i></button>';
             } else {
-                acciones = '<button type="button" class="btn btn-sm btn-primary rounded-pill pc-cot-subir"' + datos + '>' +
-                    '<i class="fa-solid fa-upload"></i> Adjuntar PDF de la cotización</button>';
+                acciones = '<button type="button" class="btn btn-sm ' + (c.renovacion ? 'btn-outline-primary' : 'btn-primary') + ' rounded-pill pc-cot-subir"' + datos + '>' +
+                    '<i class="fa-solid fa-upload"></i> ' + (c.renovacion ? 'Adjuntar PDF de la renovación' : 'Adjuntar PDF de la cotización') + '</button>';
             }
-            return '<div class="pc-cot' + (c.tiene_pdf ? '' : ' pc-cot-falta') + '">' + cabeza + '<span class="pc-cot-acciones">' + acciones + '</span></div>';
+            return '<div class="pc-cot' + (c.tiene_pdf || c.renovacion ? '' : ' pc-cot-falta') + '">' + cabeza + '<span class="pc-cot-acciones">' + acciones + '</span></div>';
         }).join(''));
     }
 
@@ -87,7 +89,7 @@ var correoCotizacion = (function () {
                 if (r.error) { message_error(r.error); return; }
                 pintarCotizaciones(r.cotizaciones || []);
                 // El aviso «Falta adjuntar…» se quita o aparece según lo que quedó.
-                var faltan = (r.cotizaciones || []).filter(function (c) { return !c.tiene_pdf; });
+                var faltan = (r.cotizaciones || []).filter(function (c) { return !c.tiene_pdf && !c.renovacion; });
                 $('#pcCorreoAvisos .pc-aviso').filter(function () { return /Falta adjuntar el PDF/.test($(this).text()); }).toggle(faltan.length > 0);
             })
             .fail(function (xhr) { message_error((xhr.responseJSON && xhr.responseJSON.error) || mensajeError); })

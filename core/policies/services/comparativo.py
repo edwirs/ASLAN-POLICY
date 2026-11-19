@@ -208,6 +208,12 @@ def construir(vehiculo):
     ultimas = {c.aseguradora.name: c for c in ultimas_por_aseguradora(vehiculo)}
     ids_activos = {a.name: a.pk for a in activas.values()}
     nombres_activos = set(ids_activos)
+
+    def avisa_actual(c):
+        """¿El portal dijo que el vehículo ya está asegurado ahí (y no hay una póliza nuestra registrada después)?"""
+        return bool(c and c.estado_bot == 'error' and c.error_tipo == 'no_cotizable' and es_aseguradora_actual(c.mensaje_bot)
+                    and not (poliza and poliza.created_at > c.created_at))
+
     for nombre in BOTS_DISPONIBLES:
         if nombre in con_valor or nombre not in nombres_activos:
             continue
@@ -216,8 +222,7 @@ def construir(vehiculo):
             motivo = 'Sin cotizar'
         elif c.estado_bot in ('pendiente', 'en_proceso'):
             motivo = 'Cotizando…'
-        elif (c.estado_bot == 'error' and c.error_tipo == 'no_cotizable' and es_aseguradora_actual(c.mensaje_bot)
-              and not (poliza and poliza.created_at > c.created_at)):
+        elif avisa_actual(c):
             motivo = 'Aseguradora actual del vehículo'
         elif c.estado_bot == 'error' and c.error_tipo == 'no_cotizable':
             motivo = SIN_CONDICIONES
@@ -231,7 +236,10 @@ def construir(vehiculo):
                           'aseguradora_id': ids_activos[nombre]})
     sin_valor.sort(key=lambda s: not s['actual'])  # la aseguradora actual, primero
     sin_condiciones = sorted((s for s in sin_valor if s['motivo'] == SIN_CONDICIONES), key=lambda s: s['aseguradora'])
-    actual = next((s['aseguradora'] for s in sin_valor if s['actual']), None) or (poliza.aseguradora.name if poliza else None)
+    # Si el asesor registró a mano el valor de renovación de esa aseguradora, sale en el ranking y sigue siendo la actual.
+    renovada = next((f['aseguradora_nombre'] for f in filas if f['origen'] == 'manual' and avisa_actual(ultimas.get(f['aseguradora_nombre']))), None)
+    actual = (next((s['aseguradora'] for s in sin_valor if s['actual']), None) or renovada
+              or (poliza.aseguradora.name if poliza else None))
     return {'filas': filas, 'sin_valor': sin_valor, 'actual': actual, 'sin_condiciones': sin_condiciones,
             'sin_condiciones_ids': {f['aseguradora_id'] for f in marcadas}}
 

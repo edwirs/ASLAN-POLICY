@@ -251,7 +251,9 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
     @staticmethod
     def _cotizaciones(vehiculo):
         """Las más baratas del ranking, para la sección «Cotizaciones que se adjuntan» de la ventana."""
-        return [{k: v for k, v in c.items() if k != 'documento'} for c in correo.cotizaciones_a_adjuntar(construir(vehiculo)['filas'], vehiculo.placa)]
+        resultado = construir(vehiculo)
+        return [{k: v for k, v in c.items() if k != 'documento'}
+                for c in correo.cotizaciones_a_adjuntar(resultado['filas'], vehiculo.placa, resultado['actual'])]
 
     def get(self, request, pk):
         if request.GET.get('cotizacion_pdf') or request.GET.get('portal_pdf'):

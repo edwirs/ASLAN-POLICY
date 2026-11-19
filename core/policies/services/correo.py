@@ -408,9 +408,14 @@ def _imagen(src, alto_texto, ancho=600):
 
 
 def promocion_visible(plantilla, filas):
+    """Siempre, nunca, si la aseguradora elegida está en el comparativo o, con `promocion_solo_mejores`, si es una de las
+    dos mejores opciones (las MAS_BARATAS primeras aseguradoras del ranking, las mismas cuyo PDF se adjunta)."""
     if not plantilla or not plantilla.promocion_activa or not (plantilla.promocion_texto or plantilla.promocion_imagen):
         return False
-    return plantilla.promocion_aseguradora_id is None or plantilla.promocion_aseguradora_id in {f['aseguradora_id'] for f in filas}
+    if plantilla.promocion_aseguradora_id is None:
+        return True
+    candidatas = primeras_aseguradoras(filas, MAS_BARATAS) if plantilla.promocion_solo_mejores else filas
+    return plantilla.promocion_aseguradora_id in {f['aseguradora_id'] for f in candidatas}
 
 
 def bloque_promocion(plantilla, filas, src):
@@ -481,11 +486,18 @@ def nombre_pdf_cotizacion(placa, aseguradora):
     return f'CTZ {(placa or "").strip().upper()} {aseguradora}.pdf'
 
 
-def cotizaciones_a_adjuntar(filas, placa):
+def cotizaciones_a_adjuntar(filas, placa, actual=None):
     """Los MAS_BARATAS primeros del ranking y su PDF. Los valores manuales (cotizados por el asesor o por un externo)
     llevan el PDF que sube el asesor; los de bot, el que el bot descargó del portal (o el que suba el asesor si no pudo).
-    `tipo` + `ref_id` identifican de dónde es el PDF: 'manual' = ValorExterno, 'bot' = Cotizacion."""
+    `tipo` + `ref_id` identifican de dónde es el PDF: 'manual' = ValorExterno, 'bot' = Cotizacion.
+    `actual`: aseguradora actual del vehículo. Si tiene valor (p. ej. la renovación registrada a mano) y no quedó entre las
+    primeras, se agrega al final con `renovacion=True`: su PDF es opcional y solo se adjunta si el asesor lo sube."""
     primeras = primeras_aseguradoras(filas, MAS_BARATAS)
+    renovacion = None
+    if actual and actual not in {f['aseguradora_nombre'] for f in primeras}:
+        renovacion = next((f for f in filas if f['aseguradora_nombre'] == actual), None)
+        if renovacion:
+            primeras = primeras + [renovacion]
     manuales = {v.pk: v.documento for v in ValorExterno.objects.filter(pk__in=[f['valor_externo_id'] for f in primeras if f.get('valor_externo_id')])}
     portal = {c.pk: c.pdf for c in Cotizacion.objects.filter(pk__in=[f['cotizacion_id'] for f in primeras if f.get('cotizacion_id')])}
     resultado = []
@@ -504,6 +516,7 @@ def cotizaciones_a_adjuntar(filas, placa):
             'tiene_pdf': bool(documento),
             'archivo': nombre_pdf_cotizacion(placa, fila['aseguradora_nombre']),
             'documento': documento or None,
+            'renovacion': fila is renovacion,
         })
     return resultado
 
@@ -561,8 +574,8 @@ def armar(plantilla, vehiculo, usuario, para_envio=False):
         avisos.append('El cliente no tiene correo registrado: escríbalo en «Para».')
     if not filas:
         avisos.append('El comparativo todavía no tiene valores de aseguradoras.')
-    cotizaciones = cotizaciones_a_adjuntar(filas, vehiculo.placa)
-    faltan = [c['aseguradora'] for c in cotizaciones if not c['tiene_pdf']]
+    cotizaciones = cotizaciones_a_adjuntar(filas, vehiculo.placa, actual)
+    faltan = [c['aseguradora'] for c in cotizaciones if not c['tiene_pdf'] and not c['renovacion']]
     if faltan:
         avisos.append(f'Falta adjuntar el PDF de la cotización de {" y ".join(faltan)} (está entre las {MAS_BARATAS} más baratas).')
     if firma is None and '{firma}' in plantilla.cuerpo:

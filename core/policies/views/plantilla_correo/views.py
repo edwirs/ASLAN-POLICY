@@ -187,9 +187,7 @@ class PlantillaCorreoFormView(_AccesoModulo, View):
         except ValueError:
             borrador.vigencia_cotizacion_dias = 15
         borrador.cuenta = CuentaCorreo.objects.filter(pk=request.POST.get('cuenta') or 0).first()
-        mostrar = request.POST.get('promocion_aseguradora') or ''
-        borrador.promocion_activa = mostrar != PlantillaCorreoForm.NUNCA
-        borrador.promocion_aseguradora_id = int(mostrar) if mostrar.isdigit() else None
+        PlantillaCorreoForm.aplicar_mostrar(borrador, request.POST.get('promocion_aseguradora'))
         vehiculo = _vehiculo_de_ejemplo(request.POST.get('placa'))
         if vehiculo is None:
             return _json({'error': 'No hay un vehículo con esa placa para la vista previa.'})

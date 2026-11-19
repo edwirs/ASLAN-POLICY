@@ -836,6 +836,8 @@ class PlantillaCorreo(models.Model):
     promocion_imagen = models.ImageField(upload_to='plantillas/promociones/%Y/%m', null=True, blank=True, verbose_name='Imagen de la promoción')
     promocion_aseguradora = models.ForeignKey(Aseguradora, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                               verbose_name='Mostrar la promoción solo si esta aseguradora está en el comparativo')
+    # Con `promocion_aseguradora`: no basta con que esté en el comparativo, tiene que ser una de las dos mejores opciones.
+    promocion_solo_mejores = models.BooleanField(default=False, verbose_name='Solo si esa aseguradora es una de las dos mejores opciones')
     vigencia_cotizacion_dias = models.PositiveSmallIntegerField(default=15, verbose_name='Días de vigencia de las cotizaciones')
     adjuntar_pdf = models.BooleanField(default=True, verbose_name='Adjuntar el PDF del comparativo')
     predeterminada = models.BooleanField(default=False, verbose_name='Predeterminada para su tipo de seguro')

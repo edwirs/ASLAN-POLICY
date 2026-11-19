@@ -572,6 +572,9 @@ class PolizaForm(forms.ModelForm):
 class PlantillaCorreoForm(forms.ModelForm):
     """Plantilla del correo de cotización. El cuerpo llega del editor como HTML y se limpia (solo formato básico)."""
     NUNCA = 'nunca'
+    MEJORES = 'mejores:'  # + id de la aseguradora: «Solo si X es una de las dos mejores opciones»
+    # Aseguradoras que además tienen la opción «una de las dos mejores opciones» en «Mostrarla».
+    PROMOCION_MEJORES = ('Seguros del Estado',)
     # «Mostrarla»: Siempre / Nunca / solo si cierta aseguradora está en el comparativo. Se guarda en
     # promocion_activa + promocion_aseguradora (ver save).
     promocion_aseguradora = forms.ChoiceField(required=False, label='Mostrarla', widget=forms.Select(attrs={'class': 'form-select'}))
@@ -600,11 +603,19 @@ class PlantillaCorreoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = CuentaCorreo.objects.filter(is_active=True) | CuentaCorreo.objects.filter(pk=self.instance.cuenta_id or 0)
         self.fields['cuenta'].empty_label = 'Sin cuenta (no se puede enviar)'
-        aseguradoras = [(str(a.pk), f'Solo si {a.name} está en el comparativo') for a in Aseguradora.objects.filter(is_active=True).order_by('name')]
-        self.fields['promocion_aseguradora'].choices = [('', 'Siempre'), (self.NUNCA, 'Nunca')] + aseguradoras
+        activas = list(Aseguradora.objects.filter(is_active=True).order_by('name'))
+        aseguradoras = [(str(a.pk), f'Solo si {a.name} está en el comparativo') for a in activas]
+        mejores = [(f'{self.MEJORES}{a.pk}', f'Solo si {a.name} es una de las dos mejores opciones')
+                   for a in activas if a.name in self.PROMOCION_MEJORES]
+        self.fields['promocion_aseguradora'].choices = [('', 'Siempre'), (self.NUNCA, 'Nunca')] + mejores + aseguradoras
         if not self.is_bound:
-            self.initial['promocion_aseguradora'] = (self.NUNCA if not self.instance.promocion_activa
-                                                     else str(self.instance.promocion_aseguradora_id or ''))
+            instancia = self.instance
+            if not instancia.promocion_activa:
+                self.initial['promocion_aseguradora'] = self.NUNCA
+            elif instancia.promocion_aseguradora_id and instancia.promocion_solo_mejores:
+                self.initial['promocion_aseguradora'] = f'{self.MEJORES}{instancia.promocion_aseguradora_id}'
+            else:
+                self.initial['promocion_aseguradora'] = str(instancia.promocion_aseguradora_id or '')
         self.fields['cuerpo'].required = True
 
     def _correos(self, campo):
@@ -641,10 +652,19 @@ class PlantillaCorreoForm(forms.ModelForm):
             return servicio_correo.normalizar_imagen(imagen, 'promocion')
         return imagen
 
+    @classmethod
+    def aplicar_mostrar(cls, plantilla, mostrar):
+        """«Mostrarla» (Siempre / Nunca / id / mejores:id) -> promocion_activa, promocion_aseguradora y promocion_solo_mejores."""
+        mostrar = str(mostrar or '')
+        solo_mejores = mostrar.startswith(cls.MEJORES)
+        if solo_mejores:
+            mostrar = mostrar[len(cls.MEJORES):]
+        plantilla.promocion_activa = mostrar != cls.NUNCA
+        plantilla.promocion_aseguradora_id = int(mostrar) if mostrar.isdigit() else None
+        plantilla.promocion_solo_mejores = solo_mejores and plantilla.promocion_aseguradora_id is not None
+
     def save(self, commit=True):
-        mostrar = self.cleaned_data.get('promocion_aseguradora') or ''
-        self.instance.promocion_activa = mostrar != self.NUNCA
-        self.instance.promocion_aseguradora_id = int(mostrar) if mostrar.isdigit() else None
+        self.aplicar_mostrar(self.instance, self.cleaned_data.get('promocion_aseguradora'))
         plantilla = super().save(commit=commit)
         if commit and plantilla.predeterminada:
             PlantillaCorreo.objects.filter(tipo_seguro=plantilla.tipo_seguro).exclude(pk=plantilla.pk).update(predeterminada=False)
