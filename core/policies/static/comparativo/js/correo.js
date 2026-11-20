@@ -11,7 +11,7 @@ function ajustarMarco(marco) {
 var correoCotizacion = (function () {
     var $modal, url, soloDiferencias = false, plantillaId = null, horario = {en_horario: true};
     // PDF de la renovación de la aseguradora actual (File del navegador): no se sube, va solo con el envío del correo.
-    var renovacion = null, ultimasCotizaciones = [];
+    var renovacion = null, ultimasCotizaciones = [], puedeCancelar = false;
 
     function esc(t) { return $('<div>').text(t == null ? '' : t).html(); }
 
@@ -37,6 +37,7 @@ var correoCotizacion = (function () {
         $('#pcCorreoAvisos').html(avisoHorario + (r.avisos || []).map(function (a) {
             return '<div class="pc-aviso"><i class="fa-solid fa-triangle-exclamation"></i> ' + esc(a) + '</div>';
         }).join(''));
+        puedeCancelar = !!r.puede_cancelar;
         pintarEnviados(r.enviados || []);
         $('#pcEnviar').prop('disabled', !r.puede_enviar).html(horario.en_horario
             ? '<i class="fa-solid fa-paper-plane"></i> Enviar correo' : '<i class="fa-solid fa-clock"></i> Programar envío');
@@ -49,7 +50,7 @@ var correoCotizacion = (function () {
         $('#pcEnviados').html(lista.length ? '<i class="fa-solid fa-clock-rotate-left"></i> Correos de esta placa: ' + lista.map(function (e) {
             if (e.estado === 'programado') {
                 return '<span class="pc-chip">Programado</span> sale el <b>' + esc(e.programado) + '</b> a ' + esc(e.para) +
-                    (e.por ? ' · ' + esc(e.por) : '') + ' <a href="#" class="pc-cancelar-correo text-danger" data-id="' + e.id + '">Cancelar</a>';
+                    (e.por ? ' · ' + esc(e.por) : '') + (puedeCancelar ? ' <a href="#" class="pc-cancelar-correo text-danger" data-id="' + e.id + '">Cancelar</a>' : '');
             }
             var chip = e.estado === 'error' ? ' <span class="pc-chip pc-chip-alerta">No se envió</span>'
                 : e.estado === 'cancelado' ? ' <span class="pc-chip">Cancelado</span>' : e.estado === 'enviando' ? ' <span class="pc-chip">Enviando…</span>' : '';

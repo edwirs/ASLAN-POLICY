@@ -290,6 +290,7 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
             'pdf_url': reverse('vehiculo_comparativo_pdf', args=[vehiculo.pk]) + solo,
             'puede_enviar': bool(plantilla.cuenta and plantilla.cuenta.is_active and plantilla.cuenta.clave),
             'enviados': enviados,
+            'puede_cancelar': request.user.has_perm('policies.cancel_correoenviado'),
             # Fuera del horario hábil el correo no sale: queda programado para la siguiente hora hábil.
             'horario': {'en_horario': en_horario, 'texto': horario_habil.texto_horario(),
                         'siguiente': '' if en_horario else horario_habil.texto_fecha(horario_habil.siguiente_hora_habil())},
@@ -312,6 +313,8 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
         if accion in ('subir_cotizacion', 'quitar_cotizacion'):
             return self._cotizacion_manual(request, vehiculo, accion)
         if accion == 'cancelar_correo':
+            if not request.user.has_perm('policies.cancel_correoenviado'):
+                return JsonResponse({'error': 'Su perfil no cuenta con el permiso para cancelar envíos.'}, status=403)
             registro = CorreoEnviado.objects.filter(pk=request.POST.get('id'), vehiculo=vehiculo).first()
             if registro is None or not correo.cancelar(registro, request.user):
                 return JsonResponse({'error': 'Ese correo ya no está programado (ya salió o se canceló).'}, status=400)

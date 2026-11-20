@@ -1,0 +1,29 @@
+/* Seguimiento de correos */
+.cs-filtros { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+.cs-filtros .btn .badge { background: rgba(0, 0, 0, .12); color: inherit; margin-left: .15rem; }
+.cs-filtros .btn-primary .badge { background: rgba(255, 255, 255, .25); }
+.cs-filtros .btn.vacio { opacity: .55; }
+
+.cs-nota { font-size: .78rem; opacity: .75; margin-top: .2rem; line-height: 1.25; }
+.cs-nota-error { color: #dc3545; max-width: 320px; white-space: normal; }
+
+.cs-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .6rem 1.2rem; margin-bottom: 1rem; }
+.cs-dato dt { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; opacity: .65; margin-bottom: .1rem; }
+.cs-dato dd { margin: 0; word-break: break-word; }
+.cs-adjunto { display: inline-block; background: rgba(127, 127, 127, .18); color: inherit; border-radius: 999px; padding: .1rem .6rem; font-size: .82rem; margin: 0 .2rem .2rem 0; }
+
+.cs-error pre { white-space: pre-wrap; font-family: inherit; font-size: .88rem; margin: .4rem 0; }
+.cs-subtitulo { font-weight: 700; margin: .5rem 0; color: inherit; }
+.cs-vista { width: 100%; height: 60vh; border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; }
+.cs-detalle-acciones { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+/* Botón «⋯» y su menú de acciones: el mismo de Facturas electrónicas. */
+.btn-actions-dots { box-sizing: border-box; width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center;
+    justify-content: center; border-radius: 50%; border: 1px solid #dee2e6; background-color: #fff; color: #6c757d; font-size: 1rem; line-height: 1; }
+.btn-actions-dots::after { display: none; }
+.btn-actions-dots:hover, .btn-actions-dots:focus { background-color: #f1f3f5; color: #495057; border-color: #ced4da; }
+.actions-dropdown-menu { padding: .4rem; border: none; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .12); min-width: 230px; }
+.actions-dropdown-menu .dropdown-item { display: flex; align-items: center; gap: .65rem; padding: .55rem .65rem; border-radius: 8px; font-size: .9rem; color: #343a40; }
+.actions-dropdown-menu .dropdown-item:hover, .actions-dropdown-menu .dropdown-item:focus { background-color: #f1f3f5; }
+.actions-dropdown-menu .dropdown-item i { width: 18px; text-align: center; font-size: .95rem; }
+.actions-dropdown-menu .dropdown-divider { margin: .3rem .2rem; }

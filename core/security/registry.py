@@ -100,6 +100,12 @@ PERMISSIONS = {
     ],
     'policies.CorreoEnviado': [
         ('send_cotizacion_correo', 'Enviar la cotización por correo al cliente'),
+        ('view_correoenviado', 'Ver el seguimiento de correos (enviados, pendientes de envío y con error)'),
+        ('cancel_correoenviado', 'Cancelar el envío de un correo pendiente'),
+        ('send_correoenviado_ahora', 'Enviar ya un correo pendiente, sin esperar la hora hábil'),
+        ('change_correoenviado', 'Corregir los destinatarios (Para y CC) de un correo pendiente o con error'),
+        ('reprogram_correoenviado', 'Reprogramar la fecha y hora de envío de un correo pendiente'),
+        ('retry_correoenviado', 'Reintentar el envío de un correo que no salió'),
     ],
 
     # Seguridad
@@ -163,6 +169,9 @@ MENU = (
         Item('quote_list', 'Solicitudes registradas', 'vehiculo_list', 'policies.view_vehiculo',
              q('policies', 'view_vehiculo', 'add_vehiculo', 'view_comparativo', 'add_valor_externo', 'use_asistente',
                'send_cotizacion_correo'), icon='fa-solid fa-list-check', modulo='cotizador'),
+        Item('email_tracking', 'Seguimiento de correos', 'correo_seguimiento', 'policies.view_correoenviado',
+             q('policies', 'view_correoenviado', 'cancel_correoenviado', 'send_correoenviado_ahora', 'change_correoenviado',
+               'reprogram_correoenviado', 'retry_correoenviado'), icon='fa-solid fa-envelope-circle-check', modulo='cotizador'),
     )),
     Section('Pólizas', 'fa-solid fa-file-contract', (
         Item('policies', 'Pólizas tomadas', 'poliza_list', 'policies.view_poliza',

@@ -1,0 +1,106 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block breadcrumb_item %}
+    <li class="breadcrumb-item active">
+        <i class="fa-solid fa-envelope-circle-check"></i> {{ module_name }}
+    </li>
+{% endblock %}
+
+{% block assets_list %}
+    <link rel="stylesheet" href="{% static 'correo_seguimiento/css/seguimiento.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
+    <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
+    {{ permisos|json_script:"csPermisos" }}
+    <script>var csComparativo = '{{ url_comparativo }}';</script>
+    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=5"></script>
+{% endblock %}
+
+{% block ayuda %}
+    Todos los correos de cotización enviados a los clientes desde el comparativo, con su estado:
+    <b>Pendiente de envío</b> (se pidió fuera del horario hábil y sale en la siguiente hora hábil: {{ horario }}),
+    <b>Enviado</b>, <b>Error</b> (no salió: el detalle dice por qué) o <b>Cancelado</b>.
+    Según tu perfil, en <b>Acciones</b> puedes: a un pendiente, cancelarlo, enviarlo ya, corregir sus destinatarios o
+    reprogramarlo; a uno con error, corregir los destinatarios y reintentarlo (sus adjuntos se guardan 3 días después de fallar).
+{% endblock %}
+
+{% block content_list %}
+    <div class="cs-filtros" id="csFiltros" role="group" aria-label="Filtrar por estado">
+        {% for valor, nombre in filtros %}
+            <button type="button" class="btn btn-sm rounded-pill {% if forloop.first %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-grupo="{{ valor }}">
+                {{ nombre }} <span class="badge rounded-pill">0</span></button>
+        {% endfor %}
+    </div>
+
+    <div class="modal fade" id="csModalDetalle" tabindex="-1" aria-labelledby="csDetalleTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="csDetalleTitulo"><i class="fa-solid fa-envelope-open-text"></i> Correo de <b id="csDetallePlaca"></b></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body" id="csDetalleCuerpo"></div>
+                <div class="modal-footer">
+                    <a class="btn btn-outline-primary rounded-pill me-auto" id="csDetalleComparativo" href="#" hidden><i class="fa-solid fa-scale-balanced"></i> Abrir comparativo</a>
+                    <div class="cs-detalle-acciones" id="csDetalleAcciones"></div>
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="csModalDestinatarios" tabindex="-1" aria-labelledby="csDestTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="csDestTitulo"><i class="fa-solid fa-at"></i> Corregir destinatarios</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-bold" for="csPara">Para</label>
+                    <input type="text" class="form-control mb-3" id="csPara" maxlength="500" placeholder="cliente@correo.com">
+                    <label class="form-label fw-bold" for="csCc">CC</label>
+                    <input type="text" class="form-control" id="csCc" maxlength="500" placeholder="Opcional">
+                    <p class="text-muted small mt-2 mb-0">Varios correos se separan con coma.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="csGuardarDestinatarios"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="csModalReprogramar" tabindex="-1" aria-labelledby="csRepTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="csRepTitulo"><i class="fa-regular fa-calendar"></i> Reprogramar envío</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-bold" for="csMomento">Sale el</label>
+                    <input type="datetime-local" class="form-control" id="csMomento">
+                    <p class="text-muted small mt-2 mb-0">Hora de Colombia. Si eliges una hora fuera del horario hábil ({{ horario }}), sale en la siguiente hora hábil.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="csGuardarReprogramar"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block columns %}
+    <th>Fecha</th>
+    <th>Placa</th>
+    <th>Cliente</th>
+    <th>Para</th>
+    <th>Asunto</th>
+    <th>Estado</th>
+    <th>Enviado por</th>
+    <th class="no-sort text-center" style="width:70px;">Acciones</th>
+{% endblock %}
+
+{% block javascript_list %}{% endblock %}

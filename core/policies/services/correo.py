@@ -742,6 +742,9 @@ def probar_cuenta(cuenta):
 # Fallas pasajeras del servidor de correo: el envío programado se reintenta hasta INTENTOS_MAXIMOS veces.
 INTENTOS_MAXIMOS = 3
 MINUTOS_REINTENTO = 5
+# Los PDF de un correo que no salió se guardan estos días (para «Reintentar» desde el Seguimiento de correos) y después
+# se borran: llevan datos personales.
+DIAS_ADJUNTOS_ERROR = 3
 
 
 def _falla_pasajera(error):
@@ -809,7 +812,8 @@ def _lista(texto):
 
 
 def _borrar_adjuntos(registro):
-    """Los PDF de la cola se borran al terminar (enviado, error definitivo o cancelado): llevan datos personales."""
+    """Los PDF de la cola se borran al terminar (enviado o cancelado): llevan datos personales. Los de un correo con error
+    se guardan DIAS_ADJUNTOS_ERROR días para poder reintentarlo (ver `borrar_adjuntos_vencidos`)."""
     for adjunto in registro.adjuntos.all():
         adjunto.archivo.delete(save=False)
     registro.adjuntos.all().delete()
@@ -848,7 +852,6 @@ def enviar_registro(registro, automatico=False):
             return False
         registro.estado = 'error'
         registro.save(update_fields=['estado', 'error'])
-        _borrar_adjuntos(registro)
         if automatico:
             registrar_evento(registro.vehiculo, 'correo', '', f'No se pudo enviar el correo programado a {registro.para}'[:200],
                              explicacion[:300], registro.enviado_por)
@@ -876,6 +879,89 @@ def cancelar(registro, usuario):
     return True
 
 
+def _exigir(registro, estados, mensaje):
+    if registro.estado not in estados:
+        raise CorreoError(mensaje)
+
+
+NO_PENDIENTE = 'Ese correo ya no está pendiente de envío (ya salió, se está enviando o se canceló).'
+
+
+def enviar_ahora(registro, usuario):
+    """Envía ya un correo pendiente, sin esperar la hora hábil. Lanza CorreoError si no se pudo."""
+    _exigir(registro, ('programado',), NO_PENDIENTE)
+    fuera = not horario_habil.en_horario()
+    if not enviar_registro(registro):
+        raise CorreoError(NO_PENDIENTE)
+    if fuera:
+        registrar_evento(registro.vehiculo, 'correo', '', f'Enviado fuera del horario hábil a {registro.para}'[:200],
+                         '«Enviar ahora» desde el Seguimiento de correos', usuario)
+    return registro
+
+
+def corregir_destinatarios(registro, para, cc, usuario):
+    """Corrige «Para» y «CC» de un correo pendiente o con error (antes de reintentarlo)."""
+    _exigir(registro, ('programado', 'error'), 'Solo se pueden corregir los destinatarios de un correo pendiente o con error.')
+    lista_para, lista_cc = destinatarios(para, {}), destinatarios(cc, {})
+    if not lista_para:
+        raise CorreoError('Escriba al menos un correo en «Para».')
+    nuevo_para, nuevo_cc = ', '.join(lista_para)[:500], ', '.join(lista_cc)[:500]
+    if (nuevo_para, nuevo_cc) == (registro.para, registro.cc):
+        return registro
+    if not CorreoEnviado.objects.filter(pk=registro.pk, estado=registro.estado).update(para=nuevo_para, cc=nuevo_cc):
+        raise CorreoError(NO_PENDIENTE)
+    registrar_evento(registro.vehiculo, 'correo', f'Para {registro.para}' + (f' · CC {registro.cc}' if registro.cc else ''),
+                     f'Para {nuevo_para}' + (f' · CC {nuevo_cc}' if nuevo_cc else ''), 'Destinatarios del correo corregidos', usuario)
+    registro.refresh_from_db()
+    return registro
+
+
+def reprogramar(registro, momento, usuario):
+    """Cambia la hora de salida de un correo pendiente. Si `momento` cae fuera del horario hábil, pasa a la siguiente hora
+    hábil. Devuelve el registro; lanza CorreoError si la fecha no sirve."""
+    _exigir(registro, ('programado',), NO_PENDIENTE)
+    ahora = timezone.now()
+    if momento <= ahora:
+        raise CorreoError('Elija una fecha y hora que aún no hayan pasado.')
+    if momento > ahora + timedelta(days=60):
+        raise CorreoError('Se puede reprogramar hasta 60 días adelante.')
+    cuando = horario_habil.siguiente_hora_habil(momento)
+    anterior = registro.programado_para
+    if not CorreoEnviado.objects.filter(pk=registro.pk, estado='programado').update(programado_para=cuando):
+        raise CorreoError(NO_PENDIENTE)
+    registrar_evento(registro.vehiculo, 'correo', f'Salía el {horario_habil.texto_fecha(anterior)}' if anterior else '',
+                     f'Sale el {horario_habil.texto_fecha(cuando)}'[:200], f'Correo a {registro.para} reprogramado'[:300], usuario)
+    registro.refresh_from_db()
+    return registro
+
+
+def reintentar(registro, usuario):
+    """Vuelve a enviar un correo que no salió, igual (mismo cuerpo y adjuntos). En horario hábil sale en el acto (lanza
+    CorreoError si vuelve a fallar); fuera de él queda pendiente para la siguiente hora hábil."""
+    _exigir(registro, ('error',), 'Solo se puede reintentar un correo que no salió.')
+    if registro.adjunto and not registro.adjuntos.exists():
+        raise CorreoError(f'Los adjuntos de este correo ya se borraron (se guardan {DIAS_ADJUNTOS_ERROR} días después de '
+                          'fallar). Ármelo de nuevo desde el comparativo del vehículo.')
+    cuando = horario_habil.siguiente_hora_habil()
+    if not CorreoEnviado.objects.filter(pk=registro.pk, estado='error').update(estado='programado', programado_para=cuando,
+                                                                             intentos=0, error=''):
+        raise CorreoError('Ese correo ya no está con error (alguien lo reintentó o canceló).')
+    registro.refresh_from_db()
+    if horario_habil.en_horario():
+        enviar_registro(registro)
+    else:
+        registrar_evento(registro.vehiculo, 'correo', 'No se pudo enviar', f'Reintento programado para {registro.para}'[:200],
+                         f'Sale el {horario_habil.texto_fecha(cuando)} (fuera del horario hábil)', usuario)
+    return registro
+
+
+def borrar_adjuntos_vencidos():
+    """Borra los PDF de los correos con error que llevan más de DIAS_ADJUNTOS_ERROR días sin reintentarse."""
+    limite = timezone.now() - timedelta(days=DIAS_ADJUNTOS_ERROR)
+    for registro in CorreoEnviado.objects.filter(estado='error', programado_para__lt=limite, adjuntos__isnull=False).distinct():
+        _borrar_adjuntos(registro)
+
+
 def enviar_pendientes(limite=10):
     """Envía los correos programados cuya hora ya llegó (solo dentro del horario hábil), de a `limite` por llamada para
     no saturar el servidor de correo a las 8:00 a. m. Devuelve (enviados, fallidos)."""
@@ -885,7 +971,7 @@ def enviar_pendientes(limite=10):
         colgado.estado = 'error'
         colgado.error = 'El envío se interrumpió y no se sabe si salió: revise con el cliente antes de volver a enviarlo.'
         colgado.save(update_fields=['estado', 'error'])
-        _borrar_adjuntos(colgado)
+    borrar_adjuntos_vencidos()
     if not horario_habil.en_horario():
         return 0, 0
     enviados = fallidos = 0
