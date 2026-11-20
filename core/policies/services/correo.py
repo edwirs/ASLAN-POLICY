@@ -60,7 +60,7 @@ VARIABLES_CORREO = ('correo_cliente', 'correo_asesor')
 
 # Las tablas van compactas y centradas (el texto sí ocupa todo el ancho del correo).
 ANCHO_TABLAS = 600
-ANCHO_PROMOCION = 110  # la imagen de la promoción (logo) va pequeña
+ANCHO_PROMOCION = 240  # la imagen de la promoción (logo), centrada sobre el texto
 ANCHO_FIRMA = 380      # la firma, más angosta que las tablas (600) para que no domine el correo
 # Colores del comparativo (comparativo.css), para que el correo se vea como el «Ranking de valores».
 TEXTO = '#0f172a'
@@ -408,19 +408,20 @@ def _imagen(src, alto_texto, ancho=600):
 
 def promocion_visible(plantilla, filas):
     """Siempre, nunca, si la aseguradora elegida está en el comparativo o, con `promocion_solo_mejores`, si es una de las
-    dos mejores opciones (las MAS_BARATAS primeras aseguradoras del ranking, las mismas cuyo PDF se adjunta)."""
+    dos mejores opciones: los puestos 1 y 2 del ranking tal como se ven (cada plan es un puesto: si AXA Colpatria VIP y
+    Plus son 1 y 2, Seguros del Estado en el 3 ya no cuenta)."""
     if not plantilla or not plantilla.promocion_activa or not (plantilla.promocion_texto or plantilla.promocion_imagen):
         return False
     if plantilla.promocion_aseguradora_id is None:
         return True
-    candidatas = primeras_aseguradoras(filas, MAS_BARATAS) if plantilla.promocion_solo_mejores else filas
+    candidatas = [f for f in filas if f['posicion'] <= MAS_BARATAS] if plantilla.promocion_solo_mejores else filas
     return plantilla.promocion_aseguradora_id in {f['aseguradora_id'] for f in candidatas}
 
 
 def bloque_promocion(plantilla, filas, src):
     if not promocion_visible(plantilla, filas):
         return ''
-    # Imagen pequeña arriba y el texto debajo, los dos centrados (tabla con align: Outlook ignora margin:auto).
+    # Imagen arriba y el texto debajo, los dos centrados (tabla con align: Outlook ignora margin:auto).
     partes = []
     if plantilla.promocion_imagen and src:
         partes.append(f'<tr><td align="center" style="padding:0 0 6px;"><img src="{src}" alt="{escape(plantilla.promocion_texto or "Promoción")}" '
