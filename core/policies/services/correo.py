@@ -491,7 +491,8 @@ def cotizaciones_a_adjuntar(filas, placa, actual=None):
     llevan el PDF que sube el asesor; los de bot, el que el bot descargó del portal (o el que suba el asesor si no pudo).
     `tipo` + `ref_id` identifican de dónde es el PDF: 'manual' = ValorExterno, 'bot' = Cotizacion.
     `actual`: aseguradora actual del vehículo. Si tiene valor (p. ej. la renovación registrada a mano) y no quedó entre las
-    primeras, se agrega al final con `renovacion=True`: su PDF es opcional y solo se adjunta si el asesor lo sube."""
+    primeras, se agrega al final con `renovacion=True`: su PDF es opcional, no se guarda en el sistema y solo se adjunta
+    si el asesor lo elige al enviar (ver `programar`, `renovacion_pdf`)."""
     primeras = primeras_aseguradoras(filas, MAS_BARATAS)
     renovacion = None
     if actual and actual not in {f['aseguradora_nombre'] for f in primeras}:
@@ -504,7 +505,7 @@ def cotizaciones_a_adjuntar(filas, placa, actual=None):
     for fila in primeras:
         manual = fila['origen'] == 'manual'
         ref_id = fila.get('valor_externo_id') if manual else fila.get('cotizacion_id')
-        documento = (manuales if manual else portal).get(ref_id)
+        documento = None if fila is renovacion else (manuales if manual else portal).get(ref_id)
         resultado.append({
             'posicion': fila['posicion'],
             'aseguradora': fila['aseguradora_nombre'],
@@ -750,10 +751,12 @@ def _falla_pasajera(error):
                               smtplib.SMTPConnectError, OSError))
 
 
-def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None):
+def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None, renovacion_pdf=None):
     """Deja el correo en la cola tal como el asesor lo revisó (asunto, cuerpo y PDF) y, si es horario hábil, lo envía
     en el acto. Fuera del horario queda «programado» para la siguiente hora hábil. `para` y `cc` son textos con correos
-    separados por coma. Devuelve el CorreoEnviado; lanza CorreoError si no se pudo (y deja el intento registrado)."""
+    separados por coma. Devuelve el CorreoEnviado; lanza CorreoError si no se pudo (y deja el intento registrado).
+    `renovacion_pdf`: bytes del PDF de la renovación de la aseguradora actual, elegido al enviar. No se guarda con el
+    valor: solo va en la cola de este correo, que borra sus adjuntos al salir (o al fallar o cancelarse)."""
     cuenta = plantilla.cuenta
     if cuenta is None or not cuenta.is_active:
         raise CorreoError('La plantilla no tiene una cuenta de envío activa.')
@@ -779,6 +782,8 @@ def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None):
                 adjuntos.append((cotizacion['archivo'], archivo.read()))
             if cotizacion['tipo'] == 'bot':
                 del_portal.append(cotizacion['ref_id'])
+        elif cotizacion['renovacion'] and renovacion_pdf:
+            adjuntos.append((cotizacion['archivo'], renovacion_pdf))
 
     registro = CorreoEnviado.objects.create(
         vehiculo=vehiculo, plantilla=plantilla, cuenta=cuenta, remitente=cuenta.remitente[:200],

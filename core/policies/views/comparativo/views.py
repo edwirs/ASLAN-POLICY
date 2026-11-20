@@ -324,8 +324,12 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
             pdf = None
             if plantilla.adjuntar_pdf:
                 pdf = correo.pdf_comparativo(request, vehiculo, solo_diferencias=request.POST.get('solo_diferencias') == '1')
+            # PDF de la renovación de la aseguradora actual: llega con el envío y no se guarda en el sistema.
+            renovacion = request.FILES.get('renovacion_pdf')
+            renovacion_pdf = correo.leer_pdf_subido(renovacion).read() if renovacion else None
             registro = correo.programar(plantilla, vehiculo, request.user, request.POST.get('para', ''),
-                                        request.POST.get('cc', ''), request.POST.get('asunto', ''), pdf=pdf)
+                                        request.POST.get('cc', ''), request.POST.get('asunto', ''), pdf=pdf,
+                                        renovacion_pdf=renovacion_pdf)
         except correo.CorreoError as e:
             return JsonResponse({'error': str(e)}, status=400)
         destino = registro.para + (f' (CC {registro.cc})' if registro.cc else '')

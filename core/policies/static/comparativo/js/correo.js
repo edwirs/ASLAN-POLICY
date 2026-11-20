@@ -10,6 +10,8 @@ function ajustarMarco(marco) {
 // «Armar correo» del comparativo: trae el correo armado con la plantilla, lo muestra para revisarlo y lo envía.
 var correoCotizacion = (function () {
     var $modal, url, soloDiferencias = false, plantillaId = null, horario = {en_horario: true};
+    // PDF de la renovación de la aseguradora actual (File del navegador): no se sube, va solo con el envío del correo.
+    var renovacion = null, ultimasCotizaciones = [];
 
     function esc(t) { return $('<div>').text(t == null ? '' : t).html(); }
 
@@ -25,7 +27,9 @@ var correoCotizacion = (function () {
         $('#pcCc').val(r.cc);
         $('#pcAsunto').val(r.asunto);
         $('#pcFilaAdjunto').toggle(!!r.adjunto);
-        pintarCotizaciones(r.cotizaciones || []);
+        renovacion = null;
+        ultimasCotizaciones = r.cotizaciones || [];
+        pintarCotizaciones(ultimasCotizaciones);
         $('#pcAdjunto').attr('href', r.pdf_url).find('span').text(r.adjunto);
         horario = r.horario || {en_horario: true};
         var avisoHorario = horario.en_horario ? '' : '<div class="pc-aviso"><i class="fa-solid fa-clock"></i> Fuera del horario hábil (' +
@@ -60,12 +64,19 @@ var correoCotizacion = (function () {
         $('#pcCotizacionesLista').html(lista.map(function (c) {
             var origen = c.manual ? 'valor manual' : (c.tiene_pdf ? 'cotizado por el bot · PDF del portal' : 'cotizado por el bot · el bot no trajo el PDF');
             // Aseguradora actual fuera de las 2 más baratas: su renovación se adjunta solo si el asesor sube el PDF.
-            if (c.renovacion) { origen = 'aseguradora actual · renovación (opcional: se adjunta solo si sube el PDF)'; }
+            if (c.renovacion) { origen = 'aseguradora actual · renovación (opcional: se adjunta solo a este correo, no se guarda)'; }
             var cabeza = '<span class="pc-cot-pos">' + c.posicion + '</span><span class="pc-cot-datos"><b>' + esc(c.aseguradora) +
                 '</b><small>' + esc(c.valor_fmt) + ' · ' + origen + '</small></span>';
             var datos = ' data-tipo="' + c.tipo + '" data-id="' + c.ref_id + '"';
             var acciones;
-            if (c.tiene_pdf) {
+            if (c.renovacion) {
+                acciones = renovacion
+                    ? '<span class="pc-adjunto"><i class="fa-solid fa-file-pdf"></i> ' + esc(c.archivo) + '</span>' +
+                      '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill pc-renov-quitar" title="No adjuntar">' +
+                      '<i class="fa-solid fa-trash-can"></i></button>'
+                    : '<button type="button" class="btn btn-sm btn-outline-primary rounded-pill pc-renov-elegir">' +
+                      '<i class="fa-solid fa-paperclip"></i> Adjuntar PDF de la renovación</button>';
+            } else if (c.tiene_pdf) {
                 var ver = url + (c.tipo === 'bot' ? '?portal_pdf=' : '?cotizacion_pdf=') + c.ref_id;
                 acciones = '<a class="pc-adjunto" target="_blank" rel="noopener" href="' + ver + '" title="Ver el PDF que se adjunta">' +
                     '<i class="fa-solid fa-file-pdf"></i> ' + esc(c.archivo) + '</a>' +
@@ -74,8 +85,8 @@ var correoCotizacion = (function () {
                     '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill pc-cot-quitar"' + datos + ' data-nombre="' + esc(c.aseguradora) + '" title="Quitar el PDF">' +
                     '<i class="fa-solid fa-trash-can"></i></button>';
             } else {
-                acciones = '<button type="button" class="btn btn-sm ' + (c.renovacion ? 'btn-outline-primary' : 'btn-primary') + ' rounded-pill pc-cot-subir"' + datos + '>' +
-                    '<i class="fa-solid fa-upload"></i> ' + (c.renovacion ? 'Adjuntar PDF de la renovación' : 'Adjuntar PDF de la cotización') + '</button>';
+                acciones = '<button type="button" class="btn btn-sm btn-primary rounded-pill pc-cot-subir"' + datos + '>' +
+                    '<i class="fa-solid fa-upload"></i> Adjuntar PDF de la cotización</button>';
             }
             return '<div class="pc-cot' + (c.tiene_pdf || c.renovacion ? '' : ' pc-cot-falta') + '">' + cabeza + '<span class="pc-cot-acciones">' + acciones + '</span></div>';
         }).join(''));
@@ -87,7 +98,8 @@ var correoCotizacion = (function () {
                        data: datos, processData: !(datos instanceof FormData), contentType: datos instanceof FormData ? false : undefined})
             .done(function (r) {
                 if (r.error) { message_error(r.error); return; }
-                pintarCotizaciones(r.cotizaciones || []);
+                ultimasCotizaciones = r.cotizaciones || [];
+                pintarCotizaciones(ultimasCotizaciones);
                 // El aviso «Falta adjuntar…» se quita o aparece según lo que quedó.
                 var faltan = (r.cotizaciones || []).filter(function (c) { return !c.tiene_pdf && !c.renovacion; });
                 $('#pcCorreoAvisos .pc-aviso').filter(function () { return /Falta adjuntar el PDF/.test($(this).text()); }).toggle(faltan.length > 0);
@@ -117,8 +129,15 @@ var correoCotizacion = (function () {
             showCancelButton: true, confirmButtonText: programar ? 'Sí, programar' : 'Sí, enviar', cancelButtonText: 'Revisar'}).then(function (res) {
             if (!res.isConfirmed) { return; }
             $.LoadingOverlay('show', {text: programar ? 'Generando el PDF y programando…' : 'Generando el PDF y enviando…'});
+            var datos = new FormData();
+            datos.append('plantilla', plantillaId);
+            datos.append('para', para);
+            datos.append('cc', $('#pcCc').val());
+            datos.append('asunto', $('#pcAsunto').val());
+            datos.append('solo_diferencias', soloDiferencias ? '1' : '');
+            if (renovacion) { datos.append('renovacion_pdf', renovacion); }  // solo para este correo: no se guarda
             $.ajax({url: url, type: 'POST', headers: {'X-CSRFToken': csrftoken}, dataType: 'json',
-                data: {plantilla: plantillaId, para: para, cc: $('#pcCc').val(), asunto: $('#pcAsunto').val(), solo_diferencias: soloDiferencias ? '1' : ''}})
+                data: datos, processData: false, contentType: false})
                 .done(function (r) {
                     if (r.error) { message_error(r.error); return; }
                     bootstrap.Modal.getOrCreateInstance($modal[0]).hide();
@@ -147,6 +166,16 @@ var correoCotizacion = (function () {
             });
         });
         var subiendo = null;
+        $('#pcCotizacionesLista').on('click', '.pc-renov-elegir', function () { $('#pcRenovacionArchivo').val('').trigger('click'); });
+        $('#pcRenovacionArchivo').on('change', function () {
+            var archivo = this.files[0];
+            if (!archivo) { return; }
+            if (archivo.size > 10 * 1024 * 1024) { message_error('El PDF pesa más de 10 MB: comprímalo o pida uno más liviano.'); return; }
+            if (!/\.pdf$/i.test(archivo.name) && archivo.type !== 'application/pdf') { message_error('El archivo no es un PDF.'); return; }
+            renovacion = archivo;
+            pintarCotizaciones(ultimasCotizaciones);
+        });
+        $('#pcCotizacionesLista').on('click', '.pc-renov-quitar', function () { renovacion = null; pintarCotizaciones(ultimasCotizaciones); });
         $('#pcCotizacionesLista').on('click', '.pc-cot-subir', function () {
             subiendo = {tipo: $(this).data('tipo'), id: $(this).data('id')};
             $('#pcCotizacionArchivo').val('').trigger('click');

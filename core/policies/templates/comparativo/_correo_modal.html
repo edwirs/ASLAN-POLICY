@@ -24,6 +24,8 @@
                     <div class="pc-cotizaciones-titulo"><i class="fa-solid fa-paperclip"></i> Pólizas</div>
                     <div class="pc-cotizaciones-lista" id="pcCotizacionesLista"></div>
                     <input type="file" id="pcCotizacionArchivo" accept="application/pdf,.pdf" class="d-none">
+                    {# PDF de la renovación de la aseguradora actual: no se sube, viaja solo con el envío del correo #}
+                    <input type="file" id="pcRenovacionArchivo" accept="application/pdf,.pdf" class="d-none">
                 </div>
                 <iframe id="pcCorreoMarco" class="pc-marco" title="Correo que recibirá el cliente" sandbox="allow-same-origin"></iframe>
                 <div class="pc-enviados mt-2" id="pcEnviados"></div>
