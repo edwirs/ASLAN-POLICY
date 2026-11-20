@@ -45,6 +45,8 @@ var correoSeguimiento = {
             if (p.reprogramar) { lista.push(['reprogramar', 'fa-calendar-days', 'Reprogramar', 'text-primary']); }
             if (p.destinatarios) { lista.push(['destinatarios', 'fa-at', 'Corregir destinatarios', 'text-primary']); }
             if (p.cancelar) { lista.push(['cancelar', 'fa-ban', 'Cancelar envío', 'text-danger']); }
+        } else if (r.estado === 'enviado') {
+            if (p.reenviar && r.reenviable) { lista.push(['reenviar', 'fa-share', 'Reenviar', 'text-primary']); }
         } else if (r.estado === 'error') {
             if (p.reintentar && !r.sin_adjuntos) { lista.push(['reintentar', 'fa-rotate-right', 'Reintentar', 'text-success']); }
             if (p.destinatarios) { lista.push(['destinatarios', 'fa-at', 'Corregir destinatarios', 'text-primary']); }
@@ -171,6 +173,11 @@ var correoSeguimiento = {
                     html += '<div class="alert alert-danger cs-error"><b><i class="fa-solid fa-triangle-exclamation"></i> Por qué no salió</b><pre>' + e(r.error_envio) + '</pre>' +
                         '<small>' + ayuda + '</small></div>';
                 }
+                if (r.estado === 'enviado') {
+                    html += '<p class="cs-nota mb-3"><i class="fa-solid fa-circle-info"></i> ' + (r.reenviable
+                        ? 'Si el cliente no lo encuentra (revise también spam), se puede reenviar igual hasta el ' + correoSeguimiento.fecha(r.reenviable_hasta) + '.'
+                        : 'Ya no se puede reenviar igual (sus adjuntos se borraron): ármalo de nuevo desde el comparativo.') + '</p>';
+                }
                 html += '<h6 class="cs-subtitulo">Correo tal como se armó</h6>';
                 $('#csDetalleCuerpo').html(html).append($('<iframe class="cs-vista" title="Vista del correo" sandbox></iframe>').attr('srcdoc', r.html || '<p style="font-family:sans-serif;color:#888">Sin cuerpo guardado.</p>'));
                 $('#csDetalleComparativo').prop('hidden', !csComparativo).attr('href', csComparativo.replace('/0/', '/' + r.vehiculo_id + '/'));
@@ -218,8 +225,16 @@ var correoSeguimiento = {
             correoSeguimiento.confirmar('¿Reintentar el envío?', 'Se vuelve a enviar el mismo correo a ' + quien +
                 '. Fuera del horario hábil queda pendiente para la siguiente hora hábil.' + duda, 'Sí, reintentar', '#198754',
                 function () { correoSeguimiento.enviar('reintentar', id); });
-        } else if (accion === 'destinatarios') {
+        } else if (accion === 'destinatarios' || accion === 'reenviar') {
+            // La misma ventana sirve para corregir los destinatarios y para elegir a quién reenviar.
+            var reenvio = accion === 'reenviar';
             correoSeguimiento.editando = id;
+            correoSeguimiento.modoDestinatarios = accion;
+            $('#csDestTitulo').html(reenvio ? '<i class="fa-solid fa-share"></i> Reenviar correo' : '<i class="fa-solid fa-at"></i> Corregir destinatarios');
+            $('#csDestAyuda').text(reenvio
+                ? 'Se envía otra vez el mismo correo (asunto, texto y adjuntos). Puede cambiar o agregar destinatarios. Fuera del horario hábil queda pendiente.'
+                : 'Varios correos se separan con coma.');
+            $('#csGuardarDestinatarios').html(reenvio ? '<i class="fa-solid fa-share"></i> Reenviar' : '<i class="fa-solid fa-floppy-disk"></i> Guardar');
             $('#csPara').val(r.para);
             $('#csCc').val(r.cc);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('csModalDestinatarios')).show();
@@ -266,7 +281,8 @@ $(function () {
         correoSeguimiento.accion(accion, id);
     });
     $('#csGuardarDestinatarios').on('click', function () {
-        correoSeguimiento.enviar('destinatarios', correoSeguimiento.editando, {para: $('#csPara').val(), cc: $('#csCc').val()}, $(this));
+        correoSeguimiento.enviar(correoSeguimiento.modoDestinatarios || 'destinatarios', correoSeguimiento.editando,
+                                 {para: $('#csPara').val(), cc: $('#csCc').val()}, $(this));
     });
     $('#csGuardarReprogramar').on('click', function () {
         if (!$('#csMomento').val()) { return message_error('Elija la fecha y la hora.'); }

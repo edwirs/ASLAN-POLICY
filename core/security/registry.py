@@ -106,6 +106,7 @@ PERMISSIONS = {
         ('change_correoenviado', 'Corregir los destinatarios (Para y CC) de un correo pendiente o con error'),
         ('reprogram_correoenviado', 'Reprogramar la fecha y hora de envío de un correo pendiente'),
         ('retry_correoenviado', 'Reintentar el envío de un correo que no salió'),
+        ('resend_correoenviado', 'Reenviar un correo ya enviado (el mismo correo, a los mismos u otros destinatarios)'),
     ],
 
     # Seguridad
@@ -171,7 +172,7 @@ MENU = (
                'send_cotizacion_correo'), icon='fa-solid fa-list-check', modulo='cotizador'),
         Item('email_tracking', 'Seguimiento de correos', 'correo_seguimiento', 'policies.view_correoenviado',
              q('policies', 'view_correoenviado', 'cancel_correoenviado', 'send_correoenviado_ahora', 'change_correoenviado',
-               'reprogram_correoenviado', 'retry_correoenviado'), icon='fa-solid fa-envelope-circle-check', modulo='cotizador'),
+               'reprogram_correoenviado', 'retry_correoenviado', 'resend_correoenviado'), icon='fa-solid fa-envelope-circle-check', modulo='cotizador'),
     )),
     Section('Pólizas', 'fa-solid fa-file-contract', (
         Item('policies', 'Pólizas tomadas', 'poliza_list', 'policies.view_poliza',

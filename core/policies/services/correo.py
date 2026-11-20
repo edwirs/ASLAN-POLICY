@@ -745,6 +745,8 @@ MINUTOS_REINTENTO = 5
 # Los PDF de un correo que no salió se guardan estos días (para «Reintentar» desde el Seguimiento de correos) y después
 # se borran: llevan datos personales.
 DIAS_ADJUNTOS_ERROR = 3
+# Los de un correo enviado se guardan estos días para «Reenviar» (el cliente no lo encuentra) y después se borran.
+DIAS_ADJUNTOS_ENVIADO = 30
 
 
 def _falla_pasajera(error):
@@ -812,8 +814,9 @@ def _lista(texto):
 
 
 def _borrar_adjuntos(registro):
-    """Los PDF de la cola se borran al terminar (enviado o cancelado): llevan datos personales. Los de un correo con error
-    se guardan DIAS_ADJUNTOS_ERROR días para poder reintentarlo (ver `borrar_adjuntos_vencidos`)."""
+    """Los PDF de la cola llevan datos personales: los de un correo cancelado se borran en el acto; los de uno con error se
+    guardan DIAS_ADJUNTOS_ERROR días (para reintentarlo) y los de uno enviado DIAS_ADJUNTOS_ENVIADO días (para reenviarlo).
+    Ver `borrar_adjuntos_vencidos`."""
     for adjunto in registro.adjuntos.all():
         adjunto.archivo.delete(save=False)
     registro.adjuntos.all().delete()
@@ -860,7 +863,6 @@ def enviar_registro(registro, automatico=False):
 
     registro.estado, registro.enviado_en, registro.error = 'enviado', timezone.now(), ''
     registro.save(update_fields=['estado', 'enviado_en', 'error'])
-    _borrar_adjuntos(registro)
     if registro.cotizaciones_portal:  # enviados al cliente: la limpieza de los 10 días ya no los borra
         Cotizacion.objects.filter(pk__in=registro.cotizaciones_portal).update(pdf_enviado_en=registro.enviado_en)
     registrar_evento(registro.vehiculo, 'correo', '', f'Cotización enviada a {registro.para}'[:200],
@@ -955,10 +957,53 @@ def reintentar(registro, usuario):
     return registro
 
 
+def puede_reenviarse(registro):
+    """Un correo enviado se puede reenviar igual mientras se guarden sus adjuntos (DIAS_ADJUNTOS_ENVIADO días)."""
+    if registro.estado != 'enviado' or not registro.enviado_en:
+        return False
+    if registro.enviado_en < timezone.now() - timedelta(days=DIAS_ADJUNTOS_ENVIADO):
+        return False
+    return not registro.adjunto or registro.adjuntos.exists()
+
+
+def reenviar(registro, para, cc, usuario):
+    """Reenvía un correo ya enviado (el cliente no lo encuentra): crea un envío NUEVO con el mismo asunto, cuerpo y
+    adjuntos, a `para`/`cc` (los mismos u otros). Pasa por la cola: en horario hábil sale en el acto (lanza CorreoError si
+    falla); fuera de él queda pendiente. El original no cambia. Devuelve el registro nuevo."""
+    _exigir(registro, ('enviado',), 'Solo se puede reenviar un correo que ya salió.')
+    if not puede_reenviarse(registro):
+        raise CorreoError(f'Los adjuntos de este correo ya se borraron (se guardan {DIAS_ADJUNTOS_ENVIADO} días después de '
+                          'enviarlo). Ármelo de nuevo desde el comparativo del vehículo.')
+    cuenta = registro.cuenta
+    if cuenta is None or not cuenta.is_active or not cuenta.clave:
+        raise CorreoError('La cuenta desde la que salió este correo ya no está activa o no tiene contraseña registrada.')
+    lista_para, lista_cc = destinatarios(para, {}), destinatarios(cc, {})
+    if not lista_para:
+        raise CorreoError('Escriba al menos un correo en «Para».')
+    nuevo = CorreoEnviado.objects.create(
+        vehiculo=registro.vehiculo, plantilla=registro.plantilla, cuenta=cuenta, remitente=registro.remitente,
+        para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=registro.asunto, adjunto=registro.adjunto,
+        enviado_por=usuario, estado='programado', html=registro.html, texto=registro.texto, imagenes=registro.imagenes,
+        cotizaciones_portal=registro.cotizaciones_portal, programado_para=horario_habil.siguiente_hora_habil())
+    for original in registro.adjuntos.all():
+        with original.archivo.open('rb') as archivo:
+            contenido = archivo.read()
+        copia = CorreoAdjunto(correo=nuevo, nombre=original.nombre, orden=original.orden)
+        copia.archivo.save('adjunto.pdf', ContentFile(contenido), save=True)
+    registrar_evento(registro.vehiculo, 'correo', f'Enviado el {horario_habil.texto_fecha(registro.enviado_en)}'[:200],
+                     f'Reenvío a {nuevo.para}'[:200], 'Reenvío del mismo correo desde el Seguimiento de correos', usuario)
+    if horario_habil.en_horario():
+        enviar_registro(nuevo)
+    return nuevo
+
+
 def borrar_adjuntos_vencidos():
-    """Borra los PDF de los correos con error que llevan más de DIAS_ADJUNTOS_ERROR días sin reintentarse."""
-    limite = timezone.now() - timedelta(days=DIAS_ADJUNTOS_ERROR)
-    for registro in CorreoEnviado.objects.filter(estado='error', programado_para__lt=limite, adjuntos__isnull=False).distinct():
+    """Borra los PDF de los correos con error que llevan más de DIAS_ADJUNTOS_ERROR días sin reintentarse y los de los
+    enviados hace más de DIAS_ADJUNTOS_ENVIADO días."""
+    ahora = timezone.now()
+    vencidos = (CorreoEnviado.objects.filter(estado='error', programado_para__lt=ahora - timedelta(days=DIAS_ADJUNTOS_ERROR))
+                | CorreoEnviado.objects.filter(estado='enviado', enviado_en__lt=ahora - timedelta(days=DIAS_ADJUNTOS_ENVIADO)))
+    for registro in vencidos.filter(adjuntos__isnull=False).distinct():
         _borrar_adjuntos(registro)
 
 

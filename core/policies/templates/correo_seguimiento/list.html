@@ -13,7 +13,7 @@
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
     {{ permisos|json_script:"csPermisos" }}
     <script>var csComparativo = '{{ url_comparativo }}';</script>
-    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=5"></script>
+    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=6"></script>
 {% endblock %}
 
 {% block ayuda %}
@@ -21,7 +21,8 @@
     <b>Pendiente de envío</b> (se pidió fuera del horario hábil y sale en la siguiente hora hábil: {{ horario }}),
     <b>Enviado</b>, <b>Error</b> (no salió: el detalle dice por qué) o <b>Cancelado</b>.
     Según tu perfil, en <b>Acciones</b> puedes: a un pendiente, cancelarlo, enviarlo ya, corregir sus destinatarios o
-    reprogramarlo; a uno con error, corregir los destinatarios y reintentarlo (sus adjuntos se guardan 3 días después de fallar).
+    reprogramarlo; a uno con error, corregir los destinatarios y reintentarlo (sus adjuntos se guardan 3 días después de fallar);
+    a uno enviado que el cliente no encuentra, reenviarlo igual (durante 30 días después de enviado).
 {% endblock %}
 
 {% block content_list %}
@@ -61,7 +62,7 @@
                     <input type="text" class="form-control mb-3" id="csPara" maxlength="500" placeholder="cliente@correo.com">
                     <label class="form-label fw-bold" for="csCc">CC</label>
                     <input type="text" class="form-control" id="csCc" maxlength="500" placeholder="Opcional">
-                    <p class="text-muted small mt-2 mb-0">Varios correos se separan con coma.</p>
+                    <p class="text-muted small mt-2 mb-0" id="csDestAyuda">Varios correos se separan con coma.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>

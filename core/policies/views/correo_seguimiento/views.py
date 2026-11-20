@@ -2,10 +2,11 @@
 qué sigue pendiente de envío y qué falló."""
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.http import HttpResponse
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.gzip import gzip_page
 from django.views.generic import TemplateView
@@ -33,6 +34,7 @@ ACCIONES = {
     'destinatarios': 'policies.change_correoenviado',
     'reprogramar': 'policies.reprogram_correoenviado',
     'reintentar': 'policies.retry_correoenviado',
+    'reenviar': 'policies.resend_correoenviado',
 }
 FILTROS = (('todos', 'Todos'), ('pendiente', 'Pendientes de envío'), ('enviado', 'Enviados'), ('error', 'Con error'),
            ('cancelado', 'Cancelados'))
@@ -70,6 +72,12 @@ def _fila(c):
         'programado_iso': (c.programado_para.astimezone(horario_habil.TZ_COLOMBIA).strftime('%Y-%m-%dT%H:%M')
                            if c.estado == 'programado' and c.programado_para else ''),
         'sin_adjuntos': bool(c.adjunto) and not getattr(c, 'tiene_adjuntos', True),
+        # Reenviar: solo un enviado cuyos adjuntos aún se guardan (correo.DIAS_ADJUNTOS_ENVIADO días).
+        'reenviable': (c.estado == 'enviado' and bool(c.enviado_en)
+                       and c.enviado_en >= timezone.now() - timedelta(days=correo.DIAS_ADJUNTOS_ENVIADO)
+                       and (not c.adjunto or getattr(c, 'tiene_adjuntos', True))),
+        'reenviable_hasta': (_fecha(c.enviado_en + timedelta(days=correo.DIAS_ADJUNTOS_ENVIADO))[:10]
+                             if c.estado == 'enviado' and c.enviado_en else ''),
         'cuenta': c.cuenta.correo if c.cuenta else c.remitente,
     }
 
@@ -142,6 +150,11 @@ class CorreoSeguimientoView(StrictPermissionMixin, TemplateView):
             texto = horario_habil.texto_fecha(c.programado_para)
             return {'ok': True, 'mensaje': _frase(f'Esa hora queda fuera del horario hábil: sale el {texto}' if ajustado
                                                   else f'Reprogramado: sale el {texto}')}
+        if accion == 'reenviar':
+            nuevo = correo.reenviar(c, request.POST.get('para', ''), request.POST.get('cc', ''), request.user)
+            if nuevo.estado == 'enviado':
+                return {'ok': True, 'mensaje': f'Correo reenviado a {nuevo.para}.'}
+            return {'ok': True, 'mensaje': _frase(f'Fuera del horario hábil: el reenvío sale el {horario_habil.texto_fecha(nuevo.programado_para)}')}
         if accion == 'reintentar':
             c = correo.reintentar(c, request.user)
             if c.estado == 'enviado':
