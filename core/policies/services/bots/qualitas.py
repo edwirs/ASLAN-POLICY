@@ -37,10 +37,12 @@ from core.policies.services.bots.base import (
     BotAutenticacionError,
     BotCancelado,
     BotDatosError,
+    BotNoCotizableError,
     BotPortalError,
     BotTimeout,
     RegistroErrorMixin,
     _accent_insensitive_pattern,
+    _limpiar_alerta,
     buscar_y_seleccionar_autocompletar,
     check_option,
     click_by_text,
@@ -67,6 +69,8 @@ MODALES_HOME = ('modalBonos',)
 USO_PARTICULAR = 'Particular'
 USO_PICKUP = 'Pick ups personales'
 AVISO_NO_ENCONTRADO_USO = 'no encontrado para este uso'
+# «0041-- (1) Qualitas esta muy feliz de ya contar con este vehiculo asegurado.»: ya tiene póliza con Qualitas.
+AVISO_YA_ASEGURADO = 'ya contar con este vehiculo asegurado'
 # «Editar» del paso «1. Origen y uso» en el panel de pasos de la izquierda: el contenedor más interno que tiene ese
 # título y un «Editar», sin el título del paso siguiente.
 XPATH_EDITAR_ORIGEN = ("xpath=//*[contains(normalize-space(.), 'Origen y uso') and not(contains(normalize-space(.), "
@@ -214,6 +218,7 @@ class QualitasBot(RegistroErrorMixin):
                     cotizador_page.wait_for_load_state('domcontentloaded')
                     self._cerrar_popups(cotizador_page, MODALES_COTIZADOR)
 
+                    self._exigir_no_asegurado(cotizador_page)  # instala el registro de avisos
                     self._paso('Origen y uso')
                     self._origen_y_uso(cotizador_page)
                     self._paso('Datos del vehículo')
@@ -231,6 +236,8 @@ class QualitasBot(RegistroErrorMixin):
                 except (BotCancelado, BotTimeout):
                     raise
                 except Exception:
+                    if cotizador_page is not None:
+                        self._exigir_no_asegurado(cotizador_page)  # si se vio el aviso de «ya asegurado», eso explica la falla
                     self._guardar_pantalla(cotizador_page or page)
                     self._capturar_diagnostico(cotizador_page or page)
                     raise
@@ -397,6 +404,7 @@ class QualitasBot(RegistroErrorMixin):
                             avisos.append(texto)
                 except Exception:
                     pass
+                self._exigir_no_asegurado(page, avisos)
                 page.wait_for_timeout(1000)
         finally:
             page.remove_listener('response', respuesta)
@@ -455,6 +463,47 @@ class QualitasBot(RegistroErrorMixin):
             logger.warning('Qualitas: no se pudo revisar el aviso de vehículo no encontrado.', exc_info=True)
             return False
 
+    def _exigir_no_asegurado(self, page, textos=None, segundos=0):
+        """Visto con RCO063: si Qualitas ya asegura el vehículo, al elegir la residencia («Datos del vehículo») abre «Aviso — 0041-- (1)
+        Qualitas esta muy feliz de ya contar con este vehiculo asegurado» (#modalError01) y no deja seguir. El bot
+        seguía con la residencia, el aviso le tapaba la lista de ciudades y terminaba en «no respondió a tiempo». Si el
+        aviso está abierto, se vio en `textos` o quedó anotado por REGISTRO_AVISOS_JS (aunque un clic lo haya cerrado),
+        se termina como «no cotiza»: el comparativo muestra a Qualitas como la aseguradora actual. Espera hasta
+        `segundos` a que aparezca."""
+        fin = time.time() + segundos
+        while True:
+            vistos = list(textos or [])
+            try:
+                vistos += page.evaluate(self.MODAL_VISIBLE_JS) or []
+                vistos += page.evaluate(self.REGISTRO_AVISOS_JS) or []
+            except Exception:
+                pass
+            for texto in vistos:
+                if AVISO_YA_ASEGURADO in normalizar_texto(texto):
+                    raise self._no_cotiza_asegurado(texto)
+            if time.time() >= fin:
+                return
+            page.wait_for_timeout(500)
+
+    # Anota en la página el texto de todo modal que se abra (aunque dure un instante o un clic lo cierre) y devuelve lo
+    # anotado. Se instala una vez; las llamadas siguientes solo leen.
+    REGISTRO_AVISOS_JS = """() => { if (!window.__aslanAvisos) { window.__aslanAvisos = [];
+            setInterval(() => document.querySelectorAll('.modal.show, .modal.in').forEach(m => {
+                const t = (m.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300);
+                if (t && !window.__aslanAvisos.includes(t) && window.__aslanAvisos.length < 30) window.__aslanAvisos.push(t);
+            }), 300); }
+        return window.__aslanAvisos; }"""
+
+    @staticmethod
+    def _no_cotiza_asegurado(texto):
+        aviso = _limpiar_alerta(texto)
+        aviso = re.sub(r'^\s*\d+\s*-+\s*(\(\d+\)\s*)?', '', aviso)          # «0041-- (1)»
+        aviso = re.sub(r'\s*¡\s*Aseguramos autos.*$', '', aviso, flags=re.I)   # lema final
+        return BotNoCotizableError(
+            f'Qualitas no cotiza este vehículo porque ya lo tiene asegurado: «{aviso.strip().rstrip(".")}».',
+            accion='No hace falta reenviar: el vehículo tiene póliza vigente con Qualitas. Use el valor de la '
+                   'renovación que le dé Qualitas (puede registrarlo como valor manual en el comparativo).')
+
     def _datos_vehiculo(self, page):
         """Búsqueda por placa y captura de los datos que trae el portal.
 
@@ -476,6 +525,7 @@ class QualitasBot(RegistroErrorMixin):
                     accion='Revise la placa y el código Fasecolda de la solicitud. Si están bien, cotice este vehículo '
                            'directamente en el portal de Qualitas (puede requerir otro tipo de vehículo).',
                 )
+        self._exigir_no_asegurado(page)
 
         def leer_select(selector):
             """Texto de la opción seleccionada de un <select>. Se leen por su id
@@ -547,6 +597,7 @@ class QualitasBot(RegistroErrorMixin):
         zona = self.vehiculo.zona_circulacion
         etiqueta = 'Lugar de residencia del asegurado'
         for intento in range(1, intentos + 1):
+            self._exigir_no_asegurado(page)
             if intento > 1:
                 campo = self._campo_por_etiqueta(page, etiqueta)
                 if campo is not None:
@@ -555,9 +606,13 @@ class QualitasBot(RegistroErrorMixin):
                     except Exception:
                         pass
                 page.wait_for_timeout(1500)
-            buscar_y_seleccionar_autocompletar(
-                page, texto_a_escribir=zona.nombre, opcion_esperada=zona.nombre, campo_label=etiqueta,
-                preferir_texto=zona.departamento.nombre)
+            try:
+                buscar_y_seleccionar_autocompletar(
+                    page, texto_a_escribir=zona.nombre, opcion_esperada=zona.nombre, campo_label=etiqueta,
+                    preferir_texto=zona.departamento.nombre)
+            except PlaywrightTimeoutError:
+                self._exigir_no_asegurado(page)  # un aviso pudo tapar la lista de ciudades
+                raise
             # Salir del campo como lo hace la persona: el clic en la opción quita el foco ANTES de que la elección se
             # registre, así que se vuelve a entrar al campo y se sale con Tab (dispara change/blur con el valor elegido).
             campo = self._campo_por_etiqueta(page, etiqueta)
@@ -568,7 +623,12 @@ class QualitasBot(RegistroErrorMixin):
                 page.keyboard.press('Tab')
             except Exception:
                 pass
-            if self._siguiente_habilitado(page, 15):
+            # El aviso de «ya asegurado» sale justo al elegir la residencia: se revisa mientras se espera «Siguiente».
+            fin = time.time() + 15
+            while not self._siguiente_habilitado(page, 1) and time.time() < fin:
+                self._exigir_no_asegurado(page)
+            self._exigir_no_asegurado(page)
+            if self._siguiente_habilitado(page, 0):
                 return
             logger.warning('Qualitas: «Siguiente» sigue deshabilitado tras elegir la residencia (intento %s): %s',
                            intento, self._estado_siguiente(page))

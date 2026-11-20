@@ -172,10 +172,12 @@ def _limpiar_alerta(texto):
 
 # Fragmentos (sin tildes ni mayúsculas) de avisos de portal que significan «este vehículo ya está asegurado».
 AVISOS_NO_COTIZABLE = ('ya contar con este vehiculo asegurado', 'poliza vigente')
-# Los mismos avisos, el de La Equidad («Actualmente el vehículo se encuentra asegurado con la compañía») y el de HDI
-# («Este vehículo no puede ser cotizado, actualmente cuenta con una póliza en proceso o vigente»): el vehículo está
-# asegurado HOY con esa aseguradora. El comparativo y el correo la muestran como la aseguradora actual.
-AVISOS_ASEGURADO_ACTUAL = AVISOS_NO_COTIZABLE + ('asegurado con la compania', 'poliza en proceso o vigente')
+# Avisos que dicen que el vehículo está asegurado HOY con ESA aseguradora: el de Qualitas («… ya contar con este vehiculo
+# asegurado»), el de La Equidad («Actualmente el vehículo se encuentra asegurado con la compañía») y el de HDI («Este
+# vehículo no puede ser cotizado, actualmente cuenta con una póliza en proceso o vigente»). El comparativo y el correo la
+# muestran como la aseguradora actual. El «póliza vigente» de AXA NO cuenta: no dice con qué aseguradora (visto con
+# RCO063, asegurado con Qualitas, al que AXA respondió «El vehículo presenta una póliza vigente»).
+AVISOS_ASEGURADO_ACTUAL = ('ya contar con este vehiculo asegurado', 'asegurado con la compania', 'poliza en proceso o vigente')
 
 
 # Fragmentos (sin tildes ni mayúsculas) de las páginas con que un portal rechaza la RED desde donde se conecta el bot

@@ -14,7 +14,9 @@ Flujo (mapeado con una sesión real exploratoria, no a ciegas):
      (Ninguna, Esencial, VIP, Plus). Se guardan los valores de la tarjeta PLUS y el nivel «Plus»
      de esa tarjeta queda como `prima_total`.
   6. Avisos del portal: «El vehículo tiene una póliza vigente» (no es una falla: AXA no cotiza ese
-     vehículo) y «el servicio de cotización falló» (se devuelve tal cual).
+     vehículo) y «el servicio de cotización falló» (se devuelve tal cual). Tras «Continuar» de la zona de
+     circulación, en vez de los productos puede salir un recuadro rojo «COTIZACIÓN FALLIDA. Cotización
+     fallida: El vehículo presenta una póliza vigente.» (no es un modal: se lee del texto de la página).
 
 Sesiones: al terminar (bien o mal) SIEMPRE se cierra sesión (menú del usuario > CERRAR SESIÓN) y se
 verifica que el portal ya no reconoce la sesión.
@@ -215,15 +217,21 @@ class AxaColpatriaBot(RegistroErrorMixin):
         return None
 
     def _guardar_pantalla(self, page):
-        """Antes de cerrar el navegador: guarda el aviso (modal) visible, también el del iframe."""
+        """Antes de cerrar el navegador: guarda el aviso (modal) visible, también el del iframe, y lo que mostraba el
+        cotizador. La pantalla de afuera solo trae el menú y el pie de AXA: el cotizador vive en el iframe y sin su
+        texto el detalle técnico no explica nada."""
         super()._guardar_pantalla(page)
-        if not self.ultima_alerta:
-            try:
-                marco = self._marco(page)
-                if marco:
-                    self.ultima_alerta = marco.evaluate(AVISO_JS)
-            except Exception:
-                pass
+        try:
+            marco = self._marco(page)
+            if marco is None:
+                self.ultima_pantalla = (self.ultima_pantalla or '') + ' || El cotizador (iframe) ya no estaba abierto.'
+                return
+            if not self.ultima_alerta:
+                self.ultima_alerta = marco.evaluate(AVISO_JS)
+            cotizador = re.sub(r'\s+', ' ', marco.evaluate('document.body.innerText') or '').strip()
+            self.ultima_pantalla = (self.ultima_pantalla or '') + ' || Cotizador: ' + cotizador[-1500:]
+        except Exception:
+            pass
 
     @staticmethod
     def _aviso(marco):
@@ -241,10 +249,11 @@ class AxaColpatriaBot(RegistroErrorMixin):
         """Convierte un aviso del portal en el error que explica qué pasó."""
         normal = normalizar_texto(texto)
         if 'poliza vigente' in normal:
+            # AXA no dice con qué aseguradora es la póliza (puede ser de otra): no se marca a AXA como la actual.
             return BotNoCotizableError(
                 f'AXA Colpatria no cotiza este vehículo: «{texto}».',
-                accion='El vehículo ya tiene póliza vigente con AXA Colpatria: debe gestionarse directamente con AXA. '
-                       'Cotice con las demás aseguradoras.',
+                accion='El vehículo tiene una póliza vigente (AXA no dice con qué aseguradora) y AXA no lo cotiza '
+                       'mientras siga vigente. Cotice con las demás aseguradoras.',
             )
         if 'fallo' in normal:
             return BotPortalError(
@@ -801,22 +810,57 @@ class AxaColpatriaBot(RegistroErrorMixin):
         self._elegir_en_combo(page, 'VehiculeData_IdCIrculationZone', self._opcion_zona(page))
         self._elegir_en_combo(page, 'VehiculeData_IdTypePrivateVehicle', TIPO_VEHICULO_PARTICULAR)
 
-        marco = self._marco(page)
-        marco.locator('#btnContinuar:visible').first.click()
-        for _ in range(200):
+        paso = 'Color, servicio y zona de circulación'
+        self._pulsar_continuar(page, paso)
+        cargando = False   # si se vio la pantalla de carga «Espere un momento…»: el portal sí recibió el formulario
+        cuerpo = ''
+        for segundo in range(1, 201):
             page.wait_for_timeout(1000)
             marco = self._marco(page)
             if marco is None:
                 continue
-            aviso = self._aviso(marco)
-            if aviso:
-                raise self._error_de_aviso(aviso, 'Color, servicio y zona de circulación')
             try:
-                if 'Productos disponibles' in marco.evaluate('document.body.innerText'):
-                    return
+                cargando = cargando or self._cargando(marco)
             except Exception:
                 pass
-        raise BotPortalError('AXA Colpatria no mostró los productos disponibles después de 200 segundos.')
+            aviso = self._aviso(marco)
+            if aviso:
+                raise self._error_de_aviso(aviso, paso)
+            try:
+                cuerpo = marco.evaluate('document.body.innerText') or ''
+            except Exception:
+                continue
+            if 'Productos disponibles' in cuerpo:
+                return
+            fallida = re.search(r'Cotizaci[oó]n fallida\s*:\s*([^\n]+)', cuerpo, re.I)
+            if fallida:
+                # Recuadro rojo «COTIZACIÓN FALLIDA. Cotización fallida: El vehículo presenta una póliza vigente. -».
+                raise self._error_de_aviso(re.sub(r'[\s.\-]+$', '', fallida.group(1)).strip(), paso)
+            if segundo == 30 and not cargando:
+                # A los 30 s sin pantalla de carga y con el formulario todavía a la vista, el «Continuar» no se envió:
+                # el portal marcó algún campo y no tiene sentido esperar los 200 s.
+                faltan = self._avisos_formulario(marco)
+                if faltan and marco.locator('#btnContinuar:visible').count():
+                    raise BotDatosError(
+                        f'AXA Colpatria no aceptó el formulario en el paso «{paso}»: {"; ".join(faltan)}.',
+                        accion='Revise el color, el servicio y la ciudad de circulación de la solicitud y reenvíe. Si se '
+                               'repite, avise a soporte con este mensaje: el portal puede pedir un campo nuevo.',
+                    )
+        estado = ('el portal estuvo calculando («Espere un momento…») y no terminó: su servidor está lento o se quedó '
+                  'pegado' if cargando else 'nunca apareció la pantalla de carga: el formulario no se envió')
+        raise BotPortalError(
+            f'AXA Colpatria no mostró los productos disponibles después de 200 segundos ({estado}).',
+            accion='Reenvíe la solicitud a AXA Colpatria. Si vuelve a pasar, revise el caso directamente en su portal.',
+        )
+
+    @staticmethod
+    def _cargando(marco):
+        """True si está a la vista la pantalla de carga de AXA («Espere un momento…»)."""
+        try:
+            texto = marco.evaluate(AVISO_JS) or ''
+        except Exception:
+            return False
+        return any(f in normalizar_texto(texto) for f in PANTALLAS_DE_CARGA)
 
     def _opcion_zona(self, page):
         """Zona de circulación: el municipio si el portal lo ofrece como zona propia (Cartago, Sevilla…);
