@@ -164,7 +164,7 @@
                                 <span class="cmp-rank-valor">{{ f.valor_fmt }}</span>
                                 <span class="cmp-barra"><span style="width: {{ f.barra }}%"></span></span>
                             </td>
-                            <td class="text-end">{% if f.posicion == 1 %}<span class="cmp-ok">—</span>{% else %}+{{ f.diferencia_fmt }} <small>({{ f.diferencia_pct|floatformat:1 }}%)</small>{% endif %}</td>
+                            <td class="text-end">{% if f.posicion == 1 %}<span class="cmp-ok">—</span>{% else %}+{{ f.diferencia_fmt }}{% endif %}</td>
                             <td class="text-center">
                                 {% if f.origen == 'bot' %}<span class="cmp-chip cmp-chip-bot"><i class="fa-solid fa-robot"></i> Bot</span>
                                 {% else %}<span class="cmp-chip cmp-chip-manual"><i class="fa-solid fa-hand"></i> Manual</span>{% endif %}

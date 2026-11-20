@@ -370,8 +370,7 @@ def bloque_comparativo(vehiculo, plantilla, filas=None, sin_condiciones=None):
         td = f'font-family:{FUENTE};padding:6px 8px;background:{fondo};{borde}vertical-align:middle;'
         asegurado = asegurados.get(f['cotizacion_id']) or comercial
         diferencia = (f'<span style="color:{VERDE};font-weight:bold;">—</span>' if mejor else
-                      f'+{f["diferencia_fmt"]}<br><span style="font-size:10px;color:{GRIS};">'
-                      f'{str(round(f["diferencia_pct"], 1)).replace(".", ",")}% más</span>')
+                      f'+{f["diferencia_fmt"]}')
         cuerpo.append(
             f'<tr><td align="center" width="32" style="{td}">{_posicion(f["posicion"], mejor, segunda)}</td>'
             f'<td style="{td}"><span style="font-size:12px;font-weight:bold;color:{TEXTO};">{escape(f["aseguradora"])}</span></td>'
