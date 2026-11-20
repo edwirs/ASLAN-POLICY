@@ -83,6 +83,8 @@ JS_CAMPOS_RAZON_SOCIAL = r"""() => {
 # Campos de la sección «Representante legal» (tomador NIT). Se ubican por posición: los visibles entre el título de la
 # sección y lo que sigue (código Fasecolda, placa, «Continuar»). No se filtra por prefijo de id: los del representante
 # también pueden empezar por «People_» (así falló el 2026-11-18); solo se excluyen los dos del tomador por su id exacto.
+# Ojo: el número del representante lleva el MISMO id que el del tomador («People_DocumentNumber», id repetido en la
+# página; así falló con LNO310 el 2026-11-20). Por eso solo se excluye el PRIMER elemento con ese id (el del tomador).
 JS_CAMPOS_REPRESENTANTE = r"""() => {
     const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const DEL_TOMADOR = /^(input_)?People_(IdDocumentType|DocumentNumber)$/;
@@ -101,7 +103,7 @@ JS_CAMPOS_REPRESENTANTE = r"""() => {
     };
     const todos = [...document.querySelectorAll('input,select')];
     return todos.filter(c => {
-        if (!vis(c) || /^(hidden|button|submit|radio|checkbox)$/i.test(c.type || '') || DEL_TOMADOR.test(c.id || '')) return false;
+        if (!vis(c) || /^(hidden|button|submit|radio|checkbox)$/i.test(c.type || '') || (DEL_TOMADOR.test(c.id || '') && document.getElementById(c.id) === c)) return false;
         const t = c.getBoundingClientRect().top;
         return t > desde && t < hasta;
     }).map(c => { const r = c.getBoundingClientRect(); return {
