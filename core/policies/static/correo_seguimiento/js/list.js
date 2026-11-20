@@ -47,6 +47,8 @@ var correoSeguimiento = {
             if (p.cancelar) { lista.push(['cancelar', 'fa-ban', 'Cancelar envío', 'text-danger']); }
         } else if (r.estado === 'enviado') {
             if (p.reenviar && r.reenviable) { lista.push(['reenviar', 'fa-share', 'Reenviar', 'text-primary']); }
+            // Sin adjuntos guardados no se puede: se muestra en gris con el porqué (si no, parece falta de permiso).
+            else if (p.reenviar) { lista.push(['', 'fa-share', 'Reenviar', 'text-muted', 'No disponible: sus adjuntos ya no se guardan. Envíelo de nuevo desde el comparativo.']); }
         } else if (r.estado === 'error') {
             if (p.reintentar && !r.sin_adjuntos) { lista.push(['reintentar', 'fa-rotate-right', 'Reintentar', 'text-success']); }
             if (p.destinatarios) { lista.push(['destinatarios', 'fa-at', 'Corregir destinatarios', 'text-primary']); }
@@ -57,11 +59,15 @@ var correoSeguimiento = {
     // Botón «⋯» con el menú de acciones (igual que en Facturas electrónicas). En la ventana de detalle no repite «Ver».
     // Posición fija: la tabla oculta lo que se sale de ella y cortaba el menú de las últimas filas.
     menu: function (r, enDetalle) {
-        var item = function (accion, icono, texto, color) {
+        var item = function (accion, icono, texto, color, motivo) {
+            if (motivo) {  // acción que no aplica a este correo: en gris, sin clic, con la razón debajo
+                return '<li><span class="dropdown-item disabled cs-item-no" aria-disabled="true"><i class="fa-solid ' + icono + ' ' + color +
+                    '"></i><span>' + texto + '<small class="d-block">' + motivo + '</small></span></span></li>';
+            }
             return '<li><a class="dropdown-item" href="#" data-accion="' + accion + '" data-id="' + r.id + '"><i class="fa-solid ' + icono +
                 ' ' + color + '"></i>' + texto + '</a></li>';
         };
-        var acciones = correoSeguimiento.acciones(r), html = function (a) { return item(a[0], a[1], a[2], a[3]); };
+        var acciones = correoSeguimiento.acciones(r), html = function (a) { return item(a[0], a[1], a[2], a[3], a[4]); };
         var consulta = enDetalle ? [] : [item('ver', 'fa-eye', 'Ver correo', 'text-info')]
             .concat(csComparativo ? [item('comparativo', 'fa-scale-balanced', 'Abrir comparativo', 'text-secondary')] : []);
         // Grupos separados por una línea: consultar · acciones · cancelar (al final, en rojo).
@@ -176,7 +182,7 @@ var correoSeguimiento = {
                 if (r.estado === 'enviado') {
                     html += '<p class="cs-nota mb-3"><i class="fa-solid fa-circle-info"></i> ' + (r.reenviable
                         ? 'Si el cliente no lo encuentra (revise también spam), se puede reenviar igual hasta el ' + correoSeguimiento.fecha(r.reenviable_hasta) + '.'
-                        : 'Ya no se puede reenviar igual (sus adjuntos se borraron): ármalo de nuevo desde el comparativo.') + '</p>';
+                        : 'Ya no se puede reenviar igual: sus adjuntos no se guardaron (los correos enviados antes de esta actualización no los guardaban) o pasaron los 30 días. Ármalo de nuevo desde el comparativo.') + '</p>';
                 }
                 html += '<h6 class="cs-subtitulo">Correo tal como se armó</h6>';
                 $('#csDetalleCuerpo').html(html).append($('<iframe class="cs-vista" title="Vista del correo" sandbox></iframe>').attr('srcdoc', r.html || '<p style="font-family:sans-serif;color:#888">Sin cuerpo guardado.</p>'));

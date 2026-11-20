@@ -8,12 +8,12 @@
 {% endblock %}
 
 {% block assets_list %}
-    <link rel="stylesheet" href="{% static 'correo_seguimiento/css/seguimiento.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'correo_seguimiento/css/seguimiento.css' %}?v=4">
     <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
     {{ permisos|json_script:"csPermisos" }}
     <script>var csComparativo = '{{ url_comparativo }}';</script>
-    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=6"></script>
+    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=7"></script>
 {% endblock %}
 
 {% block ayuda %}

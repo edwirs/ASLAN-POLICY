@@ -27,3 +27,6 @@
 .actions-dropdown-menu .dropdown-item:hover, .actions-dropdown-menu .dropdown-item:focus { background-color: #f1f3f5; }
 .actions-dropdown-menu .dropdown-item i { width: 18px; text-align: center; font-size: .95rem; }
 .actions-dropdown-menu .dropdown-divider { margin: .3rem .2rem; }
+.actions-dropdown-menu .cs-item-no { align-items: flex-start; max-width: 270px; white-space: normal; opacity: .75; }
+.actions-dropdown-menu .cs-item-no i { margin-top: .2rem; }
+.actions-dropdown-menu .cs-item-no small { font-size: .76rem; line-height: 1.25; margin-top: .15rem; }

@@ -389,11 +389,26 @@ class MapfreBot(RegistroErrorMixin):
     def PRODUCTO_DESTACADO(self):
         return self.parametro('producto_destacado')
 
-    def _marco(self, page):
-        marco = page.frame(name='iFramePpal')
-        if marco is None:
-            raise BotPortalError('Mapfre no cargó el área de trabajo (iFramePpal) del portal.')
-        return marco
+    def _marco(self, page, segundos=60):
+        """El área de trabajo del portal (iframe «iFramePpal»). Se espera a que exista y tenga contenido: visto con PZN662
+        (2026-11-20) que justo después del código el menú abre con el centro en blanco unos segundos y el bot, que lo
+        buscaba al instante, fallaba aunque el portal sí iba a cargarlo."""
+        fin = time.time() + segundos
+        while True:
+            marco = page.frame(name='iFramePpal')
+            if marco is not None:
+                try:
+                    if marco.url not in ('', 'about:blank') and (marco.evaluate("document.body ? document.body.innerText.trim().length : 0") or 0) > 0:
+                        return marco
+                except Exception:
+                    pass  # el iframe se está recargando: se vuelve a buscar
+            if time.time() >= fin:
+                break
+            page.wait_for_timeout(1000)
+        raise BotPortalError(
+            f'Mapfre no cargó el área de trabajo del portal (iFramePpal) en {segundos} segundos: la página quedó en blanco.',
+            accion='Reenvíe la solicitud a Mapfre: suele ser lentitud del portal. Si se repite, entre a mano al portal y '
+                   'revise si el menú «Cotización Emisión» carga.')
 
     @property
     def es_empresa(self):
