@@ -275,6 +275,7 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
         solo = '?solo_diferencias=1' if request.GET.get('solo_diferencias') == '1' else ''
         enviados = [self._enviado(c) for c in CorreoEnviado.objects.filter(vehiculo=vehiculo).select_related('enviado_por')[:5]]
         en_horario = horario_habil.en_horario()
+        envios = correo.envios_de(vehiculo.pk)
         return JsonResponse({
             'plantillas': [{'id': p.pk, 'nombre': p.nombre, 'predeterminada': p.predeterminada}
                            for p in PlantillaCorreo.objects.filter(is_active=True, tipo_seguro='autos').order_by('-predeterminada', 'nombre')],
@@ -284,7 +285,11 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
             'cc': ', '.join(armado['cc']),
             'asunto': armado['asunto'],
             'html': armado['html'],
-            'avisos': armado['avisos'],
+            'avisos': armado['avisos'] + ([f'Esta cotización ya tiene {envios} correos enviados o pendientes de envío: es el máximo '
+                                            f'({correo.MAX_ENVIOS_POR_COTIZACION}), no se puede enviar otro.']
+                                           if envios >= correo.MAX_ENVIOS_POR_COTIZACION else []),
+            'envios': envios,
+            'max_envios': correo.MAX_ENVIOS_POR_COTIZACION,
             'adjunto': armado['adjunto'],
             'cotizaciones': [{k: v for k, v in c.items() if k != 'documento'} for c in armado['cotizaciones']],
             'pdf_url': reverse('vehiculo_comparativo_pdf', args=[vehiculo.pk]) + solo,
@@ -323,6 +328,9 @@ class ComparativoCorreoView(StrictPermissionMixin, View):
         plantilla = correo.plantilla_para(vehiculo, request.POST.get('plantilla'))
         if plantilla is None:
             return JsonResponse({'error': 'No hay plantillas de correo activas.'}, status=400)
+        if correo.envios_de(vehiculo.pk) >= correo.MAX_ENVIOS_POR_COTIZACION:  # antes de armar los PDF (se vuelve a revisar al guardar)
+            return JsonResponse({'error': f'Esta cotización ya tiene {correo.MAX_ENVIOS_POR_COTIZACION} correos enviados o pendientes '
+                                          'de envío, que es el máximo. Revise en Cotizador › Seguimiento de correos si alguno sobra y cancélelo.'}, status=400)
         try:
             pdf = None
             if plantilla.adjuntar_pdf:

@@ -24,6 +24,7 @@ from django.core.files.base import ContentFile
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.core.mail.message import SafeMIMEMultipart
 from django.core.validators import validate_email
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -60,7 +61,7 @@ VARIABLES_CORREO = ('correo_cliente', 'correo_asesor')
 
 # Las tablas van compactas y centradas (el texto sí ocupa todo el ancho del correo).
 ANCHO_TABLAS = 600
-ANCHO_PROMOCION = 240  # la imagen de la promoción (logo), centrada sobre el texto
+ANCHO_PROMOCION = 540  # la imagen de la promoción, centrada sobre el texto (las tablas miden 600; en el celular se achica)
 ANCHO_FIRMA = 380      # la firma, más angosta que las tablas (600) para que no domine el correo
 # Colores del comparativo (comparativo.css), para que el correo se vea como el «Ranking de valores».
 TEXTO = '#0f172a'
@@ -747,6 +748,10 @@ MINUTOS_REINTENTO = 5
 DIAS_ADJUNTOS_ERROR = 3
 # Los de un correo enviado se guardan estos días para «Reenviar» (el cliente no lo encuentra) y después se borran.
 DIAS_ADJUNTOS_ENVIADO = 30
+# Máximo de correos por cotización (vehículo): cuentan los enviados y los pendientes de envío; los cancelados y los que
+# fallaron no (pero reintentar uno que falló sí pide cupo, porque saldría).
+MAX_ENVIOS_POR_COTIZACION = 5
+ESTADOS_QUE_CUENTAN = ('programado', 'enviando', 'enviado')
 
 
 def _falla_pasajera(error):
@@ -754,6 +759,21 @@ def _falla_pasajera(error):
         return False
     return isinstance(error, (socket.timeout, TimeoutError, ConnectionError, smtplib.SMTPServerDisconnected,
                               smtplib.SMTPConnectError, OSError))
+
+
+def envios_de(vehiculo_id):
+    """Cuántos correos de la cotización cuentan para el límite (enviados y pendientes de envío)."""
+    return CorreoEnviado.objects.filter(vehiculo_id=vehiculo_id, estado__in=ESTADOS_QUE_CUENTAN).count()
+
+
+def _exigir_cupo(vehiculo_id):
+    """Lanza CorreoError si la cotización ya llegó al límite. Llamar dentro de transaction.atomic(): bloquea el vehículo
+    para que dos envíos a la vez no pasen los dos el límite."""
+    modelo = CorreoEnviado._meta.get_field('vehiculo').related_model
+    list(modelo.objects.select_for_update().filter(pk=vehiculo_id).values_list('pk', flat=True))
+    if envios_de(vehiculo_id) >= MAX_ENVIOS_POR_COTIZACION:
+        raise CorreoError(f'Esta cotización ya tiene {MAX_ENVIOS_POR_COTIZACION} correos enviados o pendientes de envío, '
+                          'que es el máximo. Revise en Cotizador › Seguimiento de correos si alguno sobra y cancélelo.')
 
 
 def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None, renovacion_pdf=None):
@@ -790,12 +810,14 @@ def programar(plantilla, vehiculo, usuario, para, cc, asunto, pdf=None, renovaci
         elif cotizacion['renovacion'] and renovacion_pdf:
             adjuntos.append((cotizacion['archivo'], renovacion_pdf))
 
-    registro = CorreoEnviado.objects.create(
-        vehiculo=vehiculo, plantilla=plantilla, cuenta=cuenta, remitente=cuenta.remitente[:200],
-        para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=asunto[:300],
-        adjunto=', '.join(nombre for nombre, _ in adjuntos)[:150], enviado_por=usuario, estado='programado',
-        html=correo['html'], texto=correo['texto'], imagenes=[list(i) for i in correo['imagenes']],
-        cotizaciones_portal=del_portal, programado_para=horario_habil.siguiente_hora_habil())
+    with transaction.atomic():
+        _exigir_cupo(vehiculo.pk)
+        registro = CorreoEnviado.objects.create(
+            vehiculo=vehiculo, plantilla=plantilla, cuenta=cuenta, remitente=cuenta.remitente[:200],
+            para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=asunto[:300],
+            adjunto=', '.join(nombre for nombre, _ in adjuntos)[:150], enviado_por=usuario, estado='programado',
+            html=correo['html'], texto=correo['texto'], imagenes=[list(i) for i in correo['imagenes']],
+            cotizaciones_portal=del_portal, programado_para=horario_habil.siguiente_hora_habil())
     for orden, (nombre, contenido) in enumerate(adjuntos):
         adjunto = CorreoAdjunto(correo=registro, nombre=nombre[:150], orden=orden)
         adjunto.archivo.save('adjunto.pdf', ContentFile(contenido), save=True)
@@ -945,9 +967,11 @@ def reintentar(registro, usuario):
         raise CorreoError(f'Los adjuntos de este correo ya se borraron (se guardan {DIAS_ADJUNTOS_ERROR} días después de '
                           'fallar). Ármelo de nuevo desde el comparativo del vehículo.')
     cuando = horario_habil.siguiente_hora_habil()
-    if not CorreoEnviado.objects.filter(pk=registro.pk, estado='error').update(estado='programado', programado_para=cuando,
-                                                                             intentos=0, error=''):
-        raise CorreoError('Ese correo ya no está con error (alguien lo reintentó o canceló).')
+    with transaction.atomic():
+        _exigir_cupo(registro.vehiculo_id)
+        if not CorreoEnviado.objects.filter(pk=registro.pk, estado='error').update(estado='programado', programado_para=cuando,
+                                                                                 intentos=0, error=''):
+            raise CorreoError('Ese correo ya no está con error (alguien lo reintentó o canceló).')
     registro.refresh_from_db()
     if horario_habil.en_horario():
         enviar_registro(registro)
@@ -980,11 +1004,13 @@ def reenviar(registro, para, cc, usuario):
     lista_para, lista_cc = destinatarios(para, {}), destinatarios(cc, {})
     if not lista_para:
         raise CorreoError('Escriba al menos un correo en «Para».')
-    nuevo = CorreoEnviado.objects.create(
-        vehiculo=registro.vehiculo, plantilla=registro.plantilla, cuenta=cuenta, remitente=registro.remitente,
-        para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=registro.asunto, adjunto=registro.adjunto,
-        enviado_por=usuario, estado='programado', html=registro.html, texto=registro.texto, imagenes=registro.imagenes,
-        cotizaciones_portal=registro.cotizaciones_portal, programado_para=horario_habil.siguiente_hora_habil())
+    with transaction.atomic():
+        _exigir_cupo(registro.vehiculo_id)
+        nuevo = CorreoEnviado.objects.create(
+            vehiculo=registro.vehiculo, plantilla=registro.plantilla, cuenta=cuenta, remitente=registro.remitente,
+            para=', '.join(lista_para)[:500], cc=', '.join(lista_cc)[:500], asunto=registro.asunto, adjunto=registro.adjunto,
+            enviado_por=usuario, estado='programado', html=registro.html, texto=registro.texto, imagenes=registro.imagenes,
+            cotizaciones_portal=registro.cotizaciones_portal, programado_para=horario_habil.siguiente_hora_habil())
     for original in registro.adjuntos.all():
         with original.archivo.open('rb') as archivo:
             contenido = archivo.read()

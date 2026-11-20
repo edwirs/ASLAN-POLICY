@@ -40,17 +40,21 @@ var correoSeguimiento = {
     // Acciones que aplican a este correo según su estado y el perfil. [accion, icono, texto, color del ícono]
     acciones: function (r) {
         var p = correoSeguimiento.permisos, lista = [];
+        // Límite de correos por cotización (enviados + pendientes): al llegar, no se reenvía ni se reintenta.
+        var lleno = r.envios >= r.max_envios, limite = 'No disponible: esta cotización ya tiene ' + r.max_envios + ' correos (el máximo).';
         if (r.estado === 'programado') {
             if (p.enviar_ahora) { lista.push(['enviar_ahora', 'fa-paper-plane', 'Enviar ahora', 'text-success']); }
             if (p.reprogramar) { lista.push(['reprogramar', 'fa-calendar-days', 'Reprogramar', 'text-primary']); }
             if (p.destinatarios) { lista.push(['destinatarios', 'fa-at', 'Corregir destinatarios', 'text-primary']); }
             if (p.cancelar) { lista.push(['cancelar', 'fa-ban', 'Cancelar envío', 'text-danger']); }
         } else if (r.estado === 'enviado') {
-            if (p.reenviar && r.reenviable) { lista.push(['reenviar', 'fa-share', 'Reenviar', 'text-primary']); }
-            // Sin adjuntos guardados no se puede: se muestra en gris con el porqué (si no, parece falta de permiso).
-            else if (p.reenviar) { lista.push(['', 'fa-share', 'Reenviar', 'text-muted', 'No disponible: sus adjuntos ya no se guardan. Envíelo de nuevo desde el comparativo.']); }
+            // Si no se puede, se muestra en gris con el porqué (si no, parece falta de permiso).
+            if (p.reenviar && !r.reenviable) { lista.push(['', 'fa-share', 'Reenviar', 'text-muted', 'No disponible: sus adjuntos ya no se guardan. Envíelo de nuevo desde el comparativo.']); }
+            else if (p.reenviar && lleno) { lista.push(['', 'fa-share', 'Reenviar', 'text-muted', limite]); }
+            else if (p.reenviar) { lista.push(['reenviar', 'fa-share', 'Reenviar', 'text-primary']); }
         } else if (r.estado === 'error') {
-            if (p.reintentar && !r.sin_adjuntos) { lista.push(['reintentar', 'fa-rotate-right', 'Reintentar', 'text-success']); }
+            if (p.reintentar && !r.sin_adjuntos && lleno) { lista.push(['', 'fa-rotate-right', 'Reintentar', 'text-muted', limite]); }
+            else if (p.reintentar && !r.sin_adjuntos) { lista.push(['reintentar', 'fa-rotate-right', 'Reintentar', 'text-success']); }
             if (p.destinatarios) { lista.push(['destinatarios', 'fa-at', 'Corregir destinatarios', 'text-primary']); }
         }
         return lista;
@@ -116,7 +120,7 @@ var correoSeguimiento = {
                 {data: 'placa', responsivePriority: 1},
                 {data: 'cliente', responsivePriority: 4},
                 {data: 'para', responsivePriority: 5},
-                {data: 'asunto', responsivePriority: 6},
+                {data: 'envios', responsivePriority: 6, className: 'text-center'},
                 {data: 'estado_nombre', responsivePriority: 1},
                 {data: 'por', responsivePriority: 7},
                 {data: null, orderable: false, searchable: false, responsivePriority: 3},
@@ -124,12 +128,22 @@ var correoSeguimiento = {
             columnDefs: [
                 {targets: [0], render: function (data, type) { return type === 'display' ? correoSeguimiento.fecha(data) : data; }},
                 {targets: [1], render: function (data, type) { return type === 'display' ? '<b>' + correoSeguimiento.esc(data) + '</b>' : data; }},
-                {targets: [2, 4, 6], render: function (data, type) { return type === 'display' ? correoSeguimiento.esc(data) : data; }},
+                {targets: [2, 6], render: function (data, type) { return type === 'display' ? correoSeguimiento.esc(data) : data; }},
                 {
                     targets: [3],
                     render: function (data, type, row) {
                         if (type !== 'display') { return data + ' ' + (row.cc || ''); }
                         return correoSeguimiento.esc(data) + (row.cc ? '<div class="cs-nota">CC ' + correoSeguimiento.esc(row.cc) + '</div>' : '');
+                    }
+                },
+                {
+                    targets: [4],
+                    render: function (data, type, row) {
+                        if (type !== 'display') { return data; }
+                        var lleno = data >= row.max_envios;
+                        return '<span class="badge rounded-pill ' + (lleno ? 'bg-danger' : 'bg-secondary') + '" data-bs-toggle="tooltip" title="' +
+                            (lleno ? 'Llegó al máximo: no se pueden enviar más correos de esta cotización' :
+                             'Correos de esta cotización enviados o pendientes de envío (máximo ' + row.max_envios + ')') + '">' + data + ' de ' + row.max_envios + '</span>';
                     }
                 },
                 {
@@ -231,16 +245,10 @@ var correoSeguimiento = {
             correoSeguimiento.confirmar('¿Reintentar el envío?', 'Se vuelve a enviar el mismo correo a ' + quien +
                 '. Fuera del horario hábil queda pendiente para la siguiente hora hábil.' + duda, 'Sí, reintentar', '#198754',
                 function () { correoSeguimiento.enviar('reintentar', id); });
-        } else if (accion === 'destinatarios' || accion === 'reenviar') {
-            // La misma ventana sirve para corregir los destinatarios y para elegir a quién reenviar.
-            var reenvio = accion === 'reenviar';
+        } else if (accion === 'reenviar') {
+            correoSeguimiento.abrirReenvio(r);
+        } else if (accion === 'destinatarios') {
             correoSeguimiento.editando = id;
-            correoSeguimiento.modoDestinatarios = accion;
-            $('#csDestTitulo').html(reenvio ? '<i class="fa-solid fa-share"></i> Reenviar correo' : '<i class="fa-solid fa-at"></i> Corregir destinatarios');
-            $('#csDestAyuda').text(reenvio
-                ? 'Se envía otra vez el mismo correo (asunto, texto y adjuntos). Puede cambiar o agregar destinatarios. Fuera del horario hábil queda pendiente.'
-                : 'Varios correos se separan con coma.');
-            $('#csGuardarDestinatarios').html(reenvio ? '<i class="fa-solid fa-share"></i> Reenviar' : '<i class="fa-solid fa-floppy-disk"></i> Guardar');
             $('#csPara').val(r.para);
             $('#csCc').val(r.cc);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('csModalDestinatarios')).show();
@@ -250,6 +258,42 @@ var correoSeguimiento = {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('csModalReprogramar')).show();
         }
     }
+};
+
+// «Reenviar»: casillas con los correos registrados del cliente (puede tener dos) y los del envío anterior, marcadas
+// las que recibieron el correo; y una casilla que habilita un campo para otro correo que indique el cliente.
+correoSeguimiento.separar = function (texto) {
+    return (texto || '').split(/[,;\s]+/).map(function (c) { return c.trim(); }).filter(Boolean);
+};
+
+correoSeguimiento.abrirReenvio = function (r) {
+    var e = $.fn.dataTable.render.text().display, anteriores = correoSeguimiento.separar(r.para), vistos = {}, casillas = [];
+    var agregar = function (correo, nota) {
+        var clave = correo.toLowerCase();
+        if (vistos[clave]) { return; }
+        vistos[clave] = true;
+        var marcado = anteriores.some(function (a) { return a.toLowerCase() === clave; }), n = casillas.length;
+        casillas.push('<div class="form-check"><input class="form-check-input cs-re-correo" type="checkbox" id="csReC' + n + '" value="' + e(correo) + '"' +
+            (marcado ? ' checked' : '') + '><label class="form-check-label" for="csReC' + n + '">' + e(correo) +
+            (nota ? ' <small class="text-muted">(' + nota + ')</small>' : '') + '</label></div>');
+    };
+    (r.correos_cliente || []).forEach(function (c) { agregar(c, ''); });
+    anteriores.forEach(function (c) { agregar(c, 'del envío anterior'); });
+    correoSeguimiento.editando = r.id;
+    $('#csRePlaca').text(r.placa);
+    $('#csReCorreos').html(casillas.length ? casillas.join('')
+        : '<p class="text-muted small mb-0">El cliente no tiene correos registrados: escriba el correo abajo.</p>');
+    var sinCasillas = !casillas.length;
+    $('#csReOtroCheck').prop('checked', sinCasillas);
+    $('#csReOtro').val('').prop('disabled', !sinCasillas);
+    $('#csReCc').val(r.cc);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('csModalReenviar')).show();
+};
+
+correoSeguimiento.paraReenvio = function () {
+    var para = $('#csReCorreos .cs-re-correo:checked').map(function () { return this.value; }).get();
+    if ($('#csReOtroCheck').is(':checked')) { para = para.concat(correoSeguimiento.separar($('#csReOtro').val())); }
+    return para;
 };
 
 $.fn.dataTable.ext.search.push(function (settings, datos, indice) {
@@ -287,8 +331,17 @@ $(function () {
         correoSeguimiento.accion(accion, id);
     });
     $('#csGuardarDestinatarios').on('click', function () {
-        correoSeguimiento.enviar(correoSeguimiento.modoDestinatarios || 'destinatarios', correoSeguimiento.editando,
-                                 {para: $('#csPara').val(), cc: $('#csCc').val()}, $(this));
+        correoSeguimiento.enviar('destinatarios', correoSeguimiento.editando, {para: $('#csPara').val(), cc: $('#csCc').val()}, $(this));
+    });
+    $('#csReOtroCheck').on('change', function () {
+        $('#csReOtro').prop('disabled', !this.checked);
+        if (this.checked) { $('#csReOtro').trigger('focus'); }
+    });
+    $('#csReEnviar').on('click', function () {
+        if ($('#csReOtroCheck').is(':checked') && !$.trim($('#csReOtro').val())) { return message_error('Escriba el otro correo o desmarque esa casilla.'); }
+        var para = correoSeguimiento.paraReenvio();
+        if (!para.length) { return message_error('Marque al menos un correo del cliente o escriba otro.'); }
+        correoSeguimiento.enviar('reenviar', correoSeguimiento.editando, {para: para.join(', '), cc: $('#csReCc').val()}, $(this));
     });
     $('#csGuardarReprogramar').on('click', function () {
         if (!$('#csMomento').val()) { return message_error('Elija la fecha y la hora.'); }

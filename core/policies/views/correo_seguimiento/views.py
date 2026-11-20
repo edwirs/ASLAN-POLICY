@@ -11,7 +11,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.gzip import gzip_page
 from django.views.generic import TemplateView
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 
 from core.policies.models import CorreoAdjunto, CorreoEnviado
 from core.policies.services import correo, horario_habil
@@ -48,7 +48,23 @@ def _usuario(usuario):
     return (usuario.names or usuario.username) if usuario else ''
 
 
-def _fila(c):
+def _correos_cliente(tomador):
+    correos = []
+    for valor in ((tomador.email, tomador.email_secundario) if tomador else ()):
+        for parte in re.split(r'[,;\s]+', valor or ''):
+            if parte and parte.lower() not in [x.lower() for x in correos]:
+                correos.append(parte)
+    return correos
+
+
+def _envios_por_vehiculo(ids):
+    """{vehiculo_id: correos que cuentan para el límite}, en una sola consulta."""
+    filas = (CorreoEnviado.objects.filter(vehiculo_id__in=set(ids), estado__in=correo.ESTADOS_QUE_CUENTAN)
+             .order_by().values('vehiculo_id').annotate(n=Count('id')))  # sin order_by el orden del modelo parte el GROUP BY
+    return {f['vehiculo_id']: f['n'] for f in filas}
+
+
+def _fila(c, envios=None):
     grupo, nombre, color = ESTADOS.get(c.estado, ('todos', c.get_estado_display(), 'secondary'))
     tomador = c.vehiculo.tomador
     return {
@@ -57,6 +73,11 @@ def _fila(c):
         'placa': c.vehiculo.placa,
         'vehiculo_id': c.vehiculo_id,
         'cliente': tomador.names if tomador else '',
+        # Los correos que el cliente tiene registrados (Email y Otro correo): para elegir a cuáles reenviar.
+        'correos_cliente': _correos_cliente(tomador),
+        # Correos de la cotización que cuentan para el límite (enviados y pendientes) y el máximo.
+        'envios': (envios if envios is not None else _envios_por_vehiculo([c.vehiculo_id])).get(c.vehiculo_id, 0),
+        'max_envios': correo.MAX_ENVIOS_POR_COTIZACION,
         'para': c.para,
         'cc': c.cc,
         'asunto': c.asunto,
@@ -105,7 +126,9 @@ class CorreoSeguimientoView(StrictPermissionMixin, TemplateView):
                 correos = (CorreoEnviado.objects.select_related('vehiculo__tomador', 'enviado_por', 'cuenta')
                            .annotate(tiene_adjuntos=Exists(CorreoAdjunto.objects.filter(correo=OuterRef('pk'))))
                            .order_by('-created_at', '-id'))
-                data = [_fila(c) for c in correos]
+                correos = list(correos)
+                envios = _envios_por_vehiculo([c.vehiculo_id for c in correos])
+                data = [_fila(c, envios) for c in correos]
             elif accion == 'detalle':
                 c = (CorreoEnviado.objects.select_related('vehiculo__tomador', 'enviado_por', 'cuenta')
                      .annotate(tiene_adjuntos=Exists(CorreoAdjunto.objects.filter(correo=OuterRef('pk')))).get(pk=request.POST.get('id')))
@@ -173,4 +196,5 @@ class CorreoSeguimientoView(StrictPermissionMixin, TemplateView):
         # Enlace al comparativo del vehículo (desde ahí se arma y se reenvía el correo).
         context['url_comparativo'] = (reverse('vehiculo_comparativo', args=[0]) if user.has_perm('policies.view_comparativo') else '')
         context['horario'] = horario_habil.texto_horario()
+        context['max_envios'] = correo.MAX_ENVIOS_POR_COTIZACION
         return context

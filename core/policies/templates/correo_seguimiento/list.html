@@ -8,12 +8,12 @@
 {% endblock %}
 
 {% block assets_list %}
-    <link rel="stylesheet" href="{% static 'correo_seguimiento/css/seguimiento.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'correo_seguimiento/css/seguimiento.css' %}?v=5">
     <link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.css' %}">
     <script src="{% static 'lib/adminlte-3.2.0/plugins/toastr/toastr.min.js' %}"></script>
     {{ permisos|json_script:"csPermisos" }}
     <script>var csComparativo = '{{ url_comparativo }}';</script>
-    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=7"></script>
+    <script src="{% static 'correo_seguimiento/js/list.js' %}?v=9"></script>
 {% endblock %}
 
 {% block ayuda %}
@@ -23,6 +23,7 @@
     Según tu perfil, en <b>Acciones</b> puedes: a un pendiente, cancelarlo, enviarlo ya, corregir sus destinatarios o
     reprogramarlo; a uno con error, corregir los destinatarios y reintentarlo (sus adjuntos se guardan 3 días después de fallar);
     a uno enviado que el cliente no encuentra, reenviarlo igual (durante 30 días después de enviado).
+    En <b>Envíos</b> se ve cuántos correos lleva la cotización (enviados y pendientes): el máximo es {{ max_envios }} por cotización.
 {% endblock %}
 
 {% block content_list %}
@@ -72,6 +73,33 @@
         </div>
     </div>
 
+    <div class="modal fade" id="csModalReenviar" tabindex="-1" aria-labelledby="csReTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="csReTitulo"><i class="fa-solid fa-share"></i> Reenviar correo de <b id="csRePlaca"></b></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Se envía otra vez el mismo correo (asunto, texto y adjuntos). Fuera del horario hábil ({{ horario }}) queda pendiente para la siguiente hora hábil.</p>
+                    <div class="fw-bold mb-1">Correos del cliente</div>
+                    <div id="csReCorreos" class="cs-re-correos mb-3"></div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="csReOtroCheck">
+                        <label class="form-check-label" for="csReOtroCheck">Enviar a otro correo que indique el cliente</label>
+                    </div>
+                    <input type="text" class="form-control mb-3" id="csReOtro" maxlength="500" placeholder="otro@correo.com (varios, separados con coma)" disabled>
+                    <label class="form-label fw-bold" for="csReCc">CC</label>
+                    <input type="text" class="form-control" id="csReCc" maxlength="500" placeholder="Opcional">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="csReEnviar"><i class="fa-solid fa-share"></i> Reenviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="csModalReprogramar" tabindex="-1" aria-labelledby="csRepTitulo" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -98,7 +126,7 @@
     <th>Placa</th>
     <th>Cliente</th>
     <th>Para</th>
-    <th>Asunto</th>
+    <th class="text-center">Envíos</th>
     <th>Estado</th>
     <th>Enviado por</th>
     <th class="no-sort text-center" style="width:70px;">Acciones</th>
